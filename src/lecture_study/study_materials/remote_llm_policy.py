@@ -69,11 +69,19 @@ class RegistryRemoteEgressPolicy:
 
     def _remote_allowed_local_ids(self) -> frozenset[str]:
         self.require_consistent_sources()
-        return frozenset(
-            lecture.lecture_id
-            for lecture in self._registered_lectures()
-            if lecture.remote_llm_allowed
-        )
+        flags_by_id: dict[str, list[bool]] = {}
+        for lecture in self._registered_lectures():
+            flags_by_id.setdefault(lecture.lecture_id, []).append(
+                lecture.remote_llm_allowed
+            )
+        duplicated = sorted(i for i, flags in flags_by_id.items() if len(flags) > 1)
+        if duplicated:
+            raise GatewayConfigurationError(
+                "the local lecture registry lists ids more than once: "
+                + ", ".join(duplicated)
+                + "; remote clearance is refused until each id has one row"
+            )
+        return frozenset(i for i, flags in flags_by_id.items() if all(flags))
 
     def _registered_lectures(self) -> tuple[LocalLecture, ...]:
         if self._local_lectures is None:

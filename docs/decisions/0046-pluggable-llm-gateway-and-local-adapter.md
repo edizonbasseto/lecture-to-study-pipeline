@@ -300,6 +300,10 @@ registry does not win. Egress stays fail closed. The accepted consequence is
 that a run selecting codex stops until the duplicate list entry is removed,
 even for an unrelated lecture.
 
+A registry that lists one lecture identifier in more than one row is invalid:
+the loader rejects it with a typed error, and the policy independently refuses
+remote egress for such an identifier whatever the flags say (fail closed).
+
 Detecting patient-identifying data stays the operator's responsibility. The
 flag is the operator's recorded verification that the lecture carries none;
 no technical control inspects content. The retention and training terms of the

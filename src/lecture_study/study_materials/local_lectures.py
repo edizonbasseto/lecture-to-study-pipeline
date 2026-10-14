@@ -12,7 +12,7 @@ deploy never syncs, unless its row explicitly carries `publish: true`.
 
 from __future__ import annotations
 
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from datetime import date
@@ -139,13 +139,26 @@ def load_local_lectures(path: Path = LOCAL_LECTURES_PATH) -> list[LocalLecture]:
         payload = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
         if not isinstance(payload, dict):
             raise LocalLectureError("raiz do arquivo deve ser um mapa")
-        return _LOCAL_LECTURES_ADAPTER.validate_python(
+        lectures = _LOCAL_LECTURES_ADAPTER.validate_python(
             payload.get("lectures", []), strict=False
         )
+        _require_unique_lecture_ids(lectures)
+        return lectures
     except (yaml.YAMLError, ValidationError, UnicodeDecodeError) as error:
         raise LocalLectureError(f"aulas locais inválidas em {path}: {error}") from error
     except LocalLectureError as error:
         raise LocalLectureError(f"aulas locais inválidas em {path}: {error}") from error
+
+
+def _require_unique_lecture_ids(lectures: list[LocalLecture]) -> None:
+    """Reject a registry that lists one id twice: its clearance flags could disagree."""
+
+    counts = Counter(item.lecture_id for item in lectures)
+    duplicated = sorted(lecture_id for lecture_id, n in counts.items() if n > 1)
+    if duplicated:
+        raise LocalLectureError(
+            "ids de aula local repetidos no arquivo: " + ", ".join(duplicated)
+        )
 
 
 def unpublished_lecture_ids(lectures: list[LocalLecture]) -> frozenset[str]:

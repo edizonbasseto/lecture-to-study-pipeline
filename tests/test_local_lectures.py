@@ -238,6 +238,28 @@ def test_malformed_metadata_yaml_is_reported_cleanly(paths, content) -> None:
         load_local_lectures(paths["metadata"])
 
 
+@pytest.mark.parametrize("flags", [(True, False), (False, True), (False, False)])
+def test_duplicate_lecture_ids_are_rejected_by_the_loader(
+    paths, flags: tuple[bool, bool]
+) -> None:
+    rows = [
+        {
+            "lecture_id": "925101",
+            "title": "Aula",
+            "discipline": "Disciplina A",
+            "section": "Videoaulas locais",
+            "scheduled_date": "2025-09-01",
+            "remote_llm_allowed": flag,
+        }
+        for flag in flags
+    ]
+    paths["metadata"].parent.mkdir()
+    paths["metadata"].write_text(yaml.safe_dump({"lectures": rows}))
+
+    with pytest.raises(LocalLectureError, match="repetidos.*925101"):
+        load_local_lectures(paths["metadata"])
+
+
 def test_load_returns_empty_when_file_absent(tmp_path: Path) -> None:
     assert load_local_lectures(tmp_path / "missing.yaml") == []
 

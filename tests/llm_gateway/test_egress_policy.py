@@ -16,6 +16,8 @@ from lecture_study.llm.gateway import (
     RemoteEgressRefusedError,
     Stage,
 )
+from lecture_study.study_materials import remote_llm_policy
+from lecture_study.study_materials.local_lectures import LocalLecture
 from lecture_study.study_materials.remote_llm_policy import RegistryRemoteEgressPolicy
 
 FLAGGED_LOCAL_ID = "925101"
@@ -174,3 +176,33 @@ def test_consistency_check_on_a_missing_registry_passes(tmp_path: Path) -> None:
     _policy(
         tmp_path / "absent.yaml", portal_ids=(PORTAL_ID,)
     ).require_consistent_sources()
+
+
+@pytest.mark.parametrize("flags", [(True, False), (False, True), (True, True)])
+def test_duplicate_registry_rows_never_allow_remote_egress(
+    tmp_path: Path, flags: tuple[bool, bool]
+) -> None:
+    path = tmp_path / "duplicated.yaml"
+    rows = [_row(FLAGGED_LOCAL_ID, remote_llm_allowed=flag) for flag in flags]
+    path.write_text(yaml.safe_dump({"lectures": rows}), encoding="utf-8")
+
+    with pytest.raises(GatewayConfigurationError, match="unreadable"):
+        _policy(path).is_remote_allowed(FLAGGED_LOCAL_ID)
+
+
+@pytest.mark.parametrize("flags", [(True, False), (False, True), (True, True)])
+def test_policy_refuses_duplicate_rows_even_if_the_loader_lets_them_through(
+    registry_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    flags: tuple[bool, bool],
+) -> None:
+    rows = [
+        LocalLecture.model_validate(
+            _row(FLAGGED_LOCAL_ID, remote_llm_allowed=flag), strict=False
+        )
+        for flag in flags
+    ]
+    monkeypatch.setattr(remote_llm_policy, "load_local_lectures", lambda path: rows)
+
+    with pytest.raises(GatewayConfigurationError, match=FLAGGED_LOCAL_ID):
+        _policy(registry_path).is_remote_allowed(FLAGGED_LOCAL_ID)
