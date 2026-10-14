@@ -4,11 +4,11 @@
 # downloads the required models. Safe to re-run: skips steps whose target
 # artifact already exists and whose checksum matches the pinned value.
 #
-# ADR 0038 removed the local text-LLM route: llama.cpp is now built only
-# for the llama-mtmd-cli vision-captioning binary (its Qwen3-VL-8B model
-# pair is attested in the actor inventory and was provisioned outside this
-# script), and the qwen2.5-14b shard downloads are gone with the route.
-# The only downloaded model here is Whisper's.
+# ADR 0038 removed the local text route and ADR 0046 reinstates it as the
+# LlamaCppAdapter of the LLM gateway. llama.cpp is built for llama-completion
+# and llama-tokenize (gateway adapter) and llama-mtmd-cli (vision captioning;
+# its Qwen3-VL-8B model pair is attested in the actor inventory and was
+# provisioned outside this script). Whisper's model is always downloaded.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -120,9 +120,20 @@ build_whisper_cpp() {
     build_if_stale "${WHISPER_DIR}" "${WHISPER_DIR}/build/bin/whisper-cli" "${WHISPER_REPO_COMMIT}"
 }
 
+require_llama_binaries() {
+    local binary_name
+    for binary_name in llama-completion llama-tokenize llama-mtmd-cli; do
+        if [ ! -x "${LLAMA_DIR}/build/bin/${binary_name}" ]; then
+            echo "==> FATAL: missing ${binary_name} after the llama.cpp build" >&2
+            exit 1
+        fi
+    done
+}
+
 build_llama_cpp() {
     clone_pinned_commit "https://github.com/ggerganov/llama.cpp.git" "${LLAMA_DIR}" "${LLAMA_REPO_COMMIT}"
-    build_if_stale "${LLAMA_DIR}" "${LLAMA_DIR}/build/bin/llama-cli" "${LLAMA_REPO_COMMIT}"
+    build_if_stale "${LLAMA_DIR}" "${LLAMA_DIR}/build/bin/llama-completion" "${LLAMA_REPO_COMMIT}"
+    require_llama_binaries
 }
 
 download_whisper_model() {
@@ -135,7 +146,37 @@ download_whisper_model() {
     verify_sha256 "${WHISPER_MODEL_FILE}" "${WHISPER_MODEL_SHA256}"
 }
 
+print_usage() {
+    cat <<'USAGE'
+Usage: scripts/01_provision_engines.sh [-h|--help]
+
+Builds the native engines (whisper.cpp, llama.cpp) and downloads Whisper's
+model. Idempotent: steps whose artifact is already in place are skipped.
+
+Options:
+  -h, --help  Show this help text and exit.
+USAGE
+}
+
+parse_arguments() {
+    local argument
+    for argument in "$@"; do
+        case "${argument}" in
+            -h | --help)
+                print_usage
+                exit 0
+                ;;
+            *)
+                echo "==> Unknown argument: ${argument}" >&2
+                print_usage >&2
+                exit 2
+                ;;
+        esac
+    done
+}
+
 main() {
+    parse_arguments "$@"
     install_system_dependencies
     build_whisper_cpp
     build_llama_cpp
