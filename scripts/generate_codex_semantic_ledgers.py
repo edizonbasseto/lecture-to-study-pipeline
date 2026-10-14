@@ -1,16 +1,20 @@
 #!/usr/bin/env python3
 """Generate one lecture's Semantic Ledgers (Phase 5 artifact, ADR 0024's
-uncertified personal-study route) with the Codex CLI (`codex exec`)
-instead of the local qwen3-32b/llama.cpp semantic-extraction worker.
+uncertified personal-study route) through the LLM gateway.
 
-Per ADR 0035: the local route produced a reproducible, content-triggered
-defect on 10006's pack 12 (a Chinese-language JSON key substituted for
-`clinical_context`, plus a JavaScript-style `//` comment appended
-mid-object) that the strict JSON contract parser correctly rejects and
-that the retry attempt reproduced byte-for-byte across three separate
+Stage 5 calls the `LlmGateway` port (ADR 0046); the adapter that serves it
+is chosen by the gateway configuration (Codex CLI by default, the local
+llama.cpp adapter when configured). The Codex route is refused for any
+lecture the operator has not flagged as cleared for remote processing.
+
+Per ADR 0035: the original local route produced a reproducible,
+content-triggered defect on 10006's pack 12 (a Chinese-language JSON key
+substituted for `clinical_context`, plus a JavaScript-style `//` comment
+appended mid-object) that the strict JSON contract parser correctly rejects
+and that the retry attempt reproduced byte-for-byte across three separate
 full-lecture reruns. Codex, billed through the operator's ChatGPT Pro
-subscription rather than the OpenAI API, replaces the local route for
-this phase -- same reasoning ADR 0030 already applied to drafting.
+subscription rather than the OpenAI API, replaced the local route for this
+phase -- same reasoning ADR 0030 already applied to drafting.
 
 Execution is lecture-scoped, matching generate_codex_mock_exam.py's and
 generate_codex_drafts.py's own precedent: this script takes exactly one
@@ -19,45 +23,39 @@ lecture identifier and has no batch mode.
 The extraction instruction mirrors (verbatim; that module was deleted under ADR 0038) the retired semantic/llm_worker.py's own
 `_EXTRACTION_INSTRUCTION` verbatim (same fact-count target/cap, same
 species/negation/comparison preservation rules, same pt-BR requirement)
--- only the invocation backend changes.
+-- only the invocation backend changes. Each run writes a metadata-only
+run record under `workspace/data/llm_runs/<lecture_id>/semantic.json`.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
-import tempfile
 from pathlib import Path
 
-from pydantic import TypeAdapter
+from pydantic import TypeAdapter, ValidationError
 
-from lecture_study.domain.models import EvidencePack, SemanticLedger
+from lecture_study.cli.llm_gateway_wiring import open_stage_gateway
+from lecture_study.domain.models import EvidencePack, SafeIdentifier, SemanticLedger
+from lecture_study.llm import LlmGateway, LlmGatewayError, Stage, complete_json
+from lecture_study.llm.run_record import LLM_RUNS_ROOT, record_llm_run
 from lecture_study.ops.llm_instructions import (
     EXTRACTION_INSTRUCTION as _EXTRACTION_INSTRUCTION,
+)
+from lecture_study.ops.llm_response_contract import (
+    LlmResponseContractError,
+    parse_llm_json_response,
 )
 from lecture_study.ops.semantic_ledger_support import (
     LlmParsingError,
     render_timestamped_transcript as _render_timestamped_transcript,
     validate_traceability as _validate_traceability,
 )
-from lecture_study.ops.llm_response_contract import (
-    LlmResponseContractError,
-    build_bounded_retry_prompt_section,
-    build_llm_retry_feedback,
-    parse_llm_json_response,
-)
-from lecture_study.ops.process_environment import (
-    resolve_trusted_executable,
-    sanitized_child_process_environment,
-)
-from lecture_study.ops.process_lifecycle import run_bounded_process
 
 DEFAULT_PACKS_ROOT = Path("workspace/data/06_evidence_packs")
 DEFAULT_OUTPUT_ROOT = Path("workspace/data/07_semantic_ledgers")
-_SUBPROCESS_TIMEOUT_SECONDS = 900.0
-_MAXIMUM_PROCESS_OUTPUT_BYTES = 16 * 1024 * 1024
+_LECTURE_ID_ADAPTER: TypeAdapter[str] = TypeAdapter(SafeIdentifier)
 _LEDGER_ADAPTER: TypeAdapter[SemanticLedger] = TypeAdapter(SemanticLedger)
 _LEDGER_SCHEMA = json.dumps(SemanticLedger.model_json_schema())
 
@@ -66,72 +64,62 @@ def main() -> int:
     args = _build_argument_parser().parse_args()
     try:
         return _run(args)
-    except (LlmResponseContractError, FileNotFoundError) as error:
+    except (
+        LlmResponseContractError,
+        LlmParsingError,
+        LlmGatewayError,
+        FileNotFoundError,
+        ValidationError,
+    ) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
 
 
 def _run(args: argparse.Namespace) -> int:
-    codex_executable = resolve_trusted_executable(args.codex_executable)
-    environment = dict(sanitized_child_process_environment())
-    # HOME is not on sanitized_child_process_environment()'s inherited
-    # whitelist, but codex needs it to locate its ChatGPT-subscription auth
-    # session under ~/.codex -- same restoration generate_codex_drafts.py
-    # already does, scoped to this one call.
-    home_directory = os.environ.get("HOME")
-    if home_directory is not None:
-        environment["HOME"] = home_directory
-
-    packs = _load_evidence_packs(args.packs_root, args.lecture_id)
-    only_pack_sequence = args.pack_sequence
-
-    output_dir = args.output_root / args.lecture_id
+    lecture_id = _LECTURE_ID_ADAPTER.validate_python(args.lecture_id)
+    packs = _load_evidence_packs(args.packs_root, lecture_id)
+    gateway = open_stage_gateway(
+        Stage.SEMANTIC,
+        lecture_id=lecture_id,
+        codex_executable_override=args.codex_executable,
+    )
+    output_dir = args.output_root / lecture_id
     output_dir.mkdir(parents=True, exist_ok=True)
-
-    for pack in packs:
-        if only_pack_sequence is not None and pack.pack_sequence != only_pack_sequence:
-            continue
-        ledger = _generate_ledger(
-            codex_executable=codex_executable,
-            environment=environment,
-            pack=pack,
-        )
-        output_path = output_dir / f"ledger_{pack.pack_sequence:03d}.json"
-        output_path.write_text(ledger.model_dump_json(indent=2), encoding="utf-8")
-        print(
-            f"pack {pack.pack_sequence}: {len(ledger.facts)} fato(s), "
-            f"escrito em {output_path}"
-        )
+    with record_llm_run(
+        lecture_id=lecture_id,
+        script_stage=Stage.SEMANTIC,
+        schema_name="SemanticLedger",
+        root=args.llm_runs_root,
+    ) as recorder:
+        tracked_gateway = recorder.track(gateway, stage=Stage.SEMANTIC)
+        for pack in _selected_packs(packs, args.pack_sequence):
+            ledger = _generate_ledger(gateway=tracked_gateway, pack=pack)
+            output_path = output_dir / f"ledger_{pack.pack_sequence:03d}.json"
+            output_path.write_text(ledger.model_dump_json(indent=2), encoding="utf-8")
+            print(
+                f"pack {pack.pack_sequence}: {len(ledger.facts)} fato(s), "
+                f"escrito em {output_path}"
+            )
     return 0
 
 
-def _generate_ledger(
-    *,
-    codex_executable: str,
-    environment: dict[str, str],
-    pack: EvidencePack,
-) -> SemanticLedger:
-    prompt = _build_prompt(pack)
-    try:
-        ledger = _call_codex_for_ledger(
-            codex_executable=codex_executable,
-            environment=environment,
-            prompt=prompt,
-        )
-        _validate_traceability(ledger, pack)
-        return ledger
-    except (LlmResponseContractError, LlmParsingError) as error:
-        retry_prompt = prompt + build_bounded_retry_prompt_section(
-            heading="Retry feedback:",
-            feedback=build_llm_retry_feedback(error),
-        )
-        ledger = _call_codex_for_ledger(
-            codex_executable=codex_executable,
-            environment=environment,
-            prompt=retry_prompt,
-        )
-        _validate_traceability(ledger, pack)
-        return ledger
+def _selected_packs(
+    packs: tuple[EvidencePack, ...], only_pack_sequence: int | None
+) -> tuple[EvidencePack, ...]:
+    if only_pack_sequence is None:
+        return packs
+    return tuple(pack for pack in packs if pack.pack_sequence == only_pack_sequence)
+
+
+def _generate_ledger(*, gateway: LlmGateway, pack: EvidencePack) -> SemanticLedger:
+    return complete_json(
+        gateway,
+        stage=Stage.SEMANTIC,
+        prompt=_build_prompt(pack),
+        parse=_parse_ledger,
+        validate=lambda ledger: _validate_traceability(ledger, pack),
+        retry_on=(LlmResponseContractError, LlmParsingError),
+    )
 
 
 def _build_prompt(pack: EvidencePack) -> str:
@@ -148,42 +136,6 @@ def _build_prompt(pack: EvidencePack) -> str:
         "Respond with ONLY the JSON object matching the schema above -- "
         "no explanation, no markdown fences, no extra text, no comments."
     )
-
-
-def _call_codex_for_ledger(
-    *,
-    codex_executable: str,
-    environment: dict[str, str],
-    prompt: str,
-) -> SemanticLedger:
-    # Scratch cwd, never the repository checkout -- same least-privilege
-    # rationale as generate_codex_drafts.py's own _call_codex_for_draft:
-    # the prompt is self-contained, and the repository root holds `.env`.
-    with tempfile.TemporaryDirectory(prefix="codex-semantic-") as raw_scratch_dir:
-        scratch_dir = Path(raw_scratch_dir)
-        output_path = scratch_dir / "response.txt"
-        run_bounded_process(
-            [
-                codex_executable,
-                "exec",
-                "--skip-git-repo-check",
-                "--sandbox",
-                "read-only",
-                "-C",
-                str(scratch_dir),
-                "-o",
-                str(output_path),
-                prompt,
-            ],
-            env=environment,
-            cwd=scratch_dir,
-            timeout_seconds=_SUBPROCESS_TIMEOUT_SECONDS,
-            maximum_stdout_bytes=_MAXIMUM_PROCESS_OUTPUT_BYTES,
-            maximum_stderr_bytes=_MAXIMUM_PROCESS_OUTPUT_BYTES,
-            check=True,
-        )
-        output_bytes = output_path.read_bytes()
-    return _parse_ledger(output_bytes)
 
 
 def _parse_ledger(output_bytes: bytes) -> SemanticLedger:
@@ -211,7 +163,7 @@ def _load_evidence_packs(
 def _build_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Gera os ledgers semânticos de uma aula via Codex CLI (Fase 5, "
+            "Gera os ledgers semânticos de uma aula via gateway LLM (Fase 5, "
             "rota de estudo pessoal não certificada, ADR 0035)."
         )
     )
@@ -224,7 +176,15 @@ def _build_argument_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--packs-root", type=Path, default=DEFAULT_PACKS_ROOT)
     parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
-    parser.add_argument("--codex-executable", default="codex")
+    parser.add_argument(
+        "--codex-executable",
+        default=None,
+        help=(
+            "sobrescreve `codex.executable` da configuração do gateway "
+            "(padrão: o valor da configuração)"
+        ),
+    )
+    parser.add_argument("--llm-runs-root", type=Path, default=LLM_RUNS_ROOT)
     return parser
 
 
