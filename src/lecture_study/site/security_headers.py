@@ -1,8 +1,9 @@
 """Protective response headers for every response the study site sends.
 
-Applied as pure ASGI middleware around the whole app so that early
-refusals (400, 401, 403, 503), the login pages and every static file get
-exactly the same headers -- none of them can return before the headers are
+Applied as a pure ASGI wrapper around the finished app -- outside even
+Starlette's ServerErrorMiddleware -- so that early refusals (400, 401, 403,
+503), unhandled-exception 500s, the login pages and every static file get
+exactly the same headers: none of them can return before the headers are
 added, and no shared module-level Response object is ever mutated.
 
 The Content-Security-Policy admits inline code only by hash. The site's

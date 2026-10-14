@@ -3,8 +3,12 @@
 ## Status
 
 Accepted. Amends ADR 0016 (the `discover` command is removed), ADR 0031 (the
-figure crop default is now no crop), and ADR 0039 (site access decisions and
-hardening). Scopes ADR 0010 to local storage.
+figure crop default is now no crop), ADR 0026 (dotenv resolution of the
+quality trust key), and ADR 0039 (site access decisions and hardening). Scopes
+ADR 0010 to local storage.
+
+ADR numbers 0017 to 0019 are absent from this repository: those records
+described portal acquisition, which is not part of this repository (section 1).
 
 ## Context
 
@@ -55,20 +59,57 @@ identifier appears in the repository.
 
 Three layers keep private terms and secrets out of history:
 
-- **Local hooks** in `.githooks/`: a `pre-commit` hook rejects staged
-  additions (content and file names) that match any term in a private
-  denylist and then runs `gitleaks` on the staged changes; `commit-msg` and
-  `pre-push` hooks apply the same denylist to commit messages and to the
-  commits being pushed. The denylist is kept outside the repository (by
-  default under the user's configuration directory, overridable through
+- **Local hooks** in `.githooks/`, installed with `make hooks`. The target
+  writes thin wrappers into the repository's hooks directory (resolved with
+  `git rev-parse --git-path hooks`, so linked worktrees are covered) that
+  execute the versioned hooks; `core.hooksPath` is not used, and the
+  installed wrappers never go stale when a versioned hook changes. Four hooks
+  are installed:
+  - `pre-commit` rejects staged additions (content and file names) that match
+    any term in a private denylist and then runs `gitleaks` on the staged
+    changes. Binary content is scanned as text, and external diff and
+    textconv drivers are bypassed so no local configuration can hide content.
+  - `pre-merge-commit` applies the same staged-content gate to merge commits,
+    which skip `pre-commit`.
+  - `commit-msg` applies the denylist to the commit message.
+  - `pre-push` scans every commit about to be pushed, whatever hooks did or
+    did not run when those commits were made: content including merge diffs,
+    ref names, tag names and annotated tag messages, author and committer
+    identities, and commit messages, against the denylist and `gitleaks`.
+
+  Every git invocation in the hooks and in CI sets `core.quotePath=false`, so
+  non-ASCII file names reach the scanner as written rather than as octal
+  escapes that would hide a term.
+- **Denylist scanner** (`scripts/denylist_scan.py`), shared by the hooks and
+  CI. The denylist is kept outside the repository (by default under the
+  user's configuration directory, overridable through
   `LECTURE_STUDY_DENYLIST`), because committing it would publish the very
-  terms it protects. A missing or unreadable denylist blocks the commit
-  rather than skipping the check.
-- **CI:** the `secret-scan` job checks out the full history and runs the
-  `gitleaks` action on every push to `main` and every pull request.
-- The hooks are local and bypassable; CI is the backstop for secrets, and the
-  denylist check depends on each contributor installing the hooks
-  (`git config core.hooksPath .githooks`).
+  terms it protects. Terms and text are compared in a folded spelling (NFKD
+  decomposition, case folding, accents stripped) and in a separator-squashed
+  spelling of that folded text. The squashed comparison is limited to a
+  window of each line joined with the next, so a term split across a line
+  break is still caught without matching letters gathered from unrelated,
+  distant text. The same comparisons also run over a percent-decoded and
+  HTML-unescaped copy of the text, so an encoded spelling does not slip
+  through. A match is reported by denylist line number only, never by the
+  term, so a failure never echoes a protected term into a terminal or a CI
+  log. A missing, unreadable, or empty denylist fails the scan rather than
+  skipping it.
+- **CI** (`.github/workflows/ci.yml`), on every push to `main` and every pull
+  request:
+  - `secret-scan` checks out the full history and runs the `gitleaks` action.
+  - `denylist-scan` writes the `DENYLIST` repository secret to a temporary
+    file and runs the scanner over the full history with the same coverage as
+    `pre-push`. When the secret is absent -- including on pull requests from
+    forks, where repository secrets are not exposed -- the job fails closed
+    instead of passing vacuously.
+  - `test` runs `ruff` (lint and format check), `mypy`, and `pytest` on macOS
+    with `ffmpeg`, `typst`, and `poppler` installed, since OCR and TTS depend
+    on macOS-only frameworks.
+  - Every third-party action is pinned by commit SHA, the workflow token is
+    read-only, and every checkout sets `persist-credentials: false`.
+- The hooks are local and bypassable; CI is the backstop for both secrets and
+  denylisted terms.
 
 ### 4. Study-site access hardening
 
@@ -81,16 +122,63 @@ Three layers keep private terms and secrets out of history:
   static files actually serve -- and refuses with 400 any path containing `?`,
   `#`, a backslash, NUL, or a `.` or `..` segment, since another layer could
   interpret such a path differently.
-- **Security headers** are set on every response.
-- **Login CSRF:** the login form carries a CSRF token that `POST /entrar`
-  verifies.
-- **Cookie prefix:** the session cookie uses the `__Host-` prefix, so it is
-  bound to the exact host, requires `Secure`, and cannot be set by a sibling
-  domain or with a `Domain` attribute.
-- **Authentication logging** records outcomes without personal data (no email
-  address or password material in the logs).
+- **Unauthenticated exemptions match method and path.** The few routes
+  reachable without credentials (the health check, the login form, sign-out)
+  are exempted only for the exact method and path each one serves, so an
+  exemption cannot be reused by another method on the same path.
+- **Security headers on every response.** `SecurityHeadersMiddleware` sets
+  `Content-Security-Policy`, `X-Content-Type-Options`, `Referrer-Policy`,
+  `Strict-Transport-Security`, and `X-Frame-Options`, overriding any value an
+  inner layer chose. It is the outermost wrapper of the application, so early
+  refusals, static files, and unhandled-error 500 responses all carry the
+  same headers.
+- **Hash-based Content-Security-Policy.** Inline scripts and styles are
+  admitted only by their SHA-256 hash, computed from the same constants that
+  render them; there is no `'unsafe-inline'`. The policy also sets
+  `base-uri 'none'`, `form-action 'self'`, and `frame-ancestors 'none'`.
+  Changing an inline script or style changes the policy with it, so pages
+  generated before the change must be regenerated, or the browser blocks
+  their now-unlisted inline code.
+- **Session cookie prefix:** the session cookie is renamed to
+  `__Host-pos_session`. The `__Host-` prefix makes a browser accept it only
+  when it is `Secure`, has `Path=/`, and carries no `Domain`, so neither a
+  plain-HTTP response nor a sibling subdomain can plant or shadow a session.
+  The rename signs every existing session out once.
+- **Login CSRF:** stateless signed double submit. The form page sets a random
+  nonce in a `__Host-` cookie (`HttpOnly`, `Secure`, `SameSite=Strict`) and
+  embeds an HMAC of that nonce, keyed with the server's signing secret, as a
+  hidden field. `POST /entrar` accepts a submission only when the field is the
+  HMAC of the nonce cookie sent with it. An attacker can neither plant the
+  cookie nor compute the field for a nonce of their own choosing.
+- **Pseudonymized authentication logging.** Authentication log lines carry
+  outcomes and a pseudonymized account reference, never an email address or
+  password material. The reference is a truncated HMAC of the address keyed
+  with the signing secret, so it cannot be recomputed from a guessed address
+  without that secret, stays stable for one person to keep the audit trail,
+  and changes whenever the secret is rotated. It remains pseudonymous
+  personal data, not anonymous data: whoever holds the signing secret can
+  link a reference back to a known address.
+- **Non-root container.** `Dockerfile.site` runs the application as an
+  unprivileged user with the fixed uid and gid 10001, so host volumes can be
+  granted to it by number. The mounted workspace volumes, the credentials
+  file, and the signing secret must be readable by that uid, and writable by
+  it wherever the application writes (the `generate` mode writes to the
+  workspace volumes).
 
-### 5. Behavior changes made general
+### 5. Quality trust key resolution
+
+`HmacQualityTrust.from_environment()` (`src/lecture_study/quality/trust.py`)
+no longer calls `load_dotenv(find_dotenv(usecwd=True))`. When the key is not
+in the process environment, it reads only `LECTURE_STUDY_QUALITY_HMAC_KEY_B64`
+from the current working directory's own `.env` file through
+`dotenv_values`. It never searches parent directories and never writes to
+`os.environ`; every other entry in the file is ignored. A `.env` in a parent
+or otherwise untrusted directory must not be able to supply the key that
+signs and verifies quality certificates, and loading a whole file into the
+process environment would hand unrelated values to every later reader of
+`os.environ` (ADR 0026 amendment).
+
+### 6. Behavior changes made general
 
 - **Figure crop:** `scripts/generate_personal_study_guides.py
   --figure-crop-rect` defaults to no crop. The previous default rectangle was
@@ -134,9 +222,22 @@ Three layers keep private terms and secrets out of history:
   embedded uncropped unless a rectangle is passed explicitly.
 - **Negative, accepted:** guides compiled without a chapter plan use generic
   "Parte N" chapter titles.
-- **Negative, accepted:** the denylist check runs only where the hooks are
-  installed and the private denylist is present; CI enforces only the secret
-  scan.
+- **Negative, accepted:** locally, the denylist check runs only where the
+  hooks are installed and the private denylist is present. CI enforces both
+  the secret scan and the denylist scan; because repository secrets are not
+  exposed to pull requests from forks, the denylist job fails on such a pull
+  request by design.
+- **Negative, accepted:** deploying the `__Host-` session cookie signs every
+  existing session out once.
+- **Negative, accepted:** changing any inline script or style requires
+  regenerating the site pages, because the Content-Security-Policy lists
+  inline code by hash.
+- **Negative, accepted:** rotating the signing secret changes every
+  pseudonymized account reference, so log lines from before and after a
+  rotation cannot be correlated by reference.
+- **Deployment consideration:** the container runs as uid 10001; host
+  volumes, the credentials file, and the signing secret must grant that uid
+  the access the application needs.
 - **Neutral:** historical ADR sections that mention `discover`, the
   `ingestion/` package, `.prompts/`, or `DIRETRIZES_ARQUITETURA.txt` are kept
   as provenance and annotated where they would otherwise read as current

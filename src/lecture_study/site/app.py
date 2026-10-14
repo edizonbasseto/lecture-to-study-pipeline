@@ -28,6 +28,7 @@ from urllib.parse import parse_qs, quote, unquote, urlsplit
 from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
+from starlette.types import ASGIApp
 from starlette.concurrency import run_in_threadpool
 
 from lecture_study.domain.models import MockExam
@@ -89,6 +90,15 @@ _ACCOUNT_REFERENCE_HEX_DIGITS = 16
 _HEALTH_CHECK_PATH = "/up"
 _LOGIN_PATH = "/entrar"
 _LOGOUT_PATH = "/sair"
+# The only (path, method) pairs answered without credentials. Matching the
+# method as well as the path keeps any other method on these paths -- HEAD,
+# PUT, DELETE -- behind the ordinary authentication check instead of letting
+# it fall through to the static-file handler mounted at "/".
+_UNAUTHENTICATED_METHODS_BY_PATH = {
+    _HEALTH_CHECK_PATH: frozenset({"GET", "HEAD"}),
+    _LOGIN_PATH: frozenset({"GET", "POST"}),
+    _LOGOUT_PATH: frozenset({"GET"}),
+}
 _QUIZ_PATH_PREFIX = "/simulado/"
 
 # A submitted quiz answer sheet is small and fixed-shape (one letter per
@@ -507,43 +517,44 @@ def create_app(
     video_library_directory: Path = VIDEO_LIBRARY_DIR,
     signing_secret_path: Path = SIGNING_SECRET_PATH,
     mock_exams_directory: Path = MOCK_EXAMS_DIR,
-) -> FastAPI:
+) -> ASGIApp:
     """Build the app against an explicit site tree and credentials file --
     the seam that lets a test point both at a temporary directory instead
-    of the real workspace paths."""
+    of the real workspace paths.
+
+    The security headers wrap the finished app rather than being added as
+    one of its middlewares: Starlette answers an unhandled exception from
+    ServerErrorMiddleware, which sits outside every added middleware, so
+    only an outermost wrapper also covers those 500 responses.
+    """
+    application = _build_application(
+        site_directory,
+        credentials_path,
+        video_library_directory,
+        signing_secret_path,
+        mock_exams_directory,
+    )
+    return SecurityHeadersMiddleware(application, policy=_CONTENT_SECURITY_POLICY)
+
+
+def _build_application(
+    site_directory: Path,
+    credentials_path: Path,
+    video_library_directory: Path,
+    signing_secret_path: Path,
+    mock_exams_directory: Path,
+) -> FastAPI:
     application = FastAPI(
         title="Pós em Veterinária — Biblioteca de estudo", docs_url=None, redoc_url=None
     )
     gate = _AccessGate(credentials_path, signing_secret_path)
     quiz_gate = _QuizGate()
 
-    @application.middleware("http")
-    async def require_authorized_person(
-        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    async def admit_authorized_person(
+        request: Request,
+        served_path: str,
+        call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
-        served_path = _unambiguous_served_path(request)
-        if served_path is None:
-            return _AMBIGUOUS_PATH_RESPONSE
-        if served_path == _HEALTH_CHECK_PATH:
-            # Deliberately unauthenticated: the deploy tool's health check
-            # has no credentials and must be able to tell the container is
-            # up. It returns no content -- nothing a health check can leak.
-            return Response(status_code=200)
-        if served_path == _LOGIN_PATH:
-            # The login form is the one page an in-app browser must reach
-            # without credentials: WhatsApp's embedded browser never shows
-            # the Basic Auth prompt phones would otherwise need.
-            return await call_next(request)
-        if served_path == _LOGOUT_PATH:
-            # Signing out must work for exactly the visitor who no longer
-            # has -- or never had -- a valid session; requiring one first
-            # would make a stale or already-cleared cookie unrecoverable
-            # without a new sign-in just to sign out. Accepted trade-off:
-            # a bare GET with no origin check means a third-party page can
-            # force this for a visitor who has it open, but the only
-            # effect is an unwanted sign-out -- no data is exposed and
-            # nothing is granted that authentication would otherwise deny.
-            return await call_next(request)
         try:
             identified = await gate.identify(request)
         except CredentialsError:
@@ -564,6 +575,34 @@ def create_app(
         response.headers["Cache-Control"] = _PRIVATE_CACHE_DIRECTIVE
         response.headers["Vary"] = "Cookie"
         return response
+
+    @application.middleware("http")
+    async def require_authorized_person(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        served_path = _unambiguous_served_path(request)
+        if served_path is None:
+            return _AMBIGUOUS_PATH_RESPONSE
+        if not _is_unauthenticated_route(served_path, request.method):
+            return await admit_authorized_person(request, served_path, call_next)
+        if served_path == _HEALTH_CHECK_PATH:
+            # Deliberately unauthenticated: the deploy tool's health check
+            # has no credentials and must be able to tell the container is
+            # up. It returns no content -- nothing a health check can leak.
+            return Response(status_code=200)
+        # The login form is the one page an in-app browser must reach
+        # without credentials: WhatsApp's embedded browser never shows the
+        # Basic Auth prompt phones would otherwise need.
+        #
+        # Signing out must work for exactly the visitor who no longer has
+        # -- or never had -- a valid session; requiring one first would
+        # make a stale or already-cleared cookie unrecoverable without a
+        # new sign-in just to sign out. Accepted trade-off: a bare GET with
+        # no origin check means a third-party page can force this for a
+        # visitor who has it open, but the only effect is an unwanted
+        # sign-out -- no data is exposed and nothing is granted that
+        # authentication would otherwise deny.
+        return await call_next(request)
 
     @application.get(_LOGIN_PATH)
     async def show_login_form(request: Request) -> Response:
@@ -671,11 +710,6 @@ def create_app(
         StaticFiles(directory=site_directory, html=True, check_dir=False),
         name="site",
     )
-    # Added last so it wraps every other layer, the authentication
-    # middleware's early refusals included.
-    application.add_middleware(
-        SecurityHeadersMiddleware, policy=_CONTENT_SECURITY_POLICY
-    )
     return application
 
 
@@ -692,6 +726,10 @@ def _account_reference(account: str, signing_secret: bytes) -> str:
     message = _ACCOUNT_REFERENCE_DOMAIN + account.encode("utf-8")
     digest = hmac.new(signing_secret, message, hashlib.sha256).hexdigest()
     return digest[:_ACCOUNT_REFERENCE_HEX_DIGITS]
+
+
+def _is_unauthenticated_route(served_path: str, method: str) -> bool:
+    return method in _UNAUTHENTICATED_METHODS_BY_PATH.get(served_path, frozenset())
 
 
 def _denial_for(request: Request) -> Response:

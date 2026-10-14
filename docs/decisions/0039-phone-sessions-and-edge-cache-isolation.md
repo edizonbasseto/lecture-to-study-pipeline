@@ -3,6 +3,7 @@
 ## Status
 
 Accepted. Amends ADR 0029 (study site scope, video delivery and access control).
+Amended by ADR 0044 (site hardening; see the Amendment below).
 **Addendum (2026-09-17):** the two "Negative, outstanding" consequences below
 about a lost destination and no sign-out are resolved -- the denial redirect to
 `/entrar` now carries the originally requested path as a validated `next` query
@@ -10,6 +11,16 @@ parameter, `POST /entrar` returns there on success, and a new `GET /sair` route
 clears the session cookie. There is still no way to revoke a single device
 short of rotating the person's password; only the "lost destination" and
 "no sign-out" gaps are closed.
+
+## Amendment: site hardening (see ADR 0044)
+
+ADR 0044 section 4 hardens the access model recorded here. The session cookie
+is renamed to `__Host-pos_session`, which signs every existing session out once;
+the login form is protected against login CSRF by a signed double submit with
+a `__Host-` nonce cookie (`SameSite=Strict`); and protective headers, including
+a hash-based Content-Security-Policy, are set on every response. Mentions of
+the session cookie below refer to the renamed cookie; its signing and
+revocation semantics are unchanged.
 
 ## Context
 

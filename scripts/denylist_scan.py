@@ -5,21 +5,27 @@ by the CI history scan. The denylist lives outside the repository: committing
 it would publish the very terms it protects. For the same reason a match is
 reported by denylist line number only, never by the term itself.
 
-Both the terms and the text are compared in two normalized spellings, so a
-term still matches when it differs in case, accents, compatibility forms
-(full-width letters), invisible characters, or separators -- including a line
-break that splits a multi-word term.
+Terms and text are folded before comparison -- case, accents, compatibility
+forms (full-width letters), and invisible format characters are ignored --
+and the text is compared both as written and percent-decoded/HTML-unescaped.
+A single-word term matches as a substring. A multi-word term also matches
+when its words are joined by any short run of separators, including a line
+break, so it survives hyphenation, URL encoding, and wrapping; words of
+unrelated text are never fused into a single-word term.
 """
 
+import html
 import re
 import sys
 import unicodedata
 from pathlib import Path
+from urllib.parse import unquote
 
 MATCH_EXIT_CODE = 1
 UNAVAILABLE_EXIT_CODE = 2
 
-_NON_ALPHANUMERIC = re.compile(r"[^0-9a-z]+")
+_WORD = re.compile(r"[0-9a-z]+")
+_SEPARATORS_BETWEEN_WORDS = r"[^0-9a-z]{0,8}"
 
 
 class DenylistUnavailableError(RuntimeError):
@@ -43,12 +49,11 @@ def load_terms(denylist_path: Path) -> list[str]:
 
 def matching_entry_numbers(text: str, terms: list[str]) -> list[int]:
     """The 1-based positions of the terms that occur in the text."""
-    folded_text = _fold(text)
-    squashed_text = _squash(folded_text)
+    spellings = (_fold(text), _fold(html.unescape(unquote(text))))
     return [
         position
         for position, term in enumerate(terms, start=1)
-        if _occurs(_fold(term), folded_text, squashed_text)
+        if any(_term_pattern(term).search(spelling) for spelling in spellings)
     ]
 
 
@@ -67,22 +72,21 @@ def main(argv: list[str]) -> int:
     return 0
 
 
-def _occurs(folded_term: str, folded_text: str, squashed_text: str) -> bool:
-    squashed_term = _squash(folded_term)
-    return folded_term in folded_text or (
-        bool(squashed_term) and squashed_term in squashed_text
-    )
+def _term_pattern(term: str) -> re.Pattern[str]:
+    words = _WORD.findall(_fold(term))
+    if not words:
+        return re.compile(re.escape(_fold(term)))
+    return re.compile(_SEPARATORS_BETWEEN_WORDS.join(map(re.escape, words)))
 
 
 def _fold(text: str) -> str:
     decomposed = unicodedata.normalize("NFKD", text).casefold()
     return "".join(
-        character for character in decomposed if not unicodedata.combining(character)
+        character
+        for character in decomposed
+        if not unicodedata.combining(character)
+        and unicodedata.category(character) != "Cf"
     )
-
-
-def _squash(folded_text: str) -> str:
-    return _NON_ALPHANUMERIC.sub("", folded_text)
 
 
 if __name__ == "__main__":

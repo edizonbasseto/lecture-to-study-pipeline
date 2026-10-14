@@ -12,7 +12,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
-from dotenv import load_dotenv
+from dotenv import dotenv_values
 from pydantic import BaseModel
 
 QUALITY_HMAC_KEY_ENV = "LECTURE_STUDY_QUALITY_HMAC_KEY_B64"
@@ -48,15 +48,16 @@ class HmacQualityTrust:
         `os.environ`, consults dotenv; an explicit `environ` mapping stays
         pure and consults no file. Only the working directory's own `.env`
         is read -- never one found by searching parent directories, which
-        could belong to an unrelated project. Loading never overrides a
-        value already present in `os.environ`, so an exported value always
-        wins over the dotenv file. A missing file makes loading a no-op,
-        leaving the fail-closed error below as the outcome.
+        could belong to an unrelated project. The file is untrusted, so
+        only the trust key is read from it and `os.environ` is never
+        mutated. An exported value always wins over the dotenv file. A
+        missing file yields no value, leaving the fail-closed error below
+        as the outcome.
         """
         if environ is None:
-            load_dotenv(Path.cwd() / ".env")
-        source = os.environ if environ is None else environ
-        encoded_key = source.get(QUALITY_HMAC_KEY_ENV)
+            encoded_key = _process_or_dotenv_key()
+        else:
+            encoded_key = environ.get(QUALITY_HMAC_KEY_ENV)
         if not encoded_key:
             raise QualityTrustError(
                 f"Required quality trust variable {QUALITY_HMAC_KEY_ENV} is not configured."
@@ -92,6 +93,12 @@ class HmacQualityTrust:
             )
         if not hmac.compare_digest(self.sign(payload), signature):
             raise QualityTrustError("Quality artifact signature is invalid.")
+
+
+def _process_or_dotenv_key() -> str | None:
+    if QUALITY_HMAC_KEY_ENV in os.environ:
+        return os.environ[QUALITY_HMAC_KEY_ENV]
+    return dotenv_values(Path.cwd() / ".env").get(QUALITY_HMAC_KEY_ENV)
 
 
 def canonical_json_bytes(payload: object) -> bytes:

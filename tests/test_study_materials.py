@@ -165,10 +165,18 @@ def test_normalizes_known_english_terms_and_pt_br_document_labels() -> None:
     assert "super video" not in markdown.lower()
 
 
-def test_normalizes_the_supplementary_video_lecture_title() -> None:
+@pytest.mark.parametrize(
+    "lecture_title",
+    [
+        "Técnica cirúrgica Super Video",
+        "Técnica cirúrgica\\nSuper Video",
+        "Técnica cirúrgica\nSuper Video",
+    ],
+)
+def test_normalizes_the_supplementary_video_lecture_title(lecture_title: str) -> None:
     editions = build_personal_study_editions(
         lecture_id="lecture-001",
-        lecture_title="Técnica cirúrgica Super Video",
+        lecture_title=lecture_title,
         drafts=(_draft(1, "Técnica cirúrgica", "Conteúdo cirúrgico."),),
     )
 

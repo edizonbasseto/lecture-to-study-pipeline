@@ -37,7 +37,9 @@ ENV PYTHONUNBUFFERED=1
 # Unprivileged runtime user with a fixed id, so mounted volumes can be
 # granted to it by number on the host. The app only reads /app; the
 # "generate" mode writes to the mounted workspace volumes, which must be
-# writable by this uid.
+# writable by this uid. The mounted credentials file and signing-secret
+# file must also be readable by uid 10001; otherwise every login returns
+# 503.
 RUN groupadd --system --gid 10001 site \
     && useradd --system --uid 10001 --gid site --no-create-home --shell /usr/sbin/nologin site
 USER site:site

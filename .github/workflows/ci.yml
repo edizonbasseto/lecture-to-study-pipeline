@@ -39,8 +39,12 @@ jobs:
             exit 1
           fi
           printf '%s\n' "$DENYLIST" > "$RUNNER_TEMP/denylist.txt"
-          git log -p --all --text --no-ext-diff --no-textconv --no-color \
+          git -c core.quotePath=false log -p --all --diff-merges=separate \
+            --text --no-ext-diff --no-textconv --no-color \
             --format='%an%n%ae%n%cn%n%ce%n%B' > "$RUNNER_TEMP/history.txt"
+          git for-each-ref \
+            --format='%(refname)%0a%(taggername) %(taggeremail)%0a%(contents)' \
+            >> "$RUNNER_TEMP/history.txt"
           python3 -I scripts/denylist_scan.py "$RUNNER_TEMP/denylist.txt" \
             < "$RUNNER_TEMP/history.txt"
 

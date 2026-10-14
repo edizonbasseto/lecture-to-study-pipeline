@@ -10,7 +10,9 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from starlette.types import ASGIApp
 
+from lecture_study.site import app as site_app
 from lecture_study.site.access import hash_password
 from lecture_study.site.app import create_app
 from lecture_study.site.catalog import SiteCatalog
@@ -25,8 +27,7 @@ _EXPECTED_STATIC_HEADERS = {
 }
 
 
-@pytest.fixture
-def client(tmp_path: Path) -> TestClient:
+def _application(tmp_path: Path) -> ASGIApp:
     site_directory = tmp_path / "site"
     site_directory.mkdir()
     (site_directory / "index.html").write_text("<h1>Biblioteca</h1>", encoding="utf-8")
@@ -37,14 +38,18 @@ def client(tmp_path: Path) -> TestClient:
     )
     signing_secret_path = tmp_path / "site-session-key"
     signing_secret_path.write_bytes(b"chave-de-assinatura-sintetica-para-testes-0001")
-    application = create_app(
+    return create_app(
         site_directory,
         credentials_path,
         site_directory,
         signing_secret_path,
         tmp_path / "mock-exams",
     )
-    return TestClient(application, follow_redirects=False)
+
+
+@pytest.fixture
+def client(tmp_path: Path) -> TestClient:
+    return TestClient(_application(tmp_path), follow_redirects=False)
 
 
 def _content_security_policy(client: TestClient) -> dict[str, list[str]]:
@@ -92,6 +97,29 @@ def test_every_response_carries_the_security_headers(
     response = client.request(method, path, auth=auth)
 
     assert response.status_code == expected_status
+    for name, value in _EXPECTED_STATIC_HEADERS.items():
+        assert response.headers[name] == value
+    assert response.headers["content-security-policy"]
+
+
+def test_an_unhandled_exception_response_carries_the_security_headers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Starlette answers an unhandled exception from its outermost
+    ServerErrorMiddleware, outside every middleware added to the app, so
+    the headers must be applied by a wrapper around the finished app."""
+
+    async def fail_unexpectedly(self: object) -> bytes:
+        raise RuntimeError("synthetic failure")
+
+    monkeypatch.setattr(site_app._AccessGate, "signing_secret", fail_unexpectedly)
+    client = TestClient(
+        _application(tmp_path), follow_redirects=False, raise_server_exceptions=False
+    )
+
+    response = client.get("/entrar")
+
+    assert response.status_code == 500
     for name, value in _EXPECTED_STATIC_HEADERS.items():
         assert response.headers[name] == value
     assert response.headers["content-security-policy"]

@@ -1978,3 +1978,40 @@ def test_ambiguous_paths_cannot_escape_a_restricted_scope(
 
     assert status == 400
     assert b"FORA-DO-ESCOPO" not in body
+
+
+@pytest.mark.parametrize(
+    ("method", "path"),
+    (
+        ("HEAD", "/entrar"),
+        ("PUT", "/entrar"),
+        ("DELETE", "/entrar"),
+        ("PUT", "/sair"),
+        ("POST", "/sair"),
+        ("HEAD", "/sair"),
+        ("POST", "/up"),
+    ),
+)
+def test_exempt_paths_are_exempt_only_for_their_own_methods(
+    method: str, path: str, site_directory: Path, credentials_path: Path
+) -> None:
+    """The unauthenticated exemptions name a method as well as a path, so
+    any other method reaches the ordinary authentication check instead of
+    the static-file handler mounted behind it."""
+    client = _client(site_directory, credentials_path)
+
+    response = client.request(method, path)
+
+    assert response.status_code == 401
+
+
+def test_exempt_methods_still_answer_without_credentials(
+    site_directory: Path, credentials_path: Path
+) -> None:
+    client = _client(site_directory, credentials_path)
+
+    assert client.get("/up").status_code == 200
+    assert client.head("/up").status_code == 200
+    assert client.get("/entrar").status_code == 200
+    assert client.post("/entrar", data=_with_csrf({})).status_code == 200
+    assert client.get("/sair").status_code == 303

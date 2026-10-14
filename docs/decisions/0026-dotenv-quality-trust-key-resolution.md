@@ -2,7 +2,31 @@
 
 ## Status
 
-Accepted.
+Accepted; amended by ADR 0044.
+
+## Amendment: working-directory `.env` only, single key (see ADR 0044)
+
+The `load_dotenv(find_dotenv(usecwd=True))` call described below is replaced.
+When the process environment does not hold the key,
+`HmacQualityTrust.from_environment()` now reads only
+`LECTURE_STUDY_QUALITY_HMAC_KEY_B64` from the current working directory's own
+`.env` file through `dotenv_values`:
+
+- it never searches parent directories for a `.env` file;
+- it reads that single key and ignores every other entry in the file;
+- it never writes to `os.environ`.
+
+Reason: `find_dotenv` walks up the directory tree, so a run started in a
+directory without its own `.env` would accept one from a parent or otherwise
+untrusted directory -- possibly belonging to an unrelated project -- as the
+source of the key that signs and verifies quality certificates. That file must
+not be able to supply the trust root. Loading the whole file into
+`os.environ` also handed unrelated values to every later reader of the process
+environment. The resolution order is otherwise unchanged: process environment
+first, then the working directory's `.env`, then the fail-closed
+`QualityTrustError`. An explicit `environ` mapping still consults no file.
+References below to `load_dotenv`, `find_dotenv`, or loading the key into the
+parent process's environment are historical.
 
 ## Context
 

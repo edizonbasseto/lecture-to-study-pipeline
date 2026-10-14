@@ -31,6 +31,35 @@ def test_disguised_spellings_are_matched(text: str) -> None:
     assert denylist_scan.matching_entry_numbers(text, _TERMS)
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        "texto com seg%72edo codificado",
+        "texto com Instituto%20Exemplo na URL",
+        "texto com seg&#114;edo em entidade",
+        "texto com Instituto&nbsp;Exemplo em HTML",
+    ],
+)
+def test_percent_encoded_and_html_escaped_spellings_are_matched(text: str) -> None:
+    assert denylist_scan.matching_entry_numbers(text, _TERMS)
+
+
+def test_unrelated_words_far_apart_do_not_form_a_term() -> None:
+    text = "um instituto\nlinha neutra\noutra linha\nexemplo isolado"
+
+    assert denylist_scan.matching_entry_numbers(text, _TERMS) == []
+
+
+def test_words_ending_and_starting_lines_far_apart_do_not_join() -> None:
+    text = "fim com seg\n" + "linha neutra\n" * 50 + "redo no começo"
+
+    assert denylist_scan.matching_entry_numbers(text, _TERMS) == []
+
+
+def test_separate_words_never_fuse_into_a_single_word_term() -> None:
+    assert denylist_scan.matching_entry_numbers("na tal hora", ["natal"]) == []
+
+
 def test_clean_text_matches_nothing() -> None:
     assert denylist_scan.matching_entry_numbers("material de estudo", _TERMS) == []
 

@@ -758,10 +758,22 @@ def _normalize_lecture_title(title: str) -> str:
     """Rewrite a trailing "Super Video" label as a separated pt-BR suffix,
     so "<title> Super Video" reads "<title> - vídeo complementar"."""
 
-    base_title, label_count = _SUPPLEMENTARY_VIDEO_TITLE_SUFFIX.subn("", title)
+    single_line_title = _join_super_video_line_break(title)
+    base_title, label_count = _SUPPLEMENTARY_VIDEO_TITLE_SUFFIX.subn(
+        "", single_line_title
+    )
     if not label_count or not base_title.strip():
         return _normalize_pt_br(title)
     return f"{_normalize_pt_br(base_title)} - vídeo complementar"
+
+
+def _join_super_video_line_break(value: str) -> str:
+    """Replace a real or literal escaped line break before "Super Video"
+    with a space, so the label reads as part of the same line."""
+
+    return value.replace("\\nSuper Video", " Super Video").replace(
+        "\nSuper Video", " Super Video"
+    )
 
 
 def _normalize_pt_br(value: str) -> str:

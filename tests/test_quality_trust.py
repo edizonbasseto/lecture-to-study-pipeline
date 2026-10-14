@@ -7,7 +7,6 @@ from pathlib import Path
 import pytest
 from pydantic import BaseModel, ConfigDict
 
-from lecture_study.ops.process_environment import sanitized_child_process_environment
 from lecture_study.quality import trust
 from lecture_study.quality.trust import (
     QUALITY_HMAC_KEY_ENV,
@@ -96,25 +95,25 @@ def _expected_key_id(encoded_key: str) -> str:
     return HmacQualityTrust(base64.b64decode(encoded_key)).key_id
 
 
-def test_sanitized_child_environment_excludes_key_after_dotenv_resolution(
+def test_dotenv_resolution_never_mutates_the_parent_environment(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Regression guard, written before the production change it guards:
-    dotenv resolution populates the parent process environment, but
-    `sanitized_child_process_environment()` must still strip the key before
-    any child process is spawned."""
+    """The working directory's .env may be untrusted: resolving the key
+    from it must not inject that key, or any other variable it declares,
+    into the parent process environment. Child-process stripping of the
+    key is covered by tests/test_process_environment.py."""
     dotenv_key = base64.b64encode(secrets.token_bytes(32)).decode("ascii")
     parent_environment: dict[str, str] = {"PATH": "/usr/bin"}
     monkeypatch.setattr(trust.os, "environ", parent_environment)
-    _write_dotenv_file(tmp_path, dotenv_key)
+    (tmp_path / ".env").write_text(
+        f"{QUALITY_HMAC_KEY_ENV}={dotenv_key}\nUNRELATED_VARIABLE=injected\n"
+    )
     monkeypatch.chdir(tmp_path)
 
-    HmacQualityTrust.from_environment()
+    resolved = HmacQualityTrust.from_environment()
 
-    assert QUALITY_HMAC_KEY_ENV in parent_environment
-    assert QUALITY_HMAC_KEY_ENV not in sanitized_child_process_environment(
-        parent_environment
-    )
+    assert resolved.key_id == _expected_key_id(dotenv_key)
+    assert parent_environment == {"PATH": "/usr/bin"}
 
 
 def test_exported_value_wins_over_a_dotenv_value(
