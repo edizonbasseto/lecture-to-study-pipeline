@@ -8,6 +8,10 @@ apply unchanged) with one addition: the feedback-carrying retry attempt
 now also passes `--repeat-penalty`/`--repeat-last-n`. The first attempt's
 invocation is untouched.
 
+**Carried forward by ADR 0046:** `--repeat-penalty 1.3 --repeat-last-n 256`
+apply only to the feedback-carrying parse retry of the `LlamaCppAdapter`;
+critic-feedback redrafts are first attempts and carry neither flag.
+
 ## Context
 
 Running the pipeline end to end on new lectures (processing a later batch

@@ -6,6 +6,12 @@ Accepted. **Historical record (ADR 0038):** the llama-cli invocation contract th
 0007, 0013, and 0014, each of which now carries a short erratum note
 pointing here rather than being rewritten (accepted ADRs stay immutable).
 
+**Rebuilt by ADR 0046:** the local route returns as the `LlamaCppAdapter` of
+the LLM gateway, which keeps the mandatory `-n` cap and the 2026-07-28
+erratum's per-stage window and `llama-tokenize` preflight, invoking
+`llama-completion` (not `llama-cli`, which at the pinned commit embeds a
+loopback server and echoes the prompt) with escape processing disabled.
+
 **Erratum (ADR 0022):** the `--json-schema-file` flag this ADR's Decision
 section mandates was itself subsequently dropped entirely -- this
 llama-cli build's grammar sampler fails to initialize on any

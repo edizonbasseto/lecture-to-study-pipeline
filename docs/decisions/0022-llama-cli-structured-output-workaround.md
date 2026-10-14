@@ -8,6 +8,12 @@ ADR 0020, 0005, 0006, 0007, 0013, and 0014 each now carry a short erratum
 note pointing here rather than being rewritten (accepted ADRs stay
 immutable).
 
+**Rebuilt by ADR 0046:** the schema stays embedded as literal prompt text and
+`--single-turn` is kept, now on `llama-completion` with `--no-display-prompt`
+and `--no-escape`; the parser contract is the 2026-07-28 operational
+amendment (a single JSON candidate), so the earlier tolerance of banner or
+echoed-prompt noise does not apply.
+
 **Erratum (2026-07-28):** embedding schemas in prompts no longer relies on
 byte-size heuristics or assumes the fixed context headroom described below.
 Semantic, drafting, and critic preflight the exact file prompt with the
