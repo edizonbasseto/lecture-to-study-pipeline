@@ -40,6 +40,7 @@ def main() -> int:
             section=args.section,
             scheduled_date=args.scheduled_date or default_scheduled_date(args.semester),
             publish=args.publish,
+            remote_llm_allowed=args.remote_llm_allowed,
             kind=VIDEO_ONLY_KIND if args.video_only else "study",
         )
         link_path = register_local_lecture(
@@ -105,6 +106,15 @@ def _argument_parser() -> argparse.ArgumentParser:
         "--publish",
         action="store_true",
         help="permite publicar no site (padrão: compilação em raiz privada)",
+    )
+    parser.add_argument(
+        "--remote-llm-allowed",
+        action="store_true",
+        help=(
+            "confirma que a aula foi verificada e não contém dados que "
+            "identifiquem pacientes, e permite o adaptador remoto Codex "
+            "(ADR 0045 seção 2, ADR 0046); padrão: recusado"
+        ),
     )
     parser.add_argument(
         "--video-only",

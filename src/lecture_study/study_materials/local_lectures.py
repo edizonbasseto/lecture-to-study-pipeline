@@ -91,6 +91,7 @@ class LocalLecture(BaseModel):
     section: str
     scheduled_date: date
     publish: bool = False
+    remote_llm_allowed: bool = False
     kind: LectureKind = "study"
 
     @property
@@ -251,8 +252,9 @@ def register_local_lecture(
     exclusive file lock in the order link, metadata, queue; a failure rolls
     the earlier writes back. A video-only lecture is never enqueued, so no
     pipeline stage can pick it up. The source video is never modified. A rerun with
-    the same id and source is a no-op; it may change only the publish flag, and
-    demoting a lecture whose public bundle exists is refused. Returns the raw-video link path.
+    the same id and source is a no-op; it may change only the publish and
+    remote_llm_allowed flags, and demoting a lecture whose public bundle exists is
+    refused. Returns the raw-video link path.
     """
 
     source = _require_source_video(source_video, video_probe or probe_video_stream)
@@ -335,7 +337,7 @@ def _require_registrable(
     for existing in load_local_lectures(local_lectures_path):
         if existing.lecture_id != lecture_id:
             continue
-        if existing.model_copy(update={"publish": lecture.publish}) != lecture:
+        if _without_operator_flags(existing, lecture) != lecture:
             raise LocalLectureError(f"id {lecture_id} já em uso (aulas locais)")
         if existing.publish and not lecture.publish:
             _require_no_public_bundle(lecture_id, public_root)
@@ -346,6 +348,19 @@ def _require_registrable(
         raise LocalLectureError(f"id {lecture_id} já em uso (fila)")
     if _occupied(link_path) and not _links_to(link_path, source):
         raise LocalLectureError(f"vídeo bruto já existe com outra origem: {link_path}")
+
+
+def _without_operator_flags(
+    existing: LocalLecture, requested: LocalLecture
+) -> LocalLecture:
+    """`existing` carrying the requested flags: a rerun may change only these."""
+
+    return existing.model_copy(
+        update={
+            "publish": requested.publish,
+            "remote_llm_allowed": requested.remote_llm_allowed,
+        }
+    )
 
 
 def _require_no_public_bundle(lecture_id: str, public_root: Path) -> None:
