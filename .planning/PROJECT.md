@@ -4,7 +4,9 @@
 
 A macOS (Apple Silicon) command-line pipeline plus a small authenticated web site. The pipeline turns an operator-registered lecture video into frames, OCR text, a corrected transcript, evidence packs, critic-reviewed grounded drafts, and student-facing study material (study guide, flashcards, mock exam, narrated podcast). The site serves that material to an allowlisted audience. The product owner is one developer-operator and the implementer is Claude.
 
-The code base is already implemented. This planning setup adopts it as a brownfield baseline (roadmap Phases 1-5, built) and tracks the remaining open work (Phases 6-7). Requirements were derived from 42 Accepted ADRs, because no PRD, SPEC or DOC exists; provenance is cited per requirement.
+The code base is already implemented. This planning setup adopts it as a brownfield baseline (roadmap Phases 1-5, built) and tracks the remaining open work (Phases 6-9). Baseline requirements were derived from 42 Accepted ADRs, because no PRD, SPEC or DOC exists; the Phase 6-9 requirements come from the operator-approved restructure of milestone v1.0 (2026-10-14); provenance is cited per requirement.
+
+**Purpose.** The repository is a public portfolio artifact for an AI-engineering job search. Milestone v1.0 delivers a pluggable LLM gateway, a synthetic end-to-end demo with measured results, a portfolio README and a pre-public gate, and ends when the repository is switched to public after that final gate (Phase 9). The repository holds no real lecture data; the private source deployment and its served site stay outside it.
 
 ## Core Value
 
@@ -26,18 +28,29 @@ Built, with an Accepted ADR and implementing code present; baseline checks green
 
 ### Active
 
-- [ ] ROLL-01: No exam, podcast, flashcard deck or study guide generated before the critic gate remains reachable by the site (regenerated through the gate or deleted)
-- [ ] ROLL-02: Site regenerated so every deployed page carries the current uncertified notice and matches the CSP hash list
-- [ ] ROLL-03: Stages 8 and 9 executed on a real lecture through `run-personal-study`
-- [ ] ROLL-04: The documented recovery from a blocked lecture verified end to end
-- [ ] DOC-01: README replaces the "under active extraction" placeholder
-- [ ] DOC-02: End-to-end walkthrough from a registered video to a served page, executed once
-- [ ] DOC-03: Operating boundaries documented as the ADRs define them
+- [ ] GW-01: An `LlmGateway` port inward of the scripts (application layer); the six LLM-backed stages (5, 6, 7, 13, 14, 18) call it instead of spawning the Codex CLI directly - Phase 6
+- [ ] GW-02: `CodexCliAdapter` preserves current Codex behavior (bounded child process, sanitized environment, read-only sandbox, failure capture under `tmp/codex_phase_failures/`) - Phase 6
+- [ ] GW-03: `LlamaCppAdapter` runs a local GGUF model through llama.cpp, restored from the history before ADR 0038 and adapted to the port, with no network egress - Phase 6
+- [ ] GW-04: Adapter selected by configuration (globally, optionally per stage), Codex by default; an unknown or misconfigured adapter fails closed before any call - Phase 6
+- [ ] GW-05: A new ADR amends ADR 0038 and closes ADR 0045 section 2 (content that may carry patient-identifying data runs only on the local adapter) - Phase 6
+- [ ] GW-06: Both adapters pass the same contract tests through the shared JSON-contract parser and critic repair loop; CI exercises the llama.cpp adapter with a stub binary - Phase 6
+- [ ] DEMO-01: Synthetic veterinary demo lecture authored for the repository, reproducible from versioned sources by a make target - Phase 7
+- [ ] DEMO-02: Demo runs through `run-all` and `run-personal-study`, stages 8 and 9 included, to a signed-in page view on the locally served site (absorbs former ROLL-03) - Phase 7
+- [ ] DEMO-03: Measured results (ASR WER before and after the terminology dictionary, schema pass rate per LLM stage, critic rejection rate, per-stage wall time) for each adapter run - Phase 7
+- [ ] DEMO-04: ADR 0045 blocked-lecture recovery demonstrated on the demo lecture (absorbs former ROLL-04) - Phase 7
+- [ ] DOC-01: English portfolio README (problem, Mermaid architecture diagram, stage map, design decisions with ADR links, DEMO-03 results, quick start) - Phase 8
+- [ ] DOC-02: End-to-end walkthrough of the demo lecture, executed once, every command existing as written - Phase 8
+- [ ] DOC-03: Operating boundaries documented as the ADRs define them - Phase 8
+- [ ] PUBG-01: Denylist scan and gitleaks scan over every ref and the full history pass with no finding - Phase 9
+- [ ] PUBG-02: Final whole-repository code review and security review (`gsd-code-review`, `gsd-secure-phase`) close with no open blocking finding - Phase 9
+- [ ] PUBG-03: After the operator's final check, the repository is switched to public; the CI `DENYLIST` secret and the leak-gate hooks stay in force - Phase 9
+
+Former ROLL-03 and ROLL-04 are absorbed by DEMO-02 and DEMO-04; former ROLL-01 and ROLL-02 left the milestone (see Out of Scope).
 
 ### Out of Scope
 
-- Local-model route for content that may carry patient-identifying data (the "planned local adapter of the LLM gateway") - operator-approved reading of ADR 0045 section 2; no record defines the gateway and ADR 0038 removed the local route; until a record defines it, such content is not processed past stage 4
-- Local text-LLM execution (qwen3-32b, llama.cpp text generation) - removed by ADR 0038
+- Former ROLL-01 (pre-gate derivative material regenerated through the critic gate or deleted from the served trees) and former ROLL-02 (site regenerated with the current uncertified notice and CSP hash list) - concerns the private source deployment and its served site, which hold the real data; this repository has none. Tracked outside this repository
+- Local text-LLM execution outside the LLM gateway (the route ADR 0038 removed, with `--llm-model-path` and `--llm-model-family`) - local text generation returns only as the Phase 6 `LlamaCppAdapter` behind the `LlmGateway` port (GW-03); baseline requirement GEN-07 will be amended by GW-05
 - ADR 0023 sections 15 and 16, the "Production semantic runtime and promotion boundary" subsection, the "Implementation status" list and the GGUF-bound parts of section 6 - operator-approved reading; not planning targets
 - Certified publication path (certificate issuance, derivative certification, reference corpus, calibration authority) - stays unreachable (ADR 0024, ADR 0045 section 4); a future certified route needs a new record on generator-evaluator independence
 - Any claim of clinical, academic or publication authority, or relabeling the material as certified - ADR 0024 clause stays in force
@@ -76,34 +89,38 @@ Deferred candidates (conditional, ADR 0023 target remainder, codebase-map harden
 | 17 | figure captions | `17_figure_captions` | local (llama-mtmd-cli) |
 | 18 | personal-study flashcards | `18_personal_study_flashcards` | standalone Codex script |
 
+The Route column describes the built baseline. Phase 6 routes stages 5, 6, 7, 13, 14 and 18 through one `LlmGateway` port, with the Codex adapter as the default (GW-01, GW-04).
+
 **Entry points.** `python -m lecture_study.cli.main` (`run-all`, `run-phase`, `run-personal-study`); `lecture_study.site.app:app` (`make site`); operator scripts under `scripts/`. `run-all` stops at stage 10 on the certified path; `run-personal-study` (stages 8, 9, 13, 14, 15) is the operable path.
 
 **Source of this setup.** 42 ADRs (0001-0016, 0020-0045; 0017-0019 absent by design, ADR 0044), all Accepted. Intel: `.planning/intel/`. Conflict report: `.planning/INGEST-CONFLICTS.md` (0 blockers, 3 warnings resolved by the operator-approved readings below, 19 informational). Codebase map: `.planning/codebase/` (mapped at commit `98206c1`).
 
-**Open items stated in the ADRs.** Pre-ADR 0045 derivative material must be regenerated or deleted and deployed pages keep the old notice until regeneration (ADR 0045, Phase 6). Assembly has not run on real data (ADR 0024, ADR 0045; Phase 6). Deferred or conditional: podcast prompt size check (ADR 0037), re-transcription of 25 transcripts (ADR 0028), re-extraction at 37.5 seconds (ADR 0025), critic rerun after re-draft and the critic/drafts script coupling (ADR 0045, ADR 0036). The README still carries a placeholder awaiting the end-to-end demo (Phase 7).
+**Open items stated in the ADRs.** Pre-ADR 0045 derivative material must be regenerated or deleted and deployed pages keep the old notice until regeneration (ADR 0045); both concern the private source deployment and are tracked outside this repository (former ROLL-01, ROLL-02). Assembly has not run on real data (ADR 0024, ADR 0045); in this repository stages 8 and 9 first run on the synthetic demo lecture (DEMO-02, Phase 7). ADR 0045 section 2 names a planned local adapter of the LLM gateway that no record defines; Phase 6 delivers it and a new ADR closes that section (GW-03, GW-05). Deferred or conditional: podcast prompt size check (ADR 0037), re-transcription of 25 transcripts (ADR 0028), re-extraction at 37.5 seconds (ADR 0025), critic rerun after re-draft and the critic/drafts script coupling (ADR 0045, ADR 0036). The README still carries a placeholder awaiting the portfolio README (Phase 8).
 
 **Codebase concerns** (`.planning/codebase/CONCERNS.md`): oversized modules, broad exception handlers, duplicated Docker pins, signing secret read per request, one catalog TODO, two test gaps. Tracked as v2 hardening candidates. The map's "stray print statements" concern is not carried forward: the two `print` calls in `extraction/ocr_worker.py` are the OCR child process's stdout and stderr protocol.
 
 ## Constraints
 
 - **Platform**: macOS on Apple Silicon, CPython 3.12, uv, hatchling - OCR (Apple Vision via pyobjc), MLX TTS and Metal-backed engines are macOS-only; CI runs on `macos-15`
-- **Local compute**: only Whisper/ASR, the Kokoro TTS voice, Apple Vision OCR and `llama-mtmd-cli` vision captioning run locally; all LLM stages use the Codex CLI (ChatGPT subscription, not the API) as bounded child processes (ADR 0038)
-- **Egress**: the Codex route is used only for lecture content the operator has verified to carry no patient-identifying data; the rule is procedural and the provider's retention and training terms are unchecked here (ADR 0045 section 2)
+- **Local compute**: only Whisper/ASR, the Kokoro TTS voice, Apple Vision OCR and `llama-mtmd-cli` vision captioning run locally; all LLM stages use the Codex CLI (ChatGPT subscription, not the API) as bounded child processes (ADR 0038). Phase 6 places them behind an `LlmGateway` port with a Codex adapter (default) and a local llama.cpp adapter with no network egress (GW-01..04)
+- **Egress**: the Codex route is used only for lecture content the operator has verified to carry no patient-identifying data; the rule is procedural and the provider's retention and training terms are unchecked here (ADR 0045 section 2). Content that may carry such data runs only on the local adapter once Phase 6 closes ADR 0045 section 2 (GW-05)
 - **Certification boundary**: stage 10 keeps raising unconditionally; every artifact is uncertified and carries the payload marker; no standing toward certification (ADR 0024)
 - **Site image isolation**: `Dockerfile.site` copies only `site/` and `domain/models.py`; the site package may import only `lecture_study.site` and `lecture_study.domain`
 - **Inline site code**: the CSP lists inline scripts and styles by hash; any change to them requires regenerating site pages (ADR 0044)
 - **Data and secrets**: no secrets, credentials, PII or key-shaped literals in any file outside `.env`; all lecture identifiers synthetic; `workspace/`, `engines/` and `config/*.local.yaml` stay git-ignored
 - **Code quality**: ruff clean, `ruff format` clean, mypy strict, pytest green (`make lint`, `make test`); tests use `tmp_path` and never write to `workspace/` or `engines/`
 - **Leak gate**: local hooks plus CI secret scan and denylist scan; the denylist lives outside the repository
-- **Process (operator rule R0.4)**: a phase that changes code or executable operational artifacts runs Code Review and Code Secure on the phase-final diff before closing. The repository defines no phase-level mechanism of its own; the GSD workflows `gsd-code-review` and `gsd-secure-phase` are available and need confirmation as canonical before the first code-changing phase closes
-- **Milestones**: one active milestone per owning boundary; this setup opens v1.0 for the repository
+- **Process (operator rule R0.4)**: a phase that changes code or executable operational artifacts runs Code Review and Code Secure on the phase-final diff before closing. The canonical mechanism is `/gsd-code-review` plus `/gsd-secure-phase` on the phase-final diff, re-run after any material fix (operator decision 2026-10-14)
+- **Milestones**: one active milestone per owning boundary; this setup opens v1.0 for the repository, which ends when the repository is switched to public after the Phase 9 gate
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Model the built baseline as Phases 1-5 marked Complete and the open work as Phases 6-7 | Roadmap must reflect built versus open work; no PRD exists, so phases follow ADR delivery boundaries | Pending |
-| Accept ADR 0045 section 2 egress rule as written; plan no local-LLM phase | Operator-approved reading (2026-10-14) | Good |
+| Model the built baseline as Phases 1-5 marked Complete and the open work as Phases 6-9 | Roadmap must reflect built versus open work; no PRD exists, so baseline phases follow ADR delivery boundaries | Pending |
+| Accept ADR 0045 section 2 egress rule as written; plan no local-LLM phase | Operator-approved reading (2026-10-14); the "no local-LLM phase" part was revised by the v1.0 restructure (see D-READ-01) | Revised |
+| Restructure v1.0 as a public portfolio milestone: Phase 6 LLM gateway, Phase 7 synthetic demo with measured results, Phase 8 portfolio README, Phase 9 pre-public gate; former ROLL-01 and ROLL-02 leave the milestone, former ROLL-03 and ROLL-04 are absorbed by DEMO-02 and DEMO-04 | Operator decision (2026-10-14); the repository holds no real data, so rollout on the private deployment is tracked outside it | Pending |
+| Canonical R0.4 per-phase review mechanism: `/gsd-code-review` plus `/gsd-secure-phase` on the phase-final diff, re-run after material fixes | Operator decision (2026-10-14) | Good |
 | Treat ADR 0023 sections 15, 16, the runtime subsection, the implementation-status list and GGUF-bound section 6 as not planning targets | Operator-approved reading; superseded by ADR 0038 and ADR 0045 section 4 | Good |
 | Uncertified personal-study mode usable by the allowlisted audience; "no standing toward certification" stays in force | Operator-approved reading; ADR 0045 section 3 widens the audience | Good |
 | Keep ADR 0023 target remainder and codebase-map findings as v2 candidates, not committed phases | Intel supports them only as targets or observations; promotion needs an operator decision | Pending |
@@ -115,7 +132,7 @@ Deferred candidates (conditional, ADR 0023 target remainder, codebase-map harden
 All 42 records have Status "Accepted" and are locked. Precedence follows only the explicit amends and supersedes statements in each Status section (ADR 0045 section 6). Paths written `data/...` in ADRs 0002-0006 are rooted at `workspace/data/` (ADR 0007 section 1). Decision IDs use the form `D-ADR<number>-<n>`; the IDs D-10, D-14 and D-23 cited inside ADRs 0025 and 0030 belong to external documents and are not reused.
 
 ### Operator-approved readings (ingest, 2026-10-14)
-- **D-READ-01:** ADR 0045 section 2 egress rule is accepted as written. The Codex route is used only for content the operator has verified to carry no patient-identifying data; content that may carry it is not processed past stage 4. The rule is procedural. No local-LLM or "LLM gateway" adapter phase is planned from it.
+- **D-READ-01:** ADR 0045 section 2 egress rule is accepted as written. The Codex route is used only for content the operator has verified to carry no patient-identifying data; content that may carry it is not processed past stage 4. The rule is procedural. No local-LLM or "LLM gateway" adapter phase is planned from it. **Revised 2026-10-14 (operator decision, v1.0 restructure):** the egress rule stands, but the last sentence no longer holds: Phase 6 plans the LLM gateway and its local adapter (GW-01..06), and a new ADR closes ADR 0045 section 2 (GW-05).
 - **D-READ-02:** ADR 0023 sections 15 and 16, the unnumbered "Production semantic runtime and promotion boundary" subsection, the "Implementation status" list and the GGUF-bound parts of section 6 are not planning targets.
 - **D-READ-03:** The uncertified personal-study mode is usable by the allowlisted audience. The "no standing toward certification" clause of ADR 0024 stays in force.
 
@@ -197,4 +214,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-10-14 after ADR ingest and roadmap creation*
+*Last updated: 2026-10-14 after the operator-approved restructure of milestone v1.0 (Phases 6-9)*

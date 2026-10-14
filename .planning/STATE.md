@@ -2,11 +2,11 @@
 gsd_state_version: '1.0'
 status: planning
 progress:
-  total_phases: 7
+  total_phases: 9
   completed_phases: 5
   total_plans: 0
   completed_plans: 0
-  percent: 71
+  percent: 56
 ---
 
 # Project State
@@ -16,16 +16,17 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-14)
 
 **Core value:** No text the critic rejected or never reviewed reaches a reader of the study material, and everything a reader sees is labelled as uncertified.
-**Current focus:** Phase 6 - Critic-gated rollout on real data
+**Current focus:** Phase 6 - Pluggable LLM gateway
 
 ## Current Position
 
-Phase: 6 of 7 (Critic-gated rollout on real data)
+Phase: 6 of 9 (Pluggable LLM gateway)
 Plan: 0 of TBD in current phase
 Status: Ready to plan
-Last activity: 2026-10-14 - Roadmap, requirements and state created from the 42-ADR ingest; baseline verified at commit 4bfbe46
+Last activity: 2026-10-14 - Milestone v1.0 restructured by operator decision: Phases 6-9 (LLM gateway, synthetic demo, portfolio README, pre-public gate) replace the former Phases 6-7
+Next action: `/gsd-plan-phase 6`
 
-Progress: [███████░░░] 71% (phases; Phases 1-5 are complete baseline built before GSD adoption, no GSD plans yet)
+Progress: [██████░░░░] 56% (phases, 5 of 9; Phases 1-5 are complete baseline built before GSD adoption, no GSD plans yet)
 
 ## Performance Metrics
 
@@ -52,10 +53,14 @@ Progress: [███████░░░] 71% (phases; Phases 1-5 are complete 
 Full locked-decision log (42 ADRs plus three operator readings) lives in PROJECT.md `<decisions>`.
 Recent decisions affecting current work:
 
-- [Ingest]: ADR 0045 section 2 egress rule accepted as written; no local-LLM phase planned from it
+- [Ingest]: ADR 0045 section 2 egress rule accepted as written; no local-LLM phase planned from it (revised by the restructure below)
 - [Ingest]: ADR 0023 sections 15, 16, the runtime subsection, the implementation-status list and GGUF-bound section 6 are not planning targets
 - [Ingest]: Uncertified personal-study mode usable by the allowlisted audience; "no standing toward certification" stays in force
-- [Roadmap]: Built baseline modeled as Phases 1-5 (Complete); open work is Phases 6-7; v2 holds conditional, ADR 0023 remainder and codebase-map candidates
+- [Roadmap]: Built baseline modeled as Phases 1-5 (Complete); v2 holds conditional, ADR 0023 remainder and codebase-map candidates
+- [Restructure 2026-10-14]: The repository is a public portfolio artifact; v1.0 open work is Phases 6-9 (pluggable LLM gateway, synthetic demo with measured results, portfolio README, pre-public gate) and ends with the switch to public
+- [Restructure 2026-10-14]: Former ROLL-01 and ROLL-02 left the milestone (private source deployment, tracked outside this repository); former ROLL-03 and ROLL-04 absorbed by DEMO-02 and DEMO-04
+- [Restructure 2026-10-14]: The local adapter of the LLM gateway is planned (Phase 6); a new ADR amends ADR 0038 and closes ADR 0045 section 2 (GW-05)
+- [Process 2026-10-14]: Canonical R0.4 mechanism is `/gsd-code-review` plus `/gsd-secure-phase` on the phase-final diff, re-run after material fixes
 
 ### Pending Todos
 
@@ -63,11 +68,11 @@ None yet.
 
 ### Blockers/Concerns
 
-- [Phase 6]: Derivative material generated before ADR 0045 may still exist in the operator's workspace and be served; locating it is part of ROLL-01 (the payload marker does not distinguish pre-gate from post-gate artifacts)
-- [Phase 6]: Stages 8 and 9 have never run on real data (ADR 0024, ADR 0045); expect first-run defects
-- [Phase 6]: The recovery path after a re-draft is manual: the orchestrator does not rerun the critic (ADR 0045 Consequences)
+- [Phase 6]: The llama.cpp text route was deleted by ADR 0038; GW-03 restores it from the history before that record, so the restored code must be adapted to the current shared response contract and bounded-process discipline
+- [Phase 6]: The local GGUF model to be used by `LlamaCppAdapter` and its provisioning are not yet decided
+- [Phase 7]: Stages 8 and 9 have never run on lecture data (ADR 0024, ADR 0045); the demo lecture is their first run in this repository; expect first-run defects
+- [Phase 7]: The recovery path after a re-draft is manual: the orchestrator does not rerun the critic (ADR 0045 Consequences); DEMO-04 exercises it
 - [Ingest]: Egress rule is procedural and the provider's retention and training terms are unrecorded; the ADR texts of 0023 and 0024 were not amended to match the operator readings
-- [Process]: R0.4 requires Code Review and Code Secure per code-changing phase; the repository defines no mechanism of its own, so GSD `gsd-code-review` and `gsd-secure-phase` need confirmation as canonical
 - [Map]: CONCERNS.md and CONVENTIONS.md disagree on the count of broad exception handlers (about 38 lines versus 9); re-count before HARD-02 is planned
 
 ## Deferred Items
@@ -83,5 +88,5 @@ Items acknowledged and deferred at roadmap creation (detail in REQUIREMENTS.md v
 ## Session Continuity
 
 Last session: 2026-10-14
-Stopped at: Roadmap, requirements, project and state files written; awaiting orchestrator presentation and approval
+Stopped at: Milestone v1.0 restructure written to PROJECT.md, REQUIREMENTS.md, ROADMAP.md and STATE.md; next action `/gsd-plan-phase 6`
 Resume file: None

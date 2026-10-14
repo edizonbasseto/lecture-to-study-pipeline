@@ -2,9 +2,9 @@
 
 ## Overview
 
-The pipeline and the study site are already implemented. Phases 1-5 reconstruct that built baseline from the Accepted ADRs and are marked complete; Phases 6-7 are the open work. Phase 6 closes the rollout of the critic gate (ADR 0045): pre-gate derivative material is regenerated or deleted, the site is regenerated so every page carries the uncertified notice, stages 8 and 9 run on real lecture data for the first time, and the blocked-lecture recovery is verified. Phase 7 replaces the placeholder README with operator documentation and an end-to-end walkthrough that states the operating boundaries the ADRs impose. Milestone: v1.0 (baseline adoption and ADR 0045 rollout).
+The pipeline and the study site are already implemented. Phases 1-5 reconstruct that built baseline from the Accepted ADRs and are marked complete; Phases 6-9 are the open work. The repository is a public portfolio artifact, and the milestone ends when it is switched to public after a final gate. Phase 6 places every LLM-backed stage behind one `LlmGateway` port, with the current Codex behavior as the default adapter and a local llama.cpp adapter with no network egress, chosen by configuration; a new ADR amends ADR 0038 and closes ADR 0045 section 2. Phase 7 builds a synthetic demo lecture authored for the repository, runs it end to end to a served page (stages 8 and 9 and the blocked-lecture recovery included) and reports the pipeline's quality with measured numbers. Phase 8 replaces the placeholder README with a portfolio README, a demo walkthrough and the operating boundaries the ADRs impose. Phase 9 scans the full history, closes a final whole-repository review and switches the repository to public. Milestone: v1.0 (baseline adoption, pluggable LLM gateway, synthetic end-to-end demo with measured results, portfolio README, pre-public gate).
 
-**Reading notes.** "Stage N" is the pipeline stage that ADRs and code call "Phase N" (for example stage 7 is critic review); "Phase N" in this file is a roadmap phase. Baseline status means: ADR Accepted, implementing code present, and baseline checks green at commit `4bfbe46` on 2026-10-14 (2262 tests passed; ruff check and format clean; mypy strict clean). Baseline phases carry no GSD plans because they were built before GSD adoption. Granularity is the standard default (no `config.json` existed); five of the seven phases are retrospective, so planned work is two phases.
+**Reading notes.** "Stage N" is the pipeline stage that ADRs and code call "Phase N" (for example stage 7 is critic review); "Phase N" in this file is a roadmap phase. Baseline status means: ADR Accepted, implementing code present, and baseline checks green at commit `4bfbe46` on 2026-10-14 (2262 tests passed; ruff check and format clean; mypy strict clean). Baseline phases carry no GSD plans because they were built before GSD adoption. Granularity is the standard default (no `config.json` existed); five of the nine phases are retrospective, so planned work is four phases. Phases 6-9 replace the former Phases 6-7 by operator decision (2026-10-14): former ROLL-01 and ROLL-02 left the milestone, former ROLL-03 and ROLL-04 are absorbed by DEMO-02 and DEMO-04.
 
 ## Phases
 
@@ -19,8 +19,10 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Assembly, study material and the uncertified boundary** - Critic-approved units become canonical documents and uncertified student-facing material, blocked per lecture by the critic gate (baseline)
 - [x] **Phase 4: Study site** - Allowlisted readers sign in, read, watch and take server-graded mock exams on a hardened site (baseline)
 - [x] **Phase 5: Publication boundary and public repository** - Local lectures stay private until published and the repository leaks no portal details, credentials or private terms (baseline)
-- [ ] **Phase 6: Critic-gated rollout on real data** - Everything the audience can reach passed the critic gate and carries the current notice; stages 8-9 run on real data
-- [ ] **Phase 7: Operator documentation and end-to-end demo** - A new operator can follow the README from a registered video to a served page and knows the boundaries
+- [ ] **Phase 6: Pluggable LLM gateway** - Every LLM-backed stage calls one `LlmGateway` port; a Codex adapter keeps current behavior and a local llama.cpp adapter runs with no network egress, chosen by configuration
+- [ ] **Phase 7: Synthetic demo lecture and measured results** - A lecture authored for the repository runs end to end to a served page, and the pipeline's quality is reported with real numbers
+- [ ] **Phase 8: Portfolio README and documentation** - A technical reader understands the problem, architecture, decisions and results, and the demo walkthrough runs as written
+- [ ] **Phase 9: Pre-public gate and release** - The full history passes the leak scans, a final whole-repository review closes, and the repository is switched to public
 
 ## Phase Details
 
@@ -82,33 +84,54 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. A commit or push containing a denylisted term or a secret is rejected by the local hooks, and CI fails closed when the `DENYLIST` secret is absent
 **Plans**: 0 plans (baseline built before GSD adoption)
 
-### Phase 6: Critic-gated rollout on real data
-**Goal**: Everything the allowlisted audience can reach was produced through the critic gate and carries the current uncertified notice, and stages 8 and 9 have run on real lecture data
+### Phase 6: Pluggable LLM gateway
+**Goal**: Every LLM-backed stage (5 semantic ledgers, 6 drafts, 7 critic, 13 exam, 14 podcast, 18 personal-study flashcards) calls one `LlmGateway` port; a `CodexCliAdapter` keeps current behavior and a `LlamaCppAdapter` runs a local model with no network egress; the adapter is chosen by configuration
 **Depends on**: Phase 5
-**Requirements**: ROLL-01, ROLL-02, ROLL-03, ROLL-04
+**Requirements**: GW-01, GW-02, GW-03, GW-04, GW-05, GW-06
 **Success Criteria** (what must be TRUE):
-  1. After the pass, no exam, podcast script or audio file, personal-study flashcard deck or study guide generated before the critic gate remains in the trees the site serves: each was regenerated through the gate or deleted, and a lecture whose exam was deleted no longer offers "Responder simulado"
-  2. After the site is regenerated, the home, lecture, reading, watch and mock-exam pages carry the current uncertified notice and the browser reports no Content-Security-Policy violation for inline scripts or styles
-  3. `run-personal-study` completes stages 8 and 9 on at least one real lecture, and `canonical_document.json` and `global_index.json` exist for it
-  4. For a lecture held by a rejected, stale or unreviewed unit, the four derivative scripts write nothing; after the documented recovery (delete units that no longer have a draft, run `scripts/generate_codex_critic_review.py` for the lecture) they produce the exam, podcast, flashcards and study guide
+  1. Switching the configuration from codex to llama-cpp runs stages 5, 6 and 7 on a lecture with no Codex invocation
+  2. An unknown adapter name exits non-zero before any model call
+  3. The contract tests pass for both adapters in CI
+  4. The new ADR is Accepted, and ADR 0038 and ADR 0045 carry amendment notes pointing to it
 **Plans**: TBD
 
-### Phase 7: Operator documentation and end-to-end demo
-**Goal**: A new operator can follow the repository documentation from a registered video to a served, notice-bearing page, and knows the boundaries the ADRs impose
+### Phase 7: Synthetic demo lecture and measured results
+**Goal**: A lecture authored for this repository runs end to end to a served page, and the pipeline's quality is reported with real numbers
 **Depends on**: Phase 6
+**Requirements**: DEMO-01, DEMO-02, DEMO-03, DEMO-04
+**Success Criteria** (what must be TRUE):
+  1. A make target rebuilds the demo lecture video from versioned sources (script, slides, Kokoro narration, ffmpeg composition), and those sources contain no third-party content and no patient data
+  2. The demo lecture runs through `run-all` and `run-personal-study`, stages 8 and 9 included, and a signed-in session views its page on the locally served site
+  3. A results report gives the ASR word error rate against the known script before and after the terminology dictionary, the schema pass rate per LLM stage, the critic rejection rate and the per-stage wall time, for each adapter that was run
+  4. With a rejected or stale unit, the exam, podcast, personal-study flashcard and study-guide scripts write nothing for the demo lecture; after the ADR 0045 recovery they produce the exam, podcast, flashcards and study guide
+**Plans**: TBD
+
+### Phase 8: Portfolio README and documentation
+**Goal**: A technical reader or recruiter understands the problem, the architecture, the design decisions and the measured results from the README, the demo walkthrough runs as written, and the operating boundaries the ADRs impose are stated
+**Depends on**: Phase 7
 **Requirements**: DOC-01, DOC-02, DOC-03
 **Success Criteria** (what must be TRUE):
-  1. The README no longer carries the "under active extraction" placeholder and lists the prerequisites, the make targets, the CLI commands and the stage-to-directory map
-  2. A documented walkthrough taking a video from `register_local_lecture.py` through `run-personal-study` and site generation to a signed-in page view has been executed once, and every command in it exists as written
-  3. The documentation states the Codex egress rule and the unchecked provider terms, the uncertified status and notice, the absence of any standing toward certification, the blocked-lecture recovery, page regeneration after an inline script or style change, the single-worker site constraint and the FileVault revisit triggers
+  1. The README is in English, no longer carries the "under active extraction" placeholder, and presents the problem, a Mermaid architecture diagram, the stage map, the design decisions with links to their ADRs, the DEMO-03 results and a quick start
+  2. The end-to-end walkthrough of the demo lecture has been executed once, and every command in it exists as written
+  3. The documentation states the egress rule and the unchecked provider terms, the uncertified status and notice, the absence of any standing toward certification, the blocked-lecture recovery, page regeneration after an inline script or style change, the single-worker site constraint and the FileVault revisit triggers
+**Plans**: TBD
+
+### Phase 9: Pre-public gate and release
+**Goal**: The repository is switched to public only after its full history passes the leak scans and a final whole-repository review closes with no blocking finding, with the leak gate still in force afterwards
+**Depends on**: Phase 8
+**Requirements**: PUBG-01, PUBG-02, PUBG-03
+**Success Criteria** (what must be TRUE):
+  1. A denylist scan and a gitleaks scan over every ref and the full history report no finding
+  2. A whole-repository `gsd-code-review` and `gsd-secure-phase` close with no open blocking finding
+  3. After the operator's final check, the repository visibility is public, the CI `DENYLIST` secret is still configured, and the leak-gate hooks are still in force
 **Plans**: TBD
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7. Phases 1-5 are complete baseline; the next action is planning Phase 6.
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9. Phases 1-5 are complete baseline; the next action is planning Phase 6.
 
-**Phase completion gates:** a phase that changes code or executable operational artifacts runs Code Review and Code Secure on the phase-final diff before it closes (operator rule R0.4); see PROJECT.md Constraints for the open question on the canonical mechanism.
+**Phase completion gates:** a phase that changes code or executable operational artifacts runs `/gsd-code-review` and `/gsd-secure-phase` on the phase-final diff before it closes, and re-runs them after any material fix (operator rule R0.4; canonical mechanism set by operator decision 2026-10-14).
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -117,5 +140,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7. Phases 1
 | 3. Assembly, study material and the uncertified boundary | 0/0 | Complete (baseline) | Pre-GSD |
 | 4. Study site | 0/0 | Complete (baseline) | Pre-GSD |
 | 5. Publication boundary and public repository | 0/0 | Complete (baseline) | Pre-GSD |
-| 6. Critic-gated rollout on real data | 0/TBD | Not started | - |
-| 7. Operator documentation and end-to-end demo | 0/TBD | Not started | - |
+| 6. Pluggable LLM gateway | 0/TBD | Not started | - |
+| 7. Synthetic demo lecture and measured results | 0/TBD | Not started | - |
+| 8. Portfolio README and documentation | 0/TBD | Not started | - |
+| 9. Pre-public gate and release | 0/TBD | Not started | - |

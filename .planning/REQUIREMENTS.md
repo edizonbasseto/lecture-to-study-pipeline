@@ -5,9 +5,9 @@
 
 ## Reading Guide
 
-**Provenance.** No PRD or SPEC exists: `intel/requirements.md` holds 0 requirements. Every ID below was assigned by the roadmapper from ADR-stated behaviors and cites its source in parentheses (ADR number and section). Items that come from the repository README or the codebase map instead of an ADR say so.
+**Provenance.** No PRD or SPEC exists: `intel/requirements.md` holds 0 requirements. Every ID below was assigned by the roadmapper from ADR-stated behaviors and cites its source in parentheses (ADR number and section). Items that come from the repository README or the codebase map instead of an ADR say so. The Phase 6-9 requirements come from the operator-approved restructure of milestone v1.0 and cite "Operator decision 2026-10-14", plus any ADR they act on.
 
-**Status.** `[x]` means built: the ADR is Accepted, the implementing code is present, and the baseline checks were green at commit `4bfbe46` on 2026-10-14 (2262 tests passed; `ruff check` and `ruff format --check` clean; `mypy src` strict clean on 112 files). It does not claim per-requirement re-verification. `[ ]` means open work, planned in Phases 6-7.
+**Status.** `[x]` means built: the ADR is Accepted, the implementing code is present, and the baseline checks were green at commit `4bfbe46` on 2026-10-14 (2262 tests passed; `ruff check` and `ruff format --check` clean; `mypy src` strict clean on 112 files). It does not claim per-requirement re-verification. `[ ]` means open work, planned in Phases 6-9.
 
 **Terminology.** "Stage N" is the pipeline stage numbered "Phase N" in ADRs and code. "Phase N" in this file means a roadmap phase. The prefix `WEB` is used for the site instead of `SITE` to avoid colliding with the external `SITE-0x` identifiers cited in ADR 0029 and in test docstrings.
 
@@ -100,18 +100,35 @@ Committed scope. Each requirement maps to exactly one roadmap phase.
 - [x] **REPO-03**: The denylist scanner keeps the private denylist outside the repository, folds text before comparing, reports a match by term position and never by the term, and fails on a missing, unreadable or empty denylist. (ADR 0044 section 3)
 - [x] **REPO-04**: CI runs `secret-scan`, `denylist-scan` (failing closed when the `DENYLIST` secret is absent) and `test` (ruff, mypy, pytest on macOS) on every push to `main` and every pull request, with actions pinned by SHA, a read-only token and no persisted checkout credentials. (ADR 0044 section 3)
 
-### Critic-Gated Rollout (Phase 6) - open
+### Pluggable LLM Gateway (Phase 6) - open
 
-- [ ] **ROLL-01**: Every exam, podcast script and audio file, personal-study flashcard deck and study guide generated before the critic gate is regenerated through `load_critic_approved_drafts` or deleted, so none that predates the gate remains in the trees the site serves. (ADR 0045 section 1 and Operational)
-- [ ] **ROLL-02**: The site is regenerated after the rollout so every deployed page carries the current `UNCERTIFIED_NOTICE` and every inline script and style is admitted by the Content-Security-Policy hash list. (ADR 0045 Consequences; ADR 0044 section 4 and Consequences)
-- [ ] **ROLL-03**: Stages 8 and 9 run on at least one real lecture through `run-personal-study`, producing `canonical_document.json` and `global_index.json`; as of ADR 0045 assembly has not run on real data. (ADR 0024 Context; ADR 0045 Alternatives)
-- [ ] **ROLL-04**: Operator can unblock a lecture held by a rejected, stale or unreviewed unit with the documented recovery (delete the lecture's units that no longer have a draft, then run `scripts/generate_codex_critic_review.py` for the lecture directly), after which the four derivative scripts proceed. (ADR 0045 section 1 and Consequences)
+- [ ] **GW-01**: An `LlmGateway` port is defined inward of the scripts (application layer); the six LLM-backed stages (5 semantic ledgers, 6 drafts, 7 critic, 13 exam, 14 podcast, 18 personal-study flashcards) call it instead of spawning the Codex CLI directly. (Operator decision 2026-10-14; ADR 0038 section 1; ADR 0045 section 2)
+- [ ] **GW-02**: `CodexCliAdapter` preserves current Codex behavior: bounded child process, sanitized environment, read-only sandbox, and failure capture under `tmp/codex_phase_failures/`. (Operator decision 2026-10-14; ADR 0035; ADR 0038 section 1)
+- [ ] **GW-03**: `LlamaCppAdapter` runs a local GGUF model through llama.cpp, restored from the repository history before ADR 0038 and adapted to the port, with no network egress. (Operator decision 2026-10-14; ADR 0038 section 8; ADR 0045 section 2)
+- [ ] **GW-04**: The adapter is selected by configuration (globally, optionally per stage), defaults to Codex, and an unknown or misconfigured adapter fails closed before any call. (Operator decision 2026-10-14)
+- [ ] **GW-05**: A new ADR amends ADR 0038 (the local text-LLM route is reinstated as a gateway adapter) and closes ADR 0045 section 2 (content that may carry patient-identifying data runs only on the local adapter). Baseline requirement GEN-07 is amended by this record. (Operator decision 2026-10-14; ADR 0038; ADR 0045 section 2)
+- [ ] **GW-06**: Both adapters pass the same contract tests through the shared JSON-contract parser and the critic repair loop; CI exercises the llama.cpp adapter with a stub binary. (Operator decision 2026-10-14; ADR 0022 operational amendment; ADR 0036; ADR 0044 section 3)
 
-### Operator Documentation (Phase 7) - open
+### Synthetic Demo Lecture and Measured Results (Phase 7) - open
 
-- [ ] **DOC-01**: The README replaces its "under active extraction" placeholder with the prerequisites (macOS on Apple Silicon, uv, Homebrew packages, provisioned engines, authenticated Codex CLI), the make targets and CLI commands, and the stage-to-directory map. (Repository README; ADR 0044 Consequences; codebase map STACK.md)
-- [ ] **DOC-02**: An end-to-end walkthrough takes an operator-owned (or synthetic) video from `register_local_lecture.py` through `run-personal-study` and site generation to a signed-in page view, and has been executed once against the current commands. (Repository README "end-to-end demo"; ADR 0044 Consequences)
-- [ ] **DOC-03**: The documentation states the operating boundaries as the ADRs define them: the Codex egress rule and the unchecked provider terms (ADR 0045 section 2), the uncertified status, notice and absence of certification standing (ADR 0024; ADR 0045 section 3), blocked-lecture recovery (ADR 0045), page regeneration after any inline script or style change (ADR 0044), the single-worker site constraint (ADR 0039), and the FileVault revisit triggers (ADR 0010).
+Former ROLL-03 (stages 8 and 9 on lecture data) is absorbed by DEMO-02 and former ROLL-04 (blocked-lecture recovery) by DEMO-04; both IDs are retired.
+
+- [ ] **DEMO-01**: A synthetic veterinary lecture authored for the repository (own script, own slides, Kokoro narration, ffmpeg composition), containing no third-party content and no patient data, is reproducible from versioned sources by a make target. (Operator decision 2026-10-14; ADR 0032; ADR 0044 section 2)
+- [ ] **DEMO-02**: The demo lecture runs through `run-all` and `run-personal-study`, stages 8 and 9 included, to a signed-in page view on the locally served site. (Operator decision 2026-10-14; absorbs former ROLL-03; ADR 0024 Context; ADR 0045 Alternatives)
+- [ ] **DEMO-03**: The pipeline's quality is reported with measured numbers: ASR word error rate against the known script before and after the terminology dictionary, schema pass rate per LLM stage, critic rejection rate, and per-stage wall time, for each adapter that is run. (Operator decision 2026-10-14; ADR 0028; ADR 0036)
+- [ ] **DEMO-04**: The blocked-lecture recovery documented in ADR 0045 is demonstrated on the demo lecture: a rejected or stale unit blocks all four derivative scripts; after the recovery (delete the lecture's units that no longer have a draft, then run `scripts/generate_codex_critic_review.py` for the lecture directly) they produce the exam, podcast, flashcards and study guide. (Operator decision 2026-10-14; absorbs former ROLL-04; ADR 0045 section 1 and Consequences)
+
+### Portfolio README and Documentation (Phase 8) - open
+
+- [ ] **DOC-01**: An English README written for a technical reader or recruiter replaces the "under active extraction" placeholder and presents the problem, an architecture diagram (Mermaid), the stage map, the design decisions with links to their ADRs, the demo results from DEMO-03, and a quick start. (Operator decision 2026-10-14; repository README; ADR 0044 Consequences)
+- [ ] **DOC-02**: An end-to-end walkthrough of the demo lecture has been executed once, and every command in it exists as written. (Operator decision 2026-10-14; repository README "end-to-end demo"; ADR 0044 Consequences)
+- [ ] **DOC-03**: The documentation states the operating boundaries as the ADRs define them: the egress rule and the unchecked provider terms (ADR 0045 section 2), the uncertified status and notice (ADR 0024; ADR 0045 section 3), the absence of certification standing (ADR 0024), blocked-lecture recovery (ADR 0045), page regeneration after any inline script or style change (ADR 0044), the single-worker site constraint (ADR 0039), and the FileVault revisit triggers (ADR 0010).
+
+### Pre-Public Gate and Release (Phase 9) - open
+
+- [ ] **PUBG-01**: A denylist scan and a gitleaks scan over every ref and the full history pass with no finding. (Operator decision 2026-10-14; ADR 0044 section 3)
+- [ ] **PUBG-02**: A final whole-repository code review and security review (`gsd-code-review` and `gsd-secure-phase`) close with no open blocking finding. (Operator decision 2026-10-14; operator rule R0.4)
+- [ ] **PUBG-03**: After the operator's final check, the repository visibility is switched to public; the CI `DENYLIST` secret and the leak-gate hooks stay in force. (Operator decision 2026-10-14; ADR 0044 section 3)
 
 ## v2 Requirements
 
@@ -155,8 +172,9 @@ Explicitly excluded. Documented to prevent scope creep.
 
 | Feature | Reason |
 |---------|--------|
-| Local-model route for content that may carry patient-identifying data (the "planned local adapter of the LLM gateway") | Operator-approved reading of ADR 0045 section 2; no record defines the gateway; ADR 0038 removed the local route; until defined, such content is not processed past stage 4 |
-| Local text-LLM execution (qwen3-32b, llama.cpp text generation) | Removed by ADR 0038 |
+| Former ROLL-01: regenerating through the critic gate, or deleting, every exam, podcast script and audio file, personal-study flashcard deck and study guide generated before the gate | Concerns the private source deployment and its served site, which hold the real data; this repository has none. Tracked outside this repository |
+| Former ROLL-02: regenerating the deployed site so every page carries the current `UNCERTIFIED_NOTICE` and matches the Content-Security-Policy hash list | Concerns the private source deployment and its served site, which hold the real data; this repository has none. Tracked outside this repository |
+| Local text-LLM execution outside the LLM gateway (the route ADR 0038 removed, with `--llm-model-path` and `--llm-model-family`) | Removed by ADR 0038; local text generation returns only as the Phase 6 `LlamaCppAdapter` behind the `LlmGateway` port (GW-03); baseline requirement GEN-07 will be amended by GW-05 |
 | ADR 0023 sections 15 and 16, the "Production semantic runtime and promotion boundary" subsection, the "Implementation status" list, GGUF-bound parts of section 6 | Operator-approved reading; superseded by ADR 0038 and ADR 0045 section 4 |
 | Certified publication path (certificate issuance, derivative certification, reference corpus, calibration authority) | Stays unreachable (ADR 0024; ADR 0045 section 4); a future certified route needs a new record on generator-evaluator independence |
 | Any claim of clinical, academic or publication authority, or relabeling material as certified | ADR 0024 clause stays in force |
@@ -230,19 +248,30 @@ Which phases cover which requirements. Each requirement maps to exactly one phas
 | REPO-02 | Phase 5 | Complete |
 | REPO-03 | Phase 5 | Complete |
 | REPO-04 | Phase 5 | Complete |
-| ROLL-01 | Phase 6 | Pending |
-| ROLL-02 | Phase 6 | Pending |
-| ROLL-03 | Phase 6 | Pending |
-| ROLL-04 | Phase 6 | Pending |
-| DOC-01 | Phase 7 | Pending |
-| DOC-02 | Phase 7 | Pending |
-| DOC-03 | Phase 7 | Pending |
+| GW-01 | Phase 6 | Pending |
+| GW-02 | Phase 6 | Pending |
+| GW-03 | Phase 6 | Pending |
+| GW-04 | Phase 6 | Pending |
+| GW-05 | Phase 6 | Pending |
+| GW-06 | Phase 6 | Pending |
+| DEMO-01 | Phase 7 | Pending |
+| DEMO-02 | Phase 7 | Pending |
+| DEMO-03 | Phase 7 | Pending |
+| DEMO-04 | Phase 7 | Pending |
+| DOC-01 | Phase 8 | Pending |
+| DOC-02 | Phase 8 | Pending |
+| DOC-03 | Phase 8 | Pending |
+| PUBG-01 | Phase 9 | Pending |
+| PUBG-02 | Phase 9 | Pending |
+| PUBG-03 | Phase 9 | Pending |
+
+Retired IDs: ROLL-01 and ROLL-02 moved to Out of Scope; ROLL-03 and ROLL-04 were absorbed by DEMO-02 and DEMO-04 (operator decision 2026-10-14).
 
 **Coverage:**
-- v1 requirements: 62 total (55 built, 7 open)
-- Mapped to phases: 62
+- v1 requirements: 71 total (55 built, 16 open)
+- Mapped to phases: 71
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-10-14*
-*Last updated: 2026-10-14 after ADR ingest and roadmap creation*
+*Last updated: 2026-10-14 after the operator-approved restructure of milestone v1.0 (Phases 6-9)*
