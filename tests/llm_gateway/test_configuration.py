@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from lecture_study.llm import config
 from lecture_study.llm.config import (
     ADAPTER_OVERRIDE_ENV,
     CONFIG_PATH_ENV,
@@ -243,3 +244,22 @@ def test_allowed_lecture_id_with_a_slash_is_rejected(tmp_path: Path) -> None:
 
     with pytest.raises(GatewayConfigurationError):
         load_gateway_configuration(_environ_for(path))
+
+
+def test_dangling_default_symlink_fails_closed_instead_of_selecting_codex(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    link = tmp_path / "llm-gateway.local.yaml"
+    link.symlink_to(tmp_path / "absent-target.yaml")
+    monkeypatch.setattr(config, "DEFAULT_GATEWAY_CONFIG_PATH", link)
+
+    with pytest.raises(GatewayConfigurationError, match="unreadable"):
+        load_gateway_configuration({})
+
+
+def test_dangling_explicit_symlink_fails_closed(tmp_path: Path) -> None:
+    link = tmp_path / "gateway.yaml"
+    link.symlink_to(tmp_path / "absent-target.yaml")
+
+    with pytest.raises(GatewayConfigurationError, match="unreadable"):
+        load_gateway_configuration(_environ_for(link))

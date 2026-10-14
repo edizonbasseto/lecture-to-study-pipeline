@@ -99,7 +99,7 @@ def load_gateway_configuration(environ: Mapping[str, str]) -> GatewayConfigurati
 def _read_configuration_file(environ: Mapping[str, str]) -> GatewayConfiguration:
     explicit_path = environ.get(CONFIG_PATH_ENV, "")
     path = Path(explicit_path) if explicit_path else DEFAULT_GATEWAY_CONFIG_PATH
-    if path.exists():
+    if path.is_symlink() or path.exists():
         return _parse_configuration_file(path)
     if explicit_path:
         raise GatewayConfigurationError(f"gateway configuration file not found: {path}")
