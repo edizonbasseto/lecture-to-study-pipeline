@@ -174,3 +174,54 @@ def test_unflagged_lecture_is_refused_before_any_call(
     assert codex_stub.control.calls("codex") == []
     assert not _ledger_path(isolated_environment).exists()
     assert not (runs_root / LECTURE_ID / "semantic.json").exists()
+
+
+def test_unknown_adapter_override_exits_before_any_call(
+    script: ModuleType,
+    codex_stub,
+    isolated_environment: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _configure(
+        isolated_environment,
+        monkeypatch,
+        _codex_configuration(codex_stub, allowed_ids=[LECTURE_ID]),
+    )
+    monkeypatch.setenv(ADAPTER_OVERRIDE_ENV, "bogus")
+
+    exit_code = _run_script(script, tmp_path / "runs")
+
+    error_text = capsys.readouterr().err
+    assert exit_code == 1
+    assert '"codex"' in error_text
+    assert '"llama-cpp"' in error_text
+    assert codex_stub.control.calls("codex") == []
+    assert not _ledger_path(isolated_environment).exists()
+
+
+def test_llama_cpp_with_a_missing_model_exits_before_any_call(
+    script: ModuleType,
+    codex_stub,
+    llama_stubs,
+    isolated_environment: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    _configure(
+        isolated_environment,
+        monkeypatch,
+        "stages:\n  semantic: llama-cpp\n"
+        "llama_cpp:\n"
+        f"  completion_executable: {llama_stubs.completion_executable}\n"
+        f"  tokenize_executable: {llama_stubs.tokenize_executable}\n"
+        f"  model_path: {tmp_path / 'absent-model.gguf'}\n"
+        "  model_family: stub-family\n",
+    )
+
+    exit_code = _run_script(script, tmp_path / "runs")
+
+    assert exit_code == 1
+    assert llama_stubs.control.call_names() == []
+    assert not _ledger_path(isolated_environment).exists()
