@@ -107,7 +107,7 @@ Committed scope. Each requirement maps to exactly one roadmap phase.
 - [ ] **GW-03**: `LlamaCppAdapter` runs a local GGUF model through llama.cpp, restored from the repository history before ADR 0038 and adapted to the port, with no network egress. (Operator decision 2026-10-14; ADR 0038 section 8; ADR 0045 section 2)
 - [x] **GW-04**: The adapter is selected by configuration (globally, optionally per stage), defaults to Codex, and an unknown or misconfigured adapter fails closed before any call. (Operator decision 2026-10-14)
 - [x] **GW-05**: A new ADR amends ADR 0038 (the local text-LLM route is reinstated as a gateway adapter) and closes ADR 0045 section 2 (content that may carry patient-identifying data runs only on the local adapter). Baseline requirement GEN-07 is amended by this record. (Operator decision 2026-10-14; ADR 0038; ADR 0045 section 2)
-- [ ] **GW-06**: Both adapters pass the same contract tests through the shared JSON-contract parser and the critic repair loop; CI exercises the llama.cpp adapter with a stub binary. (Operator decision 2026-10-14; ADR 0022 operational amendment; ADR 0036; ADR 0044 section 3)
+- [x] **GW-06**: Both adapters pass the same contract tests through the shared JSON-contract parser and the critic repair loop; CI exercises the llama.cpp adapter with a stub binary. (Operator decision 2026-10-14; ADR 0022 operational amendment; ADR 0036; ADR 0044 section 3)
 
 ### Synthetic Demo Lecture and Measured Results (Phase 7) - open
 
@@ -253,7 +253,7 @@ Which phases cover which requirements. Each requirement maps to exactly one phas
 | GW-03 | Phase 6 | Pending |
 | GW-04 | Phase 6 | Complete |
 | GW-05 | Phase 6 | Complete |
-| GW-06 | Phase 6 | Pending |
+| GW-06 | Phase 6 | Complete |
 | DEMO-01 | Phase 7 | Pending |
 | DEMO-02 | Phase 7 | Pending |
 | DEMO-03 | Phase 7 | Pending |
