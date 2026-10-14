@@ -1,0 +1,78 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Native engines and model weights (provisioned by scripts/01_provision_engines.sh)
+engines/
+
+# Test coverage artifacts
+.coverage
+
+# Phase 7: all run-time data (raw media, intermediate artifacts, queue.json)
+# lives isolated under workspace/, never at the project root.
+workspace/
+
+# --- Credentials & secrets ---
+.env
+config/site-credentials.txt
+
+# --- Browser/session state (Playwright persistent profile) ---
+.browser-profile/
+
+# --- Exported plaintext yt-dlp session cookie jar (ADR 0019) ---
+.browser-profile-cookies.txt
+
+# --- Discovery targets (instance-specific) ---
+config/*.local.yaml
+
+# Local runtime diagnostics (failed Codex phase output: model bytes,
+# tracebacks, prompt-bearing argv) -- never committed (R0.1)
+tmp/
+
+# Site access credentials and the session signing secret
+config/secrets/
+config/session-key/
+
+# --- macOS Finder metadata ---
+.DS_Store
+
+# --- GSD tool runtime sentinel (per-process, not reusable) ---
+.gsd/
+
+# --- GSD milestone lock (per-machine session/PID, not reusable) ---
+.planning/milestone.lock
+
+# --- graphify machine-specific paths (interpreter path, scan root) ---
+graphify-out/.graphify_python
+graphify-out/.graphify_root
+config/*.local.json
+
+# --- Secrets and local environment variants ---
+.env.*
+!.env.example
+*.pem
+*.key
+.codex/
+
+# --- Planning and analysis artifacts generated locally ---
+graphify-out/
+
+# --- Media, documents, and databases: the hooks scan text, so binaries
+# --- derived from licensed recordings must never be staged at all ---
+*.mp4
+*.mov
+*.mkv
+*.mp3
+*.wav
+*.m4a
+*.pdf
+*.db
+*.sqlite
+*.sqlite3

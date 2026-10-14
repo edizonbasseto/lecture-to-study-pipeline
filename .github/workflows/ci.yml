@@ -1,0 +1,61 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  secret-scan:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  denylist-scan:
+    # The denylist is a repository secret, never a committed file: committing
+    # it would publish the terms it protects. The scanner reports line
+    # numbers only, so a match never echoes a term into the log.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Scan the full history against the private denylist
+        env:
+          DENYLIST: ${{ secrets.DENYLIST }}
+        run: |
+          if [ -z "$DENYLIST" ]; then
+            echo "The DENYLIST repository secret is not configured." >&2
+            exit 1
+          fi
+          printf '%s\n' "$DENYLIST" > "$RUNNER_TEMP/denylist.txt"
+          git log -p --all --text --no-ext-diff --no-textconv --no-color \
+            --format='%an%n%ae%n%cn%n%ce%n%B' > "$RUNNER_TEMP/history.txt"
+          python3 -I scripts/denylist_scan.py "$RUNNER_TEMP/denylist.txt" \
+            < "$RUNNER_TEMP/history.txt"
+
+  test:
+    # macOS is required: OCR uses Apple Vision (pyobjc) and TTS uses MLX.
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+      - name: Install the media and typesetting tools the tests exercise
+        run: brew install ffmpeg typst poppler
+      - run: uv sync --group dev --locked
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy src
+      - run: uv run pytest -q -rs

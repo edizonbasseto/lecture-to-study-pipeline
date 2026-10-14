@@ -1,0 +1,61 @@
+[project]
+name = "lecture-to-study-pipeline"
+version = "0.1.0"
+description = "Turns recorded video lectures into evidence-grounded study material."
+license = "MIT"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "aiofiles>=25.1.0",
+    "espeakng-loader>=0.2.4",
+    "fastapi>=0.139.2",
+    "jinja2>=3.1.6",
+    "markdown-it-py>=4.2.0",
+    "misaki>=0.9.4",
+    "mlx-audio>=0.5.4",
+    "phonemizer-fork>=3.3.2",
+    "pydantic>=2.13.4",
+    "pyobjc-framework-quartz>=12.2.1 ; sys_platform == 'darwin'",
+    "pyobjc-framework-vision>=12.2.1 ; sys_platform == 'darwin'",
+    "python-dotenv>=1.2.2",
+    "pyyaml>=6.0.3",
+    "rich>=15.0.0",
+    "uvicorn>=0.51.0",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "mypy>=2.3.0",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.15.22",
+    "types-pyyaml>=6.0.12.20260518",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/lecture_study"]
+
+[tool.pytest.ini_options]
+# Scoped to this project's own suite only. Without this, pytest's default
+# discovery walks the whole rootdir and -- once `engines/` holds cloned
+# whisper.cpp/llama.cpp checkouts (scripts/01_provision_engines.sh) --
+# also tries (and fails) to collect their own vendored test suites, which
+# depend on packages this project never installs (numpy, requests, appium).
+testpaths = ["tests"]
+markers = [
+    "real_certification: run with production certification guards enabled",
+]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+
+[[tool.mypy.overrides]]
+module = ["Quartz", "Vision", "Foundation", "objc"]
+ignore_missing_imports = true
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

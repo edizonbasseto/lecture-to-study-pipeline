@@ -1,0 +1,6 @@
+#!/bin/sh
+# Blocks a commit message that contains a denylisted term.
+set -eu
+. "$(git rev-parse --show-toplevel)/.githooks/_denylist.sh"
+
+scan_file_against_denylist "$1"

@@ -1,0 +1,3 @@
+#!/bin/sh
+# Merges skip pre-commit; apply the same staged-content gate.
+exec "$(git rev-parse --show-toplevel)/.githooks/pre-commit"

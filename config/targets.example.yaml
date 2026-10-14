@@ -1,0 +1,56 @@
+# Academic portal catalog -- example with synthetic data.
+#
+# Copy to config/targets.local.yaml (git-ignored) and replace the entries with
+# the real catalog. Readers:
+#   - lecture_study.study_materials.academic_catalog.load_academic_catalog,
+#     used by scripts/generate_personal_study_guides.py,
+#     scripts/generate_academic_catalog.py and
+#     scripts/register_local_lecture.py (--targets-path);
+#   - infra/docker-entrypoint.sh ("generate" mode), which expects one
+#     published lecture per video lesson.
+#
+# The loader validates strictly: no unknown keys, and no type coercion.
+#
+# disciplines: list of
+#   title:   non-empty string; becomes a directory segment of the bundle path.
+#   url:     non-empty string; portal page of the discipline.
+#   program: string (may be empty); program the discipline belongs to.
+#   lessons: list of
+#     activity_id:         quoted string of [A-Za-z0-9_-]; unique across the
+#                          whole catalog; the lecture id used by every stage.
+#     moodle_order:        integer; ordering of the lesson inside its section.
+#     section:             non-empty string; groups lessons into topics.
+#     display_title:       non-empty string; lesson title.
+#     url:                 non-empty string; a lesson is a video lecture only
+#                          when the URL contains "/mod/supervideo/"; other
+#                          lessons (schedules, files) are listed but never
+#                          compiled.
+#     enabled:             boolean.
+#     discovery_timestamp: quoted ISO-8601 string (unquoted, YAML would parse
+#                          it as a datetime and the loader would reject it).
+disciplines:
+  - title: Disciplina A
+    url: https://lms.example.test/course/view.php?id=1
+    program: Programa de exemplo
+    lessons:
+      - activity_id: "10001"
+        moodle_order: 1
+        section: Tópico 1
+        display_title: Aula de exemplo 1
+        url: https://lms.example.test/mod/supervideo/view.php?id=10001
+        enabled: true
+        discovery_timestamp: "2026-01-01T00:00:00+00:00"
+      - activity_id: "10002"
+        moodle_order: 2
+        section: Tópico 1
+        display_title: Aula de exemplo 2
+        url: https://lms.example.test/mod/supervideo/view.php?id=10002
+        enabled: true
+        discovery_timestamp: "2026-01-01T00:00:00+00:00"
+      - activity_id: "10003"
+        moodle_order: 3
+        section: Cronograma
+        display_title: Cronograma da disciplina
+        url: https://lms.example.test/mod/resource/view.php?id=10003
+        enabled: true
+        discovery_timestamp: "2026-01-01T00:00:00+00:00"

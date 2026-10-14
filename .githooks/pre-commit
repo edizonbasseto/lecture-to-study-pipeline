@@ -1,0 +1,16 @@
+#!/bin/sh
+# Blocks a commit whose staged additions or file names contain a denylisted
+# term or a secret. Binary content is scanned as text; external diff and
+# textconv drivers are bypassed so no configuration can hide content.
+set -eu
+. "$(git rev-parse --show-toplevel)/.githooks/_denylist.sh"
+
+staged=$(mktemp)
+trap 'rm -f "$staged"' EXIT
+
+git diff --cached --text --no-ext-diff --no-textconv --no-color --unified=0 \
+    --diff-filter=ACMRT --output-indicator-new='>' | sed -n 's/^>//p' > "$staged"
+git diff --cached --name-only --diff-filter=ACMRT >> "$staged"
+
+scan_file_against_denylist "$staged"
+gitleaks git --pre-commit --staged --redact --no-banner

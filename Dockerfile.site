@@ -1,0 +1,48 @@
+# Study site image (SITE-08). Deliberately narrow: only the site/ package
+# and its real dependencies (fastapi, uvicorn, markdown-it-py) go in -- not
+# the whole lecture_study project, which pulls in TTS, ML and
+# macOS-only pyobjc bindings the site never imports (see
+# src/lecture_study/site/*.py for the confirmed import list). This keeps
+# the image small and each rebuild fast, and it never bakes in the
+# study-guides corpus or the video library, both of which are mounted
+# volumes (ADR 0029).
+#
+# markdown-it-py pinned to the same version as uv.lock (2026-09-15, added
+# when generator.py started pre-rendering Markdown previews to HTML).
+#
+# pydantic + domain/models.py added 2026-09-18 (ADR 0041): the interactive
+# mock exam reads MockExam/MockQuestion/SafeIdentifier from the domain
+# package. Only models.py is copied, not the whole domain/ package -- its
+# siblings (content_ledger.py, semantic_observation.py, ...) pull in
+# dependencies the site image does not otherwise need; domain/__init__.py
+# is empty, so this does not smuggle in anything else.
+
+FROM python:3.12-slim AS runtime
+
+WORKDIR /app
+
+RUN pip install --no-cache-dir fastapi==0.139.2 uvicorn==0.51.0 pyyaml==6.0.3 markdown-it-py==4.2.0 pydantic==2.13.4
+
+COPY src/lecture_study/site/ /app/lecture_study/site/
+COPY src/lecture_study/domain/__init__.py src/lecture_study/domain/models.py /app/lecture_study/domain/
+RUN touch /app/lecture_study/__init__.py
+
+COPY infra/uvicorn-logging.json /app/uvicorn-logging.json
+COPY infra/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+
+# Unprivileged runtime user with a fixed id, so mounted volumes can be
+# granted to it by number on the host. The app only reads /app; the
+# "generate" mode writes to the mounted workspace volumes, which must be
+# writable by this uid.
+RUN groupadd --system --gid 10001 site \
+    && useradd --system --uid 10001 --gid site --no-create-home --shell /usr/sbin/nologin site
+USER site:site
+
+EXPOSE 8000
+
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+CMD ["serve"]
