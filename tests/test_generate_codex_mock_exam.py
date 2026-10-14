@@ -1,14 +1,17 @@
-"""Unit tests for the Codex-based personal-study mock-exam generator.
+"""Unit tests for the personal-study mock-exam generator on the LLM gateway
+(ADR 0046).
 
-The `codex` subprocess itself is never invoked here -- these tests stub
-`_call_codex_for_questions`/`run_bounded_process` and exercise the pure
-logic: fact formatting, per-unit question-count derivation, the
-supplemental-backfill loop, and the count-mismatch retry/error path
-(2026-09-15 security+code review findings)."""
+No model is ever called: a scripted gateway double replays canned responses.
+The tests exercise fact formatting, per-unit question-count derivation, the
+supplemental-backfill loop, the count-mismatch and student-guard retry path
+(2026-09-15 security+code review findings), the critic gate that must run
+before any gateway is built (ADR 0045), the run record and the import
+boundary that keeps process code out of the script."""
 
 from __future__ import annotations
 
 import argparse
+import ast
 import importlib.util
 import json
 import sys
@@ -19,6 +22,7 @@ from unittest.mock import patch
 import pytest
 
 from lecture_study.domain.models import (
+    ArtifactExecutionMode,
     CriticReview,
     LearningUnitDraft,
     MockQuestion,
@@ -26,6 +30,7 @@ from lecture_study.domain.models import (
     SemanticLedger,
     ValidatedLearningUnit,
 )
+from lecture_study.llm import Stage
 
 
 def _load_module() -> ModuleType:
@@ -98,63 +103,65 @@ def test_accepts_clean_ptbr_questions() -> None:
     _MODULE._reject_questions_unfit_for_a_student(questions)
 
 
-def test_call_codex_for_questions_raises_on_count_mismatch(
-    tmp_path: Path,
+def _question_array_json(*questions: MockQuestion) -> bytes:
+    return json.dumps(
+        [question.model_dump(mode="json") for question in questions]
+    ).encode("utf-8")
+
+
+def test_request_questions_raises_after_two_count_mismatches(
+    make_scripted_gateway,
 ) -> None:
-    def fake_run_bounded_process(args, **_kwargs):
-        output_index = args.index("-o") + 1
-        Path(args[output_index]).write_bytes(b"[]")
+    wrong_count = _question_array_json(_question(), _question())
+    gateway = make_scripted_gateway([wrong_count, wrong_count])
 
-    with (
-        patch.object(
-            _MODULE, "run_bounded_process", side_effect=fake_run_bounded_process
-        ),
-        patch.object(
-            _MODULE, "_parse_question_array", return_value=[_question(), _question()]
-        ),
-        pytest.raises(_MODULE.LlmResponseContractError, match="expected 1 question"),
-    ):
-        _MODULE._call_codex_for_questions(
-            codex_executable="codex",
-            environment={},
-            prompt="prompt",
-            expected_count=1,
-        )
+    with pytest.raises(_MODULE.LlmResponseContractError, match="expected 1 question"):
+        _MODULE._request_questions(gateway=gateway, prompt="prompt", expected_count=1)
+
+    assert len(gateway.requests) == 2
+    assert all(request.stage is Stage.EXAMS for request in gateway.requests)
 
 
-def test_call_codex_for_questions_runs_with_a_scratch_cwd_not_the_repo_root(
-    tmp_path: Path,
+def test_request_questions_retries_once_with_feedback_after_a_count_mismatch(
+    make_scripted_gateway,
 ) -> None:
-    """2026-09-15 security review: the subprocess must never run with the
-    repository checkout (which holds .env) as its cwd/-C working root."""
+    gateway = make_scripted_gateway(
+        [
+            _question_array_json(_question(), _question()),
+            _question_array_json(_question()),
+        ]
+    )
 
-    captured: dict[str, object] = {}
+    questions = _MODULE._request_questions(
+        gateway=gateway, prompt="prompt", expected_count=1
+    )
 
-    def fake_run_bounded_process(args, *, cwd, **kwargs):
-        captured["cwd"] = cwd
-        captured["dash_c"] = args[args.index("-C") + 1]
-        output_index = args.index("-o") + 1
-        Path(args[output_index]).write_bytes(
-            b'[{"question_text":"q","options":{"A":"1","B":"2","C":"3","D":"4"},"correct_answer":"A","explanation":"e"}]'
-        )
-
-    with patch.object(
-        _MODULE, "run_bounded_process", side_effect=fake_run_bounded_process
-    ):
-        questions = _MODULE._call_codex_for_questions(
-            codex_executable="codex",
-            environment={},
-            prompt="prompt",
-            expected_count=1,
-        )
-
-    repo_root = Path(__file__).parents[1].resolve()
     assert len(questions) == 1
-    assert Path(captured["cwd"]).resolve() != repo_root
-    assert str(captured["cwd"]) == captured["dash_c"]
+    assert [request.is_retry for request in gateway.requests] == [False, True]
+    assert "Retry feedback:" in gateway.requests[1].prompt
+    assert "Retry feedback:" not in gateway.requests[0].prompt
 
 
-def test_generate_supplemental_questions_stops_once_floor_is_met() -> None:
+def test_request_questions_retries_when_the_student_guard_rejects_the_text(
+    make_scripted_gateway,
+) -> None:
+    english = _question("A 6-year-old dog presents with a dermal mass.")
+    gateway = make_scripted_gateway(
+        [_question_array_json(english), _question_array_json(_question())]
+    )
+
+    questions = _MODULE._request_questions(
+        gateway=gateway, prompt="prompt", expected_count=1
+    )
+
+    assert questions[0].question_text == "Pergunta?"
+    assert len(gateway.requests) == 2
+    assert "Retry feedback:" in gateway.requests[1].prompt
+
+
+def test_generate_supplemental_questions_stops_once_floor_is_met(
+    make_scripted_gateway,
+) -> None:
     ledger = SemanticLedger(
         lecture_id="lecture-001",
         pack_sequence=1,
@@ -174,8 +181,7 @@ def test_generate_supplemental_questions_stops_once_floor_is_met() -> None:
         return_value=[_question()],
     ) as generate:
         supplemental = _MODULE._generate_supplemental_questions(
-            codex_executable="codex",
-            environment={},
+            gateway=make_scripted_gateway([]),
             grounded_units=(ledger,),
             drafts_by_sequence={1: draft},
             existing_questions=[],
@@ -187,7 +193,9 @@ def test_generate_supplemental_questions_stops_once_floor_is_met() -> None:
     assert generate.call_count == 2
 
 
-def test_generate_supplemental_questions_gives_up_when_units_are_exhausted() -> None:
+def test_generate_supplemental_questions_gives_up_when_units_are_exhausted(
+    make_scripted_gateway,
+) -> None:
     ledger = SemanticLedger(
         lecture_id="lecture-001",
         pack_sequence=1,
@@ -204,8 +212,7 @@ def test_generate_supplemental_questions_gives_up_when_units_are_exhausted() -> 
 
     with patch.object(_MODULE, "_generate_supplemental_unit_question") as generate:
         supplemental = _MODULE._generate_supplemental_questions(
-            codex_executable="codex",
-            environment={},
+            gateway=make_scripted_gateway([]),
             grounded_units=(ledger,),
             drafts_by_sequence={1: draft},
             existing_questions=already_asked,
@@ -216,7 +223,9 @@ def test_generate_supplemental_questions_gives_up_when_units_are_exhausted() -> 
     generate.assert_not_called()
 
 
-def test_generate_supplemental_questions_targets_the_densest_unit_first() -> None:
+def test_generate_supplemental_questions_targets_the_densest_unit_first(
+    make_scripted_gateway,
+) -> None:
     sparse_ledger = SemanticLedger(
         lecture_id="lecture-001", pack_sequence=1, facts=[_fact("a", 1)]
     )
@@ -248,8 +257,7 @@ def test_generate_supplemental_questions_targets_the_densest_unit_first() -> Non
         return_value=[_question()],
     ) as generate:
         supplemental = _MODULE._generate_supplemental_questions(
-            codex_executable="codex",
-            environment={},
+            gateway=make_scripted_gateway([]),
             grounded_units=(sparse_ledger, dense_ledger),
             drafts_by_sequence=drafts_by_sequence,
             existing_questions=[],
@@ -286,7 +294,8 @@ def _write_lecture_inputs(
         drafts_root=roots["drafts"],
         validated_units_root=roots["validated"],
         output_root=roots["exams"],
-        codex_executable="codex",
+        llm_runs_root=root / "llm_runs",
+        codex_executable=None,
         questions_per_unit_cap=1,
         minimum_total_questions=1,
     )
@@ -328,45 +337,65 @@ def _write_unit_inputs(
     )
 
 
+def _open_scripted_gateway(
+    monkeypatch: pytest.MonkeyPatch, gateway: object
+) -> list[Stage]:
+    """Replace the module's gateway opener; return the stages it was asked for."""
+    opened_stages: list[Stage] = []
+
+    def open_stage_gateway(stage: Stage, **_kwargs: object) -> object:
+        opened_stages.append(stage)
+        return gateway
+
+    monkeypatch.setattr(_MODULE, "open_stage_gateway", open_stage_gateway)
+    return opened_stages
+
+
+def _command_line(args: argparse.Namespace) -> list[str]:
+    return [
+        "generate_codex_mock_exam.py",
+        args.lecture_id,
+        "--ledgers-root",
+        str(args.ledgers_root),
+        "--drafts-root",
+        str(args.drafts_root),
+        "--validated-units-root",
+        str(args.validated_units_root),
+        "--output-root",
+        str(args.output_root),
+        "--llm-runs-root",
+        str(args.llm_runs_root),
+    ]
+
+
 class TestRunUsesOnlyCriticApprovedUnits:
     def test_a_unit_that_failed_the_critic_blocks_the_whole_lecture(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         args = _write_lecture_inputs(
             tmp_path, "lecture-blocked", unit_count=3, failing_sequences=frozenset({2})
         )
-        argv = [
-            "generate_codex_mock_exam.py",
-            args.lecture_id,
-            "--ledgers-root",
-            str(args.ledgers_root),
-            "--drafts-root",
-            str(args.drafts_root),
-            "--validated-units-root",
-            str(args.validated_units_root),
-            "--output-root",
-            str(args.output_root),
-        ]
+        opened_stages = _open_scripted_gateway(monkeypatch, object())
 
-        with (
-            patch.object(sys, "argv", argv),
-            patch.object(_MODULE, "resolve_trusted_executable", return_value="codex"),
-            patch.object(_MODULE, "run_bounded_process") as run_codex,
-        ):
+        with patch.object(sys, "argv", _command_line(args)):
             exit_code = _MODULE.main()
 
         assert exit_code == 1
-        run_codex.assert_not_called()
+        assert opened_stages == []
         assert not (args.output_root / args.lecture_id / "exam.json").exists()
+        assert not args.llm_runs_root.exists()
         assert "aula bloqueada pelo gate do crítico" in capsys.readouterr().err
 
     def test_questions_are_grounded_in_the_post_repair_unit_not_the_draft(
-        self, tmp_path: Path
+        self, tmp_path: Path, make_scripted_gateway, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         args = _write_lecture_inputs(tmp_path, "lecture-repaired", unit_count=2)
+        _open_scripted_gateway(monkeypatch, make_scripted_gateway([]))
 
         with (
-            patch.object(_MODULE, "resolve_trusted_executable", return_value="codex"),
             patch.object(
                 _MODULE, "_generate_unit_questions", return_value=[_question()]
             ) as generate,
@@ -381,23 +410,75 @@ class TestRunUsesOnlyCriticApprovedUnits:
         ]
 
 
+class TestRunThroughTheGateway:
+    def test_two_approved_units_produce_an_uncertified_exam_and_a_run_record(
+        self, tmp_path: Path, make_scripted_gateway, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        lecture_id = "lecture-tracer"
+        args = _write_lecture_inputs(tmp_path, lecture_id, unit_count=2)
+        gateway = make_scripted_gateway(
+            [_question_array_json(_question()), _question_array_json(_question())]
+        )
+        opened_stages = _open_scripted_gateway(monkeypatch, gateway)
+
+        exit_code = _MODULE._run(args)
+
+        assert exit_code == 0
+        assert opened_stages == [Stage.EXAMS]
+        exam = json.loads(
+            (args.output_root / lecture_id / "exam.json").read_text(encoding="utf-8")
+        )
+        assert exam["execution_mode"] == (
+            ArtifactExecutionMode.UNCERTIFIED_PERSONAL_STUDY.value
+        )
+        assert len(exam["questions"]) == 2
+        record = json.loads(
+            (args.llm_runs_root / lecture_id / "exams.json").read_text(encoding="utf-8")
+        )
+        assert record["status"] == "succeeded"
+        assert record["script_stage"] == "exams"
+        assert record["gateways"][0]["calls"] == len(gateway.requests) == 2
+
+    def test_a_gateway_that_never_answers_a_valid_array_leaves_no_exam(
+        self,
+        tmp_path: Path,
+        make_scripted_gateway,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        args = _write_lecture_inputs(tmp_path, "lecture-bad", unit_count=1)
+        _open_scripted_gateway(monkeypatch, make_scripted_gateway([b"[]", b"[]"]))
+        monkeypatch.setattr(sys, "argv", _command_line(args))
+
+        exit_code = _MODULE.main()
+
+        assert exit_code == 1
+        assert not (args.output_root / args.lecture_id / "exam.json").exists()
+        record = json.loads(
+            (args.llm_runs_root / args.lecture_id / "exams.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        assert record["status"] == "failed"
+        assert "expected 1 question" in capsys.readouterr().err
+
+
 class TestRunShufflesOptionsBeforeWriting:
     def test_written_exam_json_is_not_still_clustered_on_the_drafted_letter(
-        self, tmp_path: Path
+        self, tmp_path: Path, make_scripted_gateway, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Regression for the audited real-world defect: Codex habitually
+        """Regression for the audited real-world defect: the model habitually
         drafts the correct option first. `_run` must reassign option
         letters before persisting exam.json, not just before some other
         step -- proven end to end by writing real drafts/ledgers to disk,
-        stubbing out the two Codex-calling functions to return
+        stubbing out the two question-generating functions to return
         deliberately unshuffled ("A" always correct) questions, running
         `_run` for real, and reading back the file it actually wrote."""
         lecture_id = "lecture-shuffle"
         args = _write_lecture_inputs(tmp_path, lecture_id, unit_count=8)
-        output_root = args.output_root
+        _open_scripted_gateway(monkeypatch, make_scripted_gateway([]))
 
         with (
-            patch.object(_MODULE, "resolve_trusted_executable", return_value="codex"),
             patch.object(
                 _MODULE,
                 "_generate_unit_questions",
@@ -409,7 +490,7 @@ class TestRunShufflesOptionsBeforeWriting:
 
         assert exit_code == 0
         written = json.loads(
-            (output_root / lecture_id / "exam.json").read_text(encoding="utf-8")
+            (args.output_root / lecture_id / "exam.json").read_text(encoding="utf-8")
         )
         correct_letters = {
             question["correct_answer"] for question in written["questions"]
@@ -420,8 +501,10 @@ class TestRunShufflesOptionsBeforeWriting:
         )
 
 
-def test_main_refuses_a_malformed_lecture_id_before_locating_codex(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+def test_main_refuses_a_malformed_lecture_id_before_opening_a_gateway(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     argv = [
         "generate_codex_mock_exam.py",
@@ -431,13 +514,33 @@ def test_main_refuses_a_malformed_lecture_id_before_locating_codex(
         "--validated-units-root",
         str(tmp_path / "validated"),
     ]
+    opened_stages = _open_scripted_gateway(monkeypatch, object())
 
-    with (
-        patch.object(sys, "argv", argv),
-        patch.object(_MODULE, "resolve_trusted_executable") as locate_codex,
-    ):
+    with patch.object(sys, "argv", argv):
         exit_code = _MODULE.main()
 
     assert exit_code == 1
-    locate_codex.assert_not_called()
+    assert opened_stages == []
     assert capsys.readouterr().err.startswith("error: ")
+
+
+def test_script_imports_no_process_or_scratch_directory_module() -> None:
+    forbidden_modules = {
+        "tempfile",
+        "subprocess",
+        "lecture_study.ops.process_lifecycle",
+        "lecture_study.ops.process_environment",
+    }
+    source_text = Path(_MODULE.__file__).read_text(encoding="utf-8")
+
+    assert _imported_module_names(source_text).isdisjoint(forbidden_modules)
+
+
+def _imported_module_names(source_text: str) -> set[str]:
+    names: set[str] = set()
+    for node in ast.walk(ast.parse(source_text)):
+        if isinstance(node, ast.Import):
+            names.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module is not None:
+            names.add(node.module)
+    return names

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Generate one lecture's personal-study mock exam (ADR 0024's uncertified
-personal-study route) with the Codex CLI (`codex exec`), grounded per
+personal-study route) through the LLM gateway (ADR 0046), grounded per
 learning unit.
 
 Questions are drawn only from critic-approved units (ADR 0045): the unit
@@ -8,7 +8,7 @@ titles come from the post-repair content of
 `workspace/data/09_validated_units/<lecture>/unit_*.json`, never from the
 Phase 6 `08_drafts` text, and a lecture with any unit whose critic review
 did not pass, any Phase 6 draft the critic never reviewed, or a gap in its
-pack sequence is blocked as a whole before Codex is called.
+pack sequence is blocked as a whole before any gateway is built.
 
 Execution is lecture-scoped (D-12): this script takes exactly one lecture
 identifier, has no batch mode, and never discovers over the ledgers root.
@@ -21,29 +21,28 @@ falls short of the floor (`--minimum-total-questions`), the densest units
 are asked for one additional question each, in descending fact-count
 order, until the floor is met.
 
-Codex authenticates via the operator's ChatGPT subscription login (not an
-API key), so `sanitized_child_process_environment()` stripping ambient
-credentials from the child process is safe: Codex does not read one from
-the environment here. `--output-schema` is deliberately not used --
-`MockQuestion.options` is `dict[str, str]`, which an earlier session
-found made that flag choke; the schema is embedded as text in the prompt
-instead, matching `exams/generator.py`'s own local-LLM approach.
+The adapter selected by the gateway configuration (ADR 0046) owns the child
+process, its environment and its scratch directory; this script holds no
+process code. The JSON schema is embedded as text in the prompt rather than
+passed to the adapter: `MockQuestion.options` is `dict[str, str]`, which an
+earlier session found made a structured-output flag choke. Each run writes a
+metadata-only run record under
+`workspace/data/llm_runs/<lecture_id>/exams.json`.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
-import os
 import random
 import sys
-import tempfile
 from collections.abc import Sequence
 from pathlib import Path
 
 from pydantic import TypeAdapter, ValidationError
 
 from lecture_study.assembly.assembler import load_critic_approved_drafts
+from lecture_study.cli.llm_gateway_wiring import open_stage_gateway
 from lecture_study.domain.errors import (
     LectureNotFoundError,
     MissingSequenceError,
@@ -58,17 +57,12 @@ from lecture_study.domain.models import (
     SemanticLedger,
 )
 from lecture_study.exams.option_shuffle import shuffle_question_options
+from lecture_study.llm import LlmGateway, LlmGatewayError, Stage, complete_json
+from lecture_study.llm.run_record import LLM_RUNS_ROOT, record_llm_run
 from lecture_study.ops.llm_response_contract import (
     LlmResponseContractError,
-    build_bounded_retry_prompt_section,
-    build_llm_retry_feedback,
     parse_llm_json_response,
 )
-from lecture_study.ops.process_environment import (
-    resolve_trusted_executable,
-    sanitized_child_process_environment,
-)
-from lecture_study.ops.process_lifecycle import run_bounded_process
 from lecture_study.quality.student_facing_text import (
     describe_student_facing_text_defects,
     student_facing_text_defects,
@@ -85,8 +79,6 @@ _CRITIC_GATE_ERRORS = (
 )
 _DEFAULT_QUESTIONS_PER_UNIT_CAP = 5
 _DEFAULT_MINIMUM_TOTAL_QUESTIONS = 20
-_SUBPROCESS_TIMEOUT_SECONDS = 900.0
-_MAXIMUM_PROCESS_OUTPUT_BYTES = 16 * 1024 * 1024
 _QUESTION_ARRAY_ADAPTER: TypeAdapter[list[MockQuestion]] = TypeAdapter(
     list[MockQuestion]
 )
@@ -158,7 +150,12 @@ def main() -> int:
             file=sys.stderr,
         )
         return 1
-    except (LlmResponseContractError, FileNotFoundError, ValidationError) as error:
+    except (
+        LlmResponseContractError,
+        LlmGatewayError,
+        FileNotFoundError,
+        ValidationError,
+    ) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
 
@@ -167,57 +164,32 @@ def _run(args: argparse.Namespace) -> int:
     drafts = load_critic_approved_drafts(
         args.validated_units_root, args.drafts_root, args.lecture_id
     )
-    codex_executable = resolve_trusted_executable(args.codex_executable)
-    environment = dict(sanitized_child_process_environment())
-    # HOME is not on sanitized_child_process_environment()'s inherited
-    # whitelist (it only forwards locale/PATH/temp-dir variables), but the
-    # codex CLI needs it to locate its ChatGPT-subscription auth session
-    # under ~/.codex. Restoring it here (a plain path, not a credential
-    # itself) is scoped to this one call, not the shared whitelist every
-    # other subprocess caller in this codebase relies on.
-    home_directory = os.environ.get("HOME")
-    if home_directory is not None:
-        environment["HOME"] = home_directory
-
     ledgers = _load_semantic_ledgers(args.ledgers_root, args.lecture_id)
     drafts_by_sequence = {draft.pack_sequence: draft for draft in drafts}
-
     grounded_units = tuple(
         ledger
         for ledger in sorted(ledgers, key=lambda ledger: ledger.pack_sequence)
         if ledger.facts and ledger.pack_sequence in drafts_by_sequence
     )
 
-    questions: list[MockQuestion] = []
-    for ledger in grounded_units:
-        draft = drafts_by_sequence[ledger.pack_sequence]
-        question_count = min(len(ledger.facts), args.questions_per_unit_cap)
-        unit_questions = _generate_unit_questions(
-            codex_executable=codex_executable,
-            environment=environment,
-            unit_title=draft.title,
-            facts=ledger.facts,
-            question_count=question_count,
-        )
-        questions.extend(
-            question.model_copy(update={"pack_sequence": ledger.pack_sequence})
-            for question in unit_questions
-        )
-        print(
-            f"unidade {ledger.pack_sequence} ({draft.title!r}): "
-            f"{len(unit_questions)} pergunta(s)"
-        )
-
-    questions.extend(
-        _generate_supplemental_questions(
-            codex_executable=codex_executable,
-            environment=environment,
+    gateway = open_stage_gateway(
+        Stage.EXAMS,
+        lecture_id=args.lecture_id,
+        codex_executable_override=args.codex_executable,
+    )
+    with record_llm_run(
+        lecture_id=args.lecture_id,
+        script_stage=Stage.EXAMS,
+        schema_name="list[MockQuestion]",
+        root=args.llm_runs_root,
+    ) as recorder:
+        questions = _generate_all_questions(
+            gateway=recorder.track(gateway, stage=Stage.EXAMS),
             grounded_units=grounded_units,
             drafts_by_sequence=drafts_by_sequence,
-            existing_questions=questions,
+            questions_per_unit_cap=args.questions_per_unit_cap,
             minimum_total_questions=args.minimum_total_questions,
         )
-    )
 
     # The model habitually drafts the correct option first (audited
     # 2026-09-18: 61% at letter "A", 5% at "D", across 2172 questions) --
@@ -241,10 +213,48 @@ def _run(args: argparse.Namespace) -> int:
     return 0
 
 
+def _generate_all_questions(
+    *,
+    gateway: LlmGateway,
+    grounded_units: tuple[SemanticLedger, ...],
+    drafts_by_sequence: dict[int, LearningUnitDraft],
+    questions_per_unit_cap: int,
+    minimum_total_questions: int,
+) -> list[MockQuestion]:
+    questions: list[MockQuestion] = []
+    for ledger in grounded_units:
+        draft = drafts_by_sequence[ledger.pack_sequence]
+        question_count = min(len(ledger.facts), questions_per_unit_cap)
+        unit_questions = _generate_unit_questions(
+            gateway=gateway,
+            unit_title=draft.title,
+            facts=ledger.facts,
+            question_count=question_count,
+        )
+        questions.extend(
+            question.model_copy(update={"pack_sequence": ledger.pack_sequence})
+            for question in unit_questions
+        )
+        print(
+            f"unidade {ledger.pack_sequence} ({draft.title!r}): "
+            f"{len(unit_questions)} pergunta(s)"
+        )
+
+    questions.extend(
+        _generate_supplemental_questions(
+            gateway=gateway,
+            grounded_units=grounded_units,
+            drafts_by_sequence=drafts_by_sequence,
+            existing_questions=questions,
+            minimum_total_questions=minimum_total_questions,
+        )
+    )
+    return questions
+
+
 def _generate_supplemental_questions(
     *,
-    codex_executable: str,
-    environment: dict[str, str],
+    gateway: LlmGateway,
     grounded_units: tuple[SemanticLedger, ...],
     drafts_by_sequence: dict[int, LearningUnitDraft],
     existing_questions: list[MockQuestion],
@@ -272,8 +282,7 @@ def _generate_supplemental_questions(
             remaining_capacity = True
             draft = drafts_by_sequence[ledger.pack_sequence]
             [extra_question] = _generate_supplemental_unit_question(
-                codex_executable=codex_executable,
-                environment=environment,
+                gateway=gateway,
                 unit_title=draft.title,
                 facts=ledger.facts,
                 existing_questions=unit_existing,
@@ -290,8 +299,7 @@ def _generate_supplemental_questions(
 
 def _generate_unit_questions(
     *,
-    codex_executable: str,
-    environment: dict[str, str],
+    gateway: LlmGateway,
     unit_title: str,
     facts: Sequence[SemanticFact],
     question_count: int,
@@ -302,18 +310,14 @@ def _generate_unit_questions(
         facts=_format_facts(facts),
         schema=_QUESTION_ARRAY_SCHEMA,
     )
-    return _run_codex_for_questions(
-        codex_executable=codex_executable,
-        environment=environment,
-        prompt=prompt,
-        expected_count=question_count,
+    return _request_questions(
+        gateway=gateway, prompt=prompt, expected_count=question_count
     )
 
 
 def _generate_supplemental_unit_question(
     *,
-    codex_executable: str,
-    environment: dict[str, str],
+    gateway: LlmGateway,
     unit_title: str,
     facts: Sequence[SemanticFact],
     existing_questions: list[MockQuestion],
@@ -326,45 +330,37 @@ def _generate_supplemental_unit_question(
         ),
         schema=_QUESTION_ARRAY_SCHEMA,
     )
-    return _run_codex_for_questions(
-        codex_executable=codex_executable,
-        environment=environment,
+    return _request_questions(gateway=gateway, prompt=prompt, expected_count=1)
+
+
+def _request_questions(
+    *, gateway: LlmGateway, prompt: str, expected_count: int
+) -> list[MockQuestion]:
+    """Request questions; the student guard and the count check run inside
+    the gateway's single bounded retry."""
+
+    return complete_json(
+        gateway,
+        stage=Stage.EXAMS,
         prompt=prompt,
-        expected_count=1,
+        parse=_parse_question_array,
+        validate=lambda questions: _validate_questions(questions, expected_count),
     )
 
 
-def _run_codex_for_questions(
-    *,
-    codex_executable: str,
-    environment: dict[str, str],
-    prompt: str,
-    expected_count: int,
-) -> list[MockQuestion]:
-    try:
-        return _call_codex_for_questions(
-            codex_executable=codex_executable,
-            environment=environment,
-            prompt=prompt,
-            expected_count=expected_count,
-        )
-    except LlmResponseContractError as error:
-        retry_prompt = prompt + build_bounded_retry_prompt_section(
-            heading="Retry feedback:",
-            feedback=build_llm_retry_feedback(error),
-        )
-        return _call_codex_for_questions(
-            codex_executable=codex_executable,
-            environment=environment,
-            prompt=retry_prompt,
-            expected_count=expected_count,
+def _validate_questions(questions: list[MockQuestion], expected_count: int) -> None:
+    _reject_questions_unfit_for_a_student(questions)
+    if len(questions) != expected_count:
+        raise LlmResponseContractError(
+            f"expected {expected_count} question(s), got {len(questions)}",
+            retry_category="contract",
         )
 
 
 def _reject_questions_unfit_for_a_student(
     questions: Sequence[MockQuestion],
 ) -> None:
-    """Fail the codex call when any student-facing exam text is not pt-BR
+    """Fail the completion when any student-facing exam text is not pt-BR
     or names an internal pipeline abstraction. ADR 0027's own evidence is
     that prompt wording alone is not enforcement -- lecture 10002's first
     real exam shipped English questions with an "Evidence Pack" leak --
@@ -384,55 +380,6 @@ def _reject_questions_unfit_for_a_student(
             f"{describe_student_facing_text_defects(defects)}",
             retry_category="contract",
         )
-
-
-def _call_codex_for_questions(
-    *,
-    codex_executable: str,
-    environment: dict[str, str],
-    prompt: str,
-    expected_count: int,
-) -> list[MockQuestion]:
-    # The subprocess's cwd (and the `-C` working root handed to codex) is a
-    # fresh, empty scratch directory, never the repository checkout: the
-    # prompt is fully self-contained (facts are inlined as text), the
-    # process has no functional need to read any repository file, and the
-    # repository root holds `.env` (2026-09-15 security review finding --
-    # least-privilege, and a defense line against a prompt-injection
-    # payload in lecture content asking the model to read and echo a local
-    # file).
-    with tempfile.TemporaryDirectory(prefix="codex-mock-exam-") as raw_scratch_dir:
-        scratch_dir = Path(raw_scratch_dir)
-        output_path = scratch_dir / "response.txt"
-        run_bounded_process(
-            [
-                codex_executable,
-                "exec",
-                "--skip-git-repo-check",
-                "--sandbox",
-                "read-only",
-                "-C",
-                str(scratch_dir),
-                "-o",
-                str(output_path),
-                prompt,
-            ],
-            env=environment,
-            cwd=scratch_dir,
-            timeout_seconds=_SUBPROCESS_TIMEOUT_SECONDS,
-            maximum_stdout_bytes=_MAXIMUM_PROCESS_OUTPUT_BYTES,
-            maximum_stderr_bytes=_MAXIMUM_PROCESS_OUTPUT_BYTES,
-            check=True,
-        )
-        output_bytes = output_path.read_bytes()
-    questions = _parse_question_array(output_bytes)
-    _reject_questions_unfit_for_a_student(questions)
-    if len(questions) != expected_count:
-        raise LlmResponseContractError(
-            f"expected {expected_count} question(s), got {len(questions)}",
-            retry_category="contract",
-        )
-    return questions
 
 
 def _parse_question_array(output_bytes: bytes) -> list[MockQuestion]:
@@ -467,7 +414,7 @@ def _load_semantic_ledgers(
 def _build_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Gera o simulado de estudo pessoal de uma aula via Codex CLI, "
+            "Gera o simulado de estudo pessoal de uma aula via gateway LLM, "
             "com perguntas fundamentadas por unidade de aprendizagem."
         )
     )
@@ -492,7 +439,15 @@ def _build_argument_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
-    parser.add_argument("--codex-executable", default="codex")
+    parser.add_argument(
+        "--codex-executable",
+        default=None,
+        help=(
+            "sobrescreve `codex.executable` da configuração do gateway "
+            "(padrão: o valor da configuração)"
+        ),
+    )
+    parser.add_argument("--llm-runs-root", type=Path, default=LLM_RUNS_ROOT)
     parser.add_argument(
         "--questions-per-unit-cap",
         type=int,
