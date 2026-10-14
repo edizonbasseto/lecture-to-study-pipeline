@@ -27,6 +27,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 ## Phase Details
 
 ### Phase 1: Pipeline spine and media-to-evidence
+
 **Goal**: An operator-registered lecture video becomes frames, OCR text, a corrected transcript and evidence packs, driven by one CLI that skips finished work, isolates failures and never trusts an identifier as a path
 **Depends on**: Nothing (first phase)
 **Requirements**: SPINE-01, SPINE-02, SPINE-03, SPINE-04, SPINE-05, SPINE-06, INGEST-01, INGEST-02, INGEST-03, INGEST-04, INGEST-05, INGEST-06, INGEST-07
@@ -35,9 +36,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. Re-running `run-all` skips every stage whose artifact already exists, and a failing lecture or pack is reported without aborting the others
   3. A lecture identifier outside `^[A-Za-z0-9_-]+$` is refused before any path is built
   4. Slide frames are selected at scene changes with no gap above 37.5 seconds, and slide text comes from Apple Vision OCR
+
 **Plans**: 0 plans (baseline built before GSD adoption)
 
 ### Phase 2: Codex generation and critic review
+
 **Goal**: Evidence packs become semantic ledgers, grounded drafts and critic-reviewed validated units through the Codex CLI run as bounded child processes, with no local text-LLM route
 **Depends on**: Phase 1
 **Requirements**: GEN-01, GEN-02, GEN-03, GEN-04, GEN-05, GEN-06, GEN-07
@@ -46,9 +49,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. A draft the critic rejects is redrafted with the critic's feedback up to two times, and the last draft-and-review pair is persisted even if still failing
   3. A failing Codex child surfaces as an error naming the stage, script and exit code, with captured output saved under `tmp/codex_phase_failures/` and no model bytes in the message
   4. No local text-LLM code path or `--llm-model-*` flag exists; Whisper, Kokoro and `llama-mtmd-cli` are the only local model runtimes
+
 **Plans**: 0 plans (baseline built before GSD adoption)
 
 ### Phase 3: Assembly, study material and the uncertified boundary
+
 **Goal**: Critic-approved units become the canonical document, metadata, published guide, Anki deck and the student-facing exam, podcast, audio, flashcards and study guide, all marked uncertified and all blocked for any lecture the critic has not fully approved
 **Depends on**: Phase 2
 **Requirements**: ASM-01, ASM-02, ASM-03, ASM-04, MAT-01, MAT-02, MAT-03, MAT-04, MAT-05, MAT-06, MAT-07, GATE-01, GATE-02, BND-01, BND-02, BND-03, BND-04
@@ -58,9 +63,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Every Codex-generated artifact carries the `UNCERTIFIED_PERSONAL_STUDY` marker in its payload, and exam, flashcard and podcast text is Brazilian Portuguese with no source-material references, failing without output after a second defective attempt
   4. The canonical document, global index, `study_guide.md` and `.html`, and `anki_deck.csv` are produced deterministically with Markdown and CSV-formula injection neutralized
   5. Podcast audio is produced with the Kokoro voices `pf_dora` and `pm_alex` and joined into `podcast_final.m4a`
+
 **Plans**: 0 plans (baseline built before GSD adoption)
 
 ### Phase 4: Study site
+
 **Goal**: Allowlisted readers can sign in and read lectures, watch videos and take server-graded mock exams on a hardened site that labels all study material as uncertified
 **Depends on**: Phase 3
 **Requirements**: WEB-01, WEB-02, WEB-03, WEB-04, WEB-05, WEB-06, WEB-07, WEB-08, WEB-09, WEB-10
@@ -70,10 +77,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. The mock-exam page never contains correct answers or explanations, submitting answers returns a server-computed grade, and attempts are throttled per email and lecture
   4. A request path containing `?`, `#`, a backslash, NUL or a dot segment returns 400, every response carries the security headers, repeated wrong passwords slow down without lockout, and overload returns 429
   5. A lecture with a video has a full-screen watch page, and a video-only lecture shows "Vídeo sem material de estudo gerado."
+
 **Plans**: 0 plans (baseline built before GSD adoption)
 **UI hint**: yes
 
 ### Phase 5: Publication boundary and public repository
+
 **Goal**: Local lectures stay private until explicitly published, and the repository can be public without leaking portal details, credentials or private terms
 **Depends on**: Phase 4
 **Requirements**: PUB-01, PUB-02, PUB-03, PUB-04, REPO-01, REPO-02, REPO-03, REPO-04
@@ -82,9 +91,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. Re-registering a local lecture changes only its publish flag, and demotion is refused while a public bundle exists
   3. A video-only lecture compiles to a bundle containing exactly `indice.md`, `.bundle.json` and `video/aula.mp4`
   4. A commit or push containing a denylisted term or a secret is rejected by the local hooks, and CI fails closed when the `DENYLIST` secret is absent
+
 **Plans**: 0 plans (baseline built before GSD adoption)
 
 ### Phase 6: Pluggable LLM gateway
+
 **Goal**: Every LLM-backed stage (5 semantic ledgers, 6 drafts, 7 critic, 13 exam, 14 podcast, 18 personal-study flashcards) calls one `LlmGateway` port; a `CodexCliAdapter` keeps current behavior and a `LlamaCppAdapter` runs a local model with no network egress; the adapter is chosen by configuration
 **Depends on**: Phase 5
 **Requirements**: GW-01, GW-02, GW-03, GW-04, GW-05, GW-06
@@ -93,10 +104,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. An unknown adapter name exits non-zero before any model call
   3. The contract tests pass for both adapters in CI
   4. The new ADR is Accepted, and ADR 0038 and ADR 0045 carry amendment notes pointing to it
-**Plans**: 12 plans in 6 waves
+
+**Plans**: 1/12 plans executed in 6 waves
 
 Plans:
-- [ ] 06-01-PLAN.md — `llm/` port, typed errors, `complete_json`, `CodexCliAdapter`, stub harness, contract suite (codex), layering test (wave 1)
+- [x] 06-01-PLAN.md — `llm/` port, typed errors, `complete_json`, `CodexCliAdapter`, stub harness, contract suite (codex), layering test (wave 1)
 - [ ] 06-02-PLAN.md — `LlamaCppAdapter` on `llama-completion`/`llama-tokenize`, no-egress guards, contract suite over both adapters (wave 2)
 - [ ] 06-03-PLAN.md — Gateway configuration (YAML plus env override, per-stage) and metadata-only run record (wave 2)
 - [ ] 06-04-PLAN.md — `remote_llm_allowed` egress policy and registry flag; OPEN-2 checkpoint (wave 2)
@@ -110,6 +122,7 @@ Plans:
 - [ ] 06-12-PLAN.md — Forward notes on ADRs 0020, 0022, 0034, 0035, 0036, 0037 and PROJECT.md decisions, GW-05 and egress lines (wave 6)
 
 ### Phase 7: Synthetic demo lecture and measured results
+
 **Goal**: A lecture authored for this repository runs end to end to a served page, and the pipeline's quality is reported with real numbers
 **Depends on**: Phase 6
 **Requirements**: DEMO-01, DEMO-02, DEMO-03, DEMO-04
@@ -118,9 +131,11 @@ Plans:
   2. The demo lecture runs through `run-all` and `run-personal-study`, stages 8 and 9 included, and a signed-in session views its page on the locally served site
   3. A results report gives the ASR word error rate against the known script before and after the terminology dictionary, the schema pass rate per LLM stage, the critic rejection rate and the per-stage wall time, for each adapter that was run
   4. With a rejected or stale unit, the exam, podcast, personal-study flashcard and study-guide scripts write nothing for the demo lecture; after the ADR 0045 recovery they produce the exam, podcast, flashcards and study guide
+
 **Plans**: TBD
 
 ### Phase 8: Portfolio README and documentation
+
 **Goal**: A technical reader or recruiter understands the problem, the architecture, the design decisions and the measured results from the README, the demo walkthrough runs as written, and the operating boundaries the ADRs impose are stated
 **Depends on**: Phase 7
 **Requirements**: DOC-01, DOC-02, DOC-03
@@ -128,9 +143,11 @@ Plans:
   1. The README is in English, no longer carries the "under active extraction" placeholder, and presents the problem, a Mermaid architecture diagram, the stage map, the design decisions with links to their ADRs, the DEMO-03 results and a quick start
   2. The end-to-end walkthrough of the demo lecture has been executed once, and every command in it exists as written
   3. The documentation states the egress rule and the unchecked provider terms, the uncertified status and notice, the absence of any standing toward certification, the blocked-lecture recovery, page regeneration after an inline script or style change, the single-worker site constraint and the FileVault revisit triggers
+
 **Plans**: TBD
 
 ### Phase 9: Pre-public gate and release
+
 **Goal**: The repository is switched to public only after its full history passes the leak scans and a final whole-repository review closes with no blocking finding, with the leak gate still in force afterwards
 **Depends on**: Phase 8
 **Requirements**: PUBG-01, PUBG-02, PUBG-03
@@ -138,6 +155,7 @@ Plans:
   1. A denylist scan and a gitleaks scan over every ref and the full history report no finding
   2. A whole-repository `gsd-code-review` and `gsd-secure-phase` close with no open blocking finding
   3. After the operator's final check, the repository visibility is public, the CI `DENYLIST` secret is still configured, and the leak-gate hooks are still in force
+
 **Plans**: TBD
 
 ## Progress
@@ -154,7 +172,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 3. Assembly, study material and the uncertified boundary | 0/0 | Complete (baseline) | Pre-GSD |
 | 4. Study site | 0/0 | Complete (baseline) | Pre-GSD |
 | 5. Publication boundary and public repository | 0/0 | Complete (baseline) | Pre-GSD |
-| 6. Pluggable LLM gateway | 0/12 | Not started | - |
+| 6. Pluggable LLM gateway | 1/12 | In Progress | - |
 | 7. Synthetic demo lecture and measured results | 0/TBD | Not started | - |
 | 8. Portfolio README and documentation | 0/TBD | Not started | - |
 | 9. Pre-public gate and release | 0/TBD | Not started | - |

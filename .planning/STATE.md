@@ -3,17 +3,17 @@ gsd_state_version: "1.0"
 milestone: v1.0
 current_phase: 6
 current_phase_name: Pluggable LLM gateway
-status: planning
-stopped_at: Phase 6 context gathered
-last_updated: "2026-10-14T18:46:10.733Z"
+status: executing
+stopped_at: Completed 06-01-PLAN.md
+last_updated: "2026-10-14T21:55:30.311Z"
 last_activity: 2026-10-14
-last_activity_desc: "Milestone v1.0 restructured by operator decision: Phases 6-9 (LLM gateway, synthetic demo, portfolio README, pre-public gate) replace the former Phases 6-7"
-state_head: efc1d3600ceb228720fc1f5b13c61d05e2462be0
+last_activity_desc: Phase 6 execution started
+state_head: 8e8283c7bb15a3ee48ed336c23127cd7463e1e33
 progress:
   total_phases: 9
   completed_phases: 5
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 12
+  completed_plans: 1
 ---
 
 # Project State
@@ -23,14 +23,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-14)
 
 **Core value:** No text the critic rejected or never reviewed reaches a reader of the study material, and everything a reader sees is labelled as uncertified.
-**Current focus:** Phase 6 - Pluggable LLM gateway
+**Current focus:** Phase 6 — Pluggable LLM gateway
 
 ## Current Position
 
-Phase: 6 of 9 (Pluggable LLM gateway)
-Plan: 0 of TBD in current phase
-Status: Ready to plan
-Last activity: 2026-10-14 - Milestone v1.0 restructured by operator decision: Phases 6-9 (LLM gateway, synthetic demo, portfolio README, pre-public gate) replace the former Phases 6-7
+Phase: 6 (Pluggable LLM gateway) — EXECUTING
+Plan: 2 of 12
+Status: Ready to execute
+Last activity: 2026-10-14 — Phase 6 execution started
 Next action: `/gsd-plan-phase 6`
 
 Progress: [██████░░░░] 56% (phases, 5 of 9; Phases 1-5 are complete baseline built before GSD adoption, no GSD plans yet)
@@ -52,6 +52,11 @@ Progress: [██████░░░░] 56% (phases, 5 of 9; Phases 1-5 are c
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1-5 (baseline) | 0 | - | - |
+**Per-Plan Metrics:**
+
+| Plan | Duration | Tasks | Files |
+|------|----------|-------|-------|
+| Phase 06 P01 | 10 min | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -68,6 +73,7 @@ Recent decisions affecting current work:
 - [Restructure 2026-10-14]: Former ROLL-01 and ROLL-02 left the milestone (private source deployment, tracked outside this repository); former ROLL-03 and ROLL-04 absorbed by DEMO-02 and DEMO-04
 - [Restructure 2026-10-14]: The local adapter of the LLM gateway is planned (Phase 6); a new ADR amends ADR 0038 and closes ADR 0045 section 2 (GW-05)
 - [Process 2026-10-14]: Canonical R0.4 mechanism is `/gsd-code-review` plus `/gsd-secure-phase` on the phase-final diff, re-run after material fixes
+- [Phase 06]: 06-01: argv budget guard measures cost with a representative scratch path so it runs before the scratch directory exists; complete_json never retries LlmGatewayError
 
 ### Pending Todos
 
@@ -94,6 +100,6 @@ Items acknowledged and deferred at roadmap creation (detail in REQUIREMENTS.md v
 
 ## Session Continuity
 
-Last session: 2026-10-14T18:46:10.723Z
-Stopped at: Phase 6 context gathered
-Resume file: .planning/phases/06-pluggable-llm-gateway/06-CONTEXT.md
+Last session: 2026-10-14T21:55:30.297Z
+Stopped at: Completed 06-01-PLAN.md
+Resume file: None
