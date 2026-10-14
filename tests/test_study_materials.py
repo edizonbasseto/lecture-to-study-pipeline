@@ -255,3 +255,22 @@ def test_typst_renderer_escapes_model_control_characters() -> None:
     assert "barra \\\\ e marcador #" in typst
     assert "[#it.body]" in typst
     assert "[it.body]" not in typst
+
+
+def test_a_line_broken_supplementary_video_label_in_body_text_is_translated() -> None:
+    editions = build_personal_study_editions(
+        lecture_id="lecture-001",
+        lecture_title="Técnica cirúrgica",
+        drafts=(
+            _draft(
+                1,
+                "Técnica cirúrgica",
+                "Revise a sutura demonstrada no\nSuper Video da aula.",
+            ),
+        ),
+    )
+
+    markdown = render_study_edition_markdown(editions[StudyEditionKind.COMPLETE])
+
+    assert "vídeo complementar" in markdown
+    assert "super video" not in markdown.casefold()

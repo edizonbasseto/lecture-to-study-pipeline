@@ -21,8 +21,11 @@ pytestmark = pytest.mark.skipif(
     shutil.which("git") is None, reason="git is not installed"
 )
 
+# Skipped only on a developer machine without gitleaks; in CI (where the
+# CI variable is always set) a missing gitleaks must fail these tests, not
+# silently skip the hook regressions they guard.
 requires_gitleaks = pytest.mark.skipif(
-    shutil.which("gitleaks") is None,
+    shutil.which("gitleaks") is None and not os.environ.get("CI"),
     reason="gitleaks is not installed; the hook invokes it",
 )
 
