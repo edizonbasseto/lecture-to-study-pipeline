@@ -49,6 +49,11 @@ Out of this phase: chunking of oversized prompts, any change to artifact schemas
 - **D-23:** D-08 token counting uses exact `llama-tokenize` (with `PromptBudget`, as in the ADR 0020 erratum); the CI stub covers both binaries. The Codex adapter gets an argv-size guard that raises the typed prompt-too-large error before spawning (macOS `ARG_MAX` is 1048576; the podcast prompt can exceed it).
 - **D-24:** Example model for the ADR and provisioning: Qwen2.5-14B-Instruct Q4_K_M; provisioning is an opt-in script step (it needs network by design, unlike runtime) with a SHA-256 check; its license and source are verified at execution time.
 
+### Operator answers to plan checkpoints (2026-10-14, direct from operator)
+- **D-25 (resolves OPEN-1):** No per-model-family mechanism. A generic `--reasoning off` on every local call suffices; its adequacy for thinking-style models is validated in the D-07 manual run, which is the operator's pending item when no local model exists. No model weights are downloaded by the executor.
+- **D-26 (resolves OPEN-2):** A lecture id present in both the local registry and `remote_llm_allowed_lecture_ids` is a configuration error at preflight (option A). Egress stays fail-closed.
+- **D-27 (execution authorization):** The operator authorized running the whole phase unattended, then `/gsd-code-review` and `/gsd-secure-phase` on the phase-final diff with fixes and re-runs, validation (pytest, ruff, mypy src, denylist scan), and a push to origin main of the private repository only when everything is green. Questions are reserved for: making the repository public, force-push or history rewrite, deleting data or branches, denylist terms, credentials.
+
 ### Claude's Discretion
 - Exact module names inside `llm/`, the env variable name, the YAML schema keys beyond adapter, per-stage overrides and model path.
 - Contract-test layout, and how the stub llama-cli binary is built for CI.
