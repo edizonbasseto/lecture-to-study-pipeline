@@ -105,7 +105,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. The contract tests pass for both adapters in CI
   4. The new ADR is Accepted, and ADR 0038 and ADR 0045 carry amendment notes pointing to it
 
-**Plans**: 11/12 plans executed in 6 waves
+**Plans**: 12/12 plans executed in 6 waves
 
 Plans:
 - [x] 06-01-PLAN.md — `llm/` port, typed errors, `complete_json`, `CodexCliAdapter`, stub harness, contract suite (codex), layering test (wave 1)
@@ -119,7 +119,7 @@ Plans:
 - [x] 06-09-PLAN.md — Orchestrator preflight and env forwarding; criteria 1 and 2 end to end (wave 5)
 - [x] 06-10-PLAN.md — Provisioning: gateway binaries and opt-in example model with SHA-256 (wave 1)
 - [x] 06-11-PLAN.md — ADR 0046, amendments to ADR 0038/0045, GEN-07, GW-03 and GW-05 clarification; OPEN-1 checkpoint; D-07 manual run record and follow-ups (wave 6)
-- [ ] 06-12-PLAN.md — Forward notes on ADRs 0020, 0022, 0034, 0035, 0036, 0037 and PROJECT.md decisions, GW-05 and egress lines (wave 6)
+- [x] 06-12-PLAN.md — Forward notes on ADRs 0020, 0022, 0034, 0035, 0036, 0037 and PROJECT.md decisions, GW-05 and egress lines (wave 6)
 
 ### Phase 7: Synthetic demo lecture and measured results
 
@@ -172,7 +172,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 3. Assembly, study material and the uncertified boundary | 0/0 | Complete (baseline) | Pre-GSD |
 | 4. Study site | 0/0 | Complete (baseline) | Pre-GSD |
 | 5. Publication boundary and public repository | 0/0 | Complete (baseline) | Pre-GSD |
-| 6. Pluggable LLM gateway | 11/12 | In Progress | - |
+| 6. Pluggable LLM gateway | 12/12 | In Progress | - |
 | 7. Synthetic demo lecture and measured results | 0/TBD | Not started | - |
 | 8. Portfolio README and documentation | 0/TBD | Not started | - |
 | 9. Pre-public gate and release | 0/TBD | Not started | - |

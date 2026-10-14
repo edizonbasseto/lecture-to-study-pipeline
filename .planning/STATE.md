@@ -3,17 +3,17 @@ gsd_state_version: "1.0"
 milestone: v1.0
 current_phase: 6
 current_phase_name: Pluggable LLM gateway
-status: executing
-stopped_at: Completed 06-11-PLAN.md
-last_updated: "2026-10-14T22:48:20.198Z"
+status: verifying
+stopped_at: Completed 06-12-PLAN.md
+last_updated: "2026-10-14T22:51:31.979Z"
 last_activity: 2026-10-14
 last_activity_desc: Phase 6 execution started
-state_head: "0bf1f1592e62e8c33cc77c66906166600aeb6b61"
+state_head: 38d3801012e211985c1c7337c5d0be12068ba2a7
 progress:
   total_phases: 9
   completed_phases: 5
   total_plans: 12
-  completed_plans: 11
+  completed_plans: 12
 ---
 
 # Project State
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-10-14)
 
 Phase: 6 (Pluggable LLM gateway) — EXECUTING
 Plan: 12 of 12
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-10-14 — Phase 6 execution started
 Next action: `/gsd-plan-phase 6`
 
@@ -67,6 +67,7 @@ Progress: [██████░░░░] 56% (phases, 5 of 9; Phases 1-5 are c
 | Phase 06 P08 | 12min | 2 tasks | 2 files |
 | Phase 06 P09 | 14min | 2 tasks | 6 files |
 | Phase 06 P11 | 12min | 3 tasks | 4 files |
+| Phase 06 P12 | 8min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -97,6 +98,7 @@ Recent decisions affecting current work:
 - [Phase 06]: 06-09: PhaseSpec.llm_stages is an explicit per-row field; orchestrator preflights the declared gateway stages in all three entry points and forwards exactly LECTURE_STUDY_LLM_ADAPTER and LECTURE_STUDY_LLM_CONFIG to children
 - [Phase 06]: OPEN-1 (D-25): no per-model-family reasoning mechanism; generic --reasoning off suffices, adequacy for thinking-style models validated in the operator's D-07 manual run (recorded in ADR 0046)
 - [Phase 06]: OPEN-2 (D-26, option A): an id in both the local registry and remote_llm_allowed_lecture_ids is a preflight configuration error (recorded in ADR 0046 decision 6)
+- [Phase 06]: Plan 06-12: older ADRs 0020/0022/0034/0035/0036/0037 and PROJECT.md decisions D-READ-01/D-ADR0038-01/D-ADR0045-02 point forward to ADR 0046 by additive notes only; OPEN-2 rule restated from 06-04-SUMMARY
 
 ### Pending Todos
 
@@ -123,6 +125,6 @@ Items acknowledged and deferred at roadmap creation (detail in REQUIREMENTS.md v
 
 ## Session Continuity
 
-Last session: 2026-10-14T22:48:20.180Z
-Stopped at: Completed 06-11-PLAN.md
+Last session: 2026-10-14T22:51:31.962Z
+Stopped at: Completed 06-12-PLAN.md
 Resume file: None
