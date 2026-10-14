@@ -9,6 +9,9 @@ the LLM phases), ADR 0023 (records that sections 15 and 16 are superseded), and
 ADR 0029 (uncertified notice on the site). Supersedes ADR 0037 decision 2 (podcast grounded on `08_drafts`).
 Records how ADR citations are ordered (section 6).
 
+**Section 2 closed by ADR 0046:** the egress rule is enforced by code as a
+per-lecture flag; the provider-terms check stays procedural.
+
 ## Context
 
 A consolidation of all records found one contradiction and five gaps.
@@ -122,6 +125,12 @@ the account in use. This amends the local-only
 mandate cited by ADRs 0001, 0010, 0015, and 0032 for the LLM phases, and
 answers the question ADR 0010 delegated.
 
+*Note added by ADR 0046 (decision 6):* the local route now exists as the
+`LlamaCppAdapter` of the LLM gateway, and the Codex adapter is refused for any
+lecture not flagged `remote_llm_allowed` (local registry) or listed in
+`remote_llm_allowed_lecture_ids` (gateway configuration). Detecting
+patient-identifying data stays the operator's responsibility.
+
 ### 3. Site audience and the uncertified notice
 
 ADR 0024's audience bound is widened from the single requesting student to
@@ -203,6 +212,8 @@ directions is therefore not a dependency cycle.
   per-lecture errors; lectures earlier in the run are already published.
 - **Negative, accepted:** the egress rule in section 2 is procedural, not
   enforced by code.
+  *Note added by ADR 0046:* the flag rule is now enforced by code and fails
+  closed; the provider's retention and training terms stay a procedural check.
 - **Negative, accepted:** PDFs and other files served unchanged carry no site
   notice.
 - **Operational:** derivative artifacts generated before this decision must

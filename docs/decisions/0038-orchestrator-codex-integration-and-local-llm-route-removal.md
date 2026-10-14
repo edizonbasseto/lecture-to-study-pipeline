@@ -4,6 +4,10 @@
 
 Accepted.
 
+**Amended by ADR 0046:** the local text-LLM route returns as the
+`LlamaCppAdapter` behind the `LlmGateway` port; decisions 7-9 no longer
+enumerate every local model runtime; the removed CLI flags stay removed.
+
 ## Context
 
 The operator directed, emphatically and repeatedly: remove qwen3-32b and
