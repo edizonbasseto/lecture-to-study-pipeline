@@ -354,6 +354,8 @@ kept as `SCRIPT_STAGE.superseded.json` in the same
 directory); the next whole-stage success removes it. A superseded record
 states which adapter and model produced the earlier whole-stage run, and its
 outputs may since have been overwritten by the attempt in `SCRIPT_STAGE.json`.
+Only the most recent displaced whole-stage success is preserved; per-pack
+provenance across several partial reruns is not reconstructed.
 Records are published with a unique temporary file in the target directory,
 a file `fsync`, an atomic replace and a directory `fsync`. A failure to write a
 record of a failed run is logged and never replaces the original error; a
