@@ -1,14 +1,45 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from types import SimpleNamespace
 
 import pytest
 
 from lecture_study.flashcards import generator as flashcard_generator_module
+from lecture_study.llm import AdapterName, GatewayIdentity, LlmRequest, LlmResponse
 from lecture_study.publishing import pipeline as publishing_pipeline_module
 from lecture_study.quality import DeliveryArtifactKind, write_delivery_outputs
 from lecture_study.tts import generator as tts_generator_module
+
+
+class ScriptedGateway:
+    """LlmGateway test double that replays scripted responses or errors."""
+
+    def __init__(
+        self,
+        responses: Sequence[bytes | Exception],
+        identity: GatewayIdentity | None = None,
+    ) -> None:
+        self._remaining_responses = list(responses)
+        self._identity = identity or GatewayIdentity(AdapterName.CODEX, "scripted")
+        self.requests: list[LlmRequest] = []
+
+    def complete(self, request: LlmRequest) -> LlmResponse:
+        self.requests.append(request)
+        if not self._remaining_responses:
+            raise AssertionError("the scripted gateway has no response left")
+        item = self._remaining_responses.pop(0)
+        if isinstance(item, Exception):
+            raise item
+        return LlmResponse(content=item)
+
+    def describe(self) -> GatewayIdentity:
+        return self._identity
+
+
+@pytest.fixture
+def make_scripted_gateway() -> type[ScriptedGateway]:
+    return ScriptedGateway
 
 
 @pytest.fixture
