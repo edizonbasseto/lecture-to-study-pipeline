@@ -14,13 +14,16 @@ output-directory constant, not to reimplement or duplicate any of them.
 See docs/decisions/0016-master-cli-orchestrator.md.
 
 The LLM-backed stages (semantic extraction, drafting, critic review,
-mock exam and podcast generation) run as Codex CLI generation scripts in
-child processes (ADR 0038): this module invokes scripts/generate_codex_*
-with the lecture_id and surfaces a nonzero exit, timeout or output
-overflow as a PipelineExecutionError naming the phase. For those stages
-the script's own exit contract is the phase contract -- this module does
-not re-verify per-item outcomes, only the resume predicates below check
-artifact completeness.
+mock exam and podcast generation) run as generation scripts in child
+processes (ADR 0038): this module invokes scripts/generate_codex_* with the
+lecture_id and surfaces a nonzero exit, timeout or output overflow as a
+PipelineExecutionError naming the phase. The scripts call the LlmGateway
+port (ADR 0046); the adapter that serves each stage is chosen by the
+gateway configuration, and this module preflights every gateway stage the
+selected phases declare (PhaseSpec.llm_stages) before the first phase
+runs. For those stages the script's own exit contract is the phase
+contract -- this module does not re-verify per-item outcomes, only the
+resume predicates below check artifact completeness.
 """
 
 import asyncio
@@ -30,7 +33,7 @@ import os
 import subprocess
 import sys
 import tempfile
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable, Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Protocol
@@ -41,6 +44,7 @@ from lecture_study.assembly.assembler import (
     CANONICAL_DOCUMENTS_OUTPUT_DIR,
     DocumentAssembler,
 )
+from lecture_study.cli.llm_gateway_wiring import preflight_stage_gateways
 from lecture_study.domain.errors import PipelineExecutionError
 from lecture_study.domain.models import LectureMetadata, MockExam, SafeIdentifier
 from lecture_study.evidence.pipeline import (
@@ -53,6 +57,8 @@ from lecture_study.extraction.pipeline import (
     ExtractionOrchestrator,
 )
 from lecture_study.flashcards.generator import AnkiDeckGenerator
+from lecture_study.llm.config import ADAPTER_OVERRIDE_ENV, CONFIG_PATH_ENV
+from lecture_study.llm.gateway import LlmGatewayError, Stage
 from lecture_study.metadata.aggregator import METADATA_OUTPUT_DIR, MetadataAggregator
 from lecture_study.ops.llm_response_contract import (
     llm_output_diagnostic,
@@ -100,7 +106,13 @@ _CODEX_PHASE_OUTPUT_LIMIT_BYTES = 16 * 1024 * 1024
 # directories) and the locale variables. Passing the full ambient
 # environment instead would transit every credential the sanitizer's
 # blocklist does not recognize (e.g. credentialed proxy URLs).
-_CODEX_PHASE_ENV_KEYS = (
+#
+# The two gateway names are the only additions: each child script
+# re-resolves the same gateway configuration from the same inputs the
+# orchestrator preflighted (the adapter override and the configuration file
+# path, D-10), so the choice validated here is the choice the child runs.
+# They are named explicitly; no prefix widening.
+_LLM_PHASE_ENV_KEYS = (
     "HOME",
     "LANG",
     "LC_ALL",
@@ -109,6 +121,8 @@ _CODEX_PHASE_ENV_KEYS = (
     "TEMP",
     "TMP",
     "TMPDIR",
+    ADAPTER_OVERRIDE_ENV,
+    CONFIG_PATH_ENV,
 )
 # Where a failed generation script's captured output is persisted for
 # diagnosis. The message itself carries only digests, matching
@@ -116,9 +130,9 @@ _CODEX_PHASE_ENV_KEYS = (
 _CODEX_PHASE_FAILURE_LOGS_DIR = Path("tmp/codex_phase_failures")
 
 
-def _codex_phase_environment() -> dict[str, str]:
+def _llm_phase_environment() -> dict[str, str]:
     return {
-        name: os.environ[name] for name in _CODEX_PHASE_ENV_KEYS if name in os.environ
+        name: os.environ[name] for name in _LLM_PHASE_ENV_KEYS if name in os.environ
     }
 
 
@@ -163,13 +177,15 @@ class PhaseResult:
 @dataclass(frozen=True)
 class PhaseSpec:
     """One row of the phase registry: how to evaluate phase_number's
-    stage-specific resume predicate, and how to run it."""
+    stage-specific resume predicate, how to run it, and which gateway
+    stages it uses (declared explicitly, never derived from the name)."""
 
     number: int
     name: str
     supports_single_lecture: bool
     artifact_exists: Callable[[OrchestratorContext, str], bool]
     run: Callable[[OrchestratorContext, str], Awaitable[None]]
+    llm_stages: tuple[Stage, ...] = ()
 
 
 def _dir_has_files(directory: Path) -> bool:
@@ -303,9 +319,9 @@ def _run_codex_generation_script(
     phase. The scripts resolve their workspace roots relative to the
     current working directory, so this inherits the caller's cwd -- the
     same repo-root assumption QUEUE_PATH already makes. The child env is
-    the explicit operational allowlist from _codex_phase_environment()
-    (PATH, HOME for codex's ~/.codex session, locale, TMPDIR family) --
-    never the ambient environment."""
+    the explicit operational allowlist from _llm_phase_environment()
+    (PATH, HOME for codex's ~/.codex session, locale, TMPDIR family, the
+    two gateway configuration names) -- never the ambient environment."""
     command = [
         sys.executable,
         str(_GENERATION_SCRIPTS_ROOT / script_filename),
@@ -314,7 +330,7 @@ def _run_codex_generation_script(
     try:
         completed = run_bounded_process(
             command,
-            env=_codex_phase_environment(),
+            env=_llm_phase_environment(),
             timeout_seconds=_CODEX_PHASE_TIMEOUT_SECONDS,
             maximum_stdout_bytes=_CODEX_PHASE_OUTPUT_LIMIT_BYTES,
             maximum_stderr_bytes=_CODEX_PHASE_OUTPUT_LIMIT_BYTES,
@@ -553,9 +569,30 @@ PHASE_REGISTRY: tuple[PhaseSpec, ...] = (
     PhaseSpec(2, "extraction", True, _phase_2_artifact_exists, _run_phase_2),
     PhaseSpec(3, "transcription", True, _phase_3_artifact_exists, _run_phase_3),
     PhaseSpec(4, "evidence", True, _phase_4_artifact_exists, _run_phase_4),
-    PhaseSpec(5, "semantic", True, _phase_5_artifact_exists, _run_phase_5),
-    PhaseSpec(6, "drafting", True, _phase_6_artifact_exists, _run_phase_6),
-    PhaseSpec(7, "critic", True, _phase_7_artifact_exists, _run_phase_7),
+    PhaseSpec(
+        5,
+        "semantic",
+        True,
+        _phase_5_artifact_exists,
+        _run_phase_5,
+        llm_stages=(Stage.SEMANTIC,),
+    ),
+    PhaseSpec(
+        6,
+        "drafting",
+        True,
+        _phase_6_artifact_exists,
+        _run_phase_6,
+        llm_stages=(Stage.DRAFTING,),
+    ),
+    PhaseSpec(
+        7,
+        "critic",
+        True,
+        _phase_7_artifact_exists,
+        _run_phase_7,
+        llm_stages=(Stage.CRITIC, Stage.DRAFTING),
+    ),
     PhaseSpec(8, "assembly", True, _phase_8_artifact_exists, _run_phase_8),
     PhaseSpec(9, "metadata", True, _phase_9_artifact_exists, _run_phase_9),
     PhaseSpec(
@@ -567,8 +604,22 @@ PHASE_REGISTRY: tuple[PhaseSpec, ...] = (
     ),
     PhaseSpec(11, "publishing", True, _phase_11_artifact_exists, _run_phase_11),
     PhaseSpec(12, "flashcards", True, _phase_12_artifact_exists, _run_phase_12),
-    PhaseSpec(13, "exams", True, _phase_13_artifact_exists, _run_phase_13),
-    PhaseSpec(14, "podcast", True, _phase_14_artifact_exists, _run_phase_14),
+    PhaseSpec(
+        13,
+        "exams",
+        True,
+        _phase_13_artifact_exists,
+        _run_phase_13,
+        llm_stages=(Stage.EXAMS,),
+    ),
+    PhaseSpec(
+        14,
+        "podcast",
+        True,
+        _phase_14_artifact_exists,
+        _run_phase_14,
+        llm_stages=(Stage.PODCAST,),
+    ),
     PhaseSpec(15, "tts", True, _phase_15_artifact_exists, _run_phase_15),
 )
 
@@ -589,6 +640,23 @@ def _find_spec(phase_number: int) -> PhaseSpec:
         f"unknown phase number {phase_number}: valid phases are "
         f"{list(RUN_PHASE_CHOICES)}"
     )
+
+
+def _preflight_llm_gateways(specs: Iterable[PhaseSpec], lecture_id: str) -> None:
+    """Validate the gateway of every LLM stage the selected phases declare,
+    before any phase runs (D-12). The orchestrator is the first validation
+    layer; each script re-validates from the same configuration. A
+    misconfiguration surfaces here as a PipelineExecutionError before any
+    process is spawned, independent of the resume predicates."""
+    stages = tuple(dict.fromkeys(stage for spec in specs for stage in spec.llm_stages))
+    if not stages:
+        return
+    try:
+        preflight_stage_gateways(stages, lecture_id=lecture_id)
+    except LlmGatewayError as error:
+        raise PipelineExecutionError(
+            f"LLM gateway preflight failed for lecture {lecture_id!r}: {error}"
+        ) from error
 
 
 async def run_phase(
@@ -631,6 +699,7 @@ async def run_phase(
                     "on the phase's own artifact."
                 ) from error
             raise
+    _preflight_llm_gateways((spec,), lecture_id)
     if spec.artifact_exists(ctx, lecture_id):
         _logger.info(
             "phase %d (%s) already done for %s, skipping",
@@ -652,6 +721,7 @@ async def run_all(ctx: OrchestratorContext, lecture_id: str) -> list[PhaseResult
     so continuing past a failure would only surface a confusing
     downstream error instead of the real one."""
     lecture_id = _LECTURE_ID_ADAPTER.validate_python(lecture_id)
+    _preflight_llm_gateways(PHASE_REGISTRY, lecture_id)
     results: list[PhaseResult] = []
     for spec in PHASE_REGISTRY:
         if spec.number > 10:
@@ -686,6 +756,14 @@ async def run_personal_study(
     run_all, restricted to PERSONAL_STUDY_PHASE_NUMBERS, and never calls
     require_publication_ready."""
     lecture_id = _LECTURE_ID_ADAPTER.validate_python(lecture_id)
+    _preflight_llm_gateways(
+        (
+            spec
+            for spec in PHASE_REGISTRY
+            if spec.number in PERSONAL_STUDY_PHASE_NUMBERS
+        ),
+        lecture_id,
+    )
     results: list[PhaseResult] = []
     for spec in PHASE_REGISTRY:
         if spec.number not in PERSONAL_STUDY_PHASE_NUMBERS:

@@ -25,6 +25,8 @@ from lecture_study.cli.orchestrator import (
 )
 from lecture_study.domain.errors import PipelineExecutionError
 from lecture_study.domain.models import LectureMetadata, MockExam
+from lecture_study.llm.config import ADAPTER_OVERRIDE_ENV, CONFIG_PATH_ENV
+from lecture_study.llm.gateway import Stage
 from lecture_study.quality import QualityCertificationError
 
 LECTURE = LectureMetadata(
@@ -724,10 +726,10 @@ class TestCodexScriptPhases:
             f"scripts/{script_filename}",
             LECTURE.id,
         ]
-        assert set(captured["env"]) <= set(orchestrator_module._CODEX_PHASE_ENV_KEYS)
+        assert set(captured["env"]) <= set(orchestrator_module._LLM_PHASE_ENV_KEYS)
         assert captured["env"] == {
             name: os.environ[name]
-            for name in orchestrator_module._CODEX_PHASE_ENV_KEYS
+            for name in orchestrator_module._LLM_PHASE_ENV_KEYS
             if name in os.environ
         }
         assert captured["check"] is True
@@ -813,6 +815,39 @@ class TestCodexScriptPhases:
 
         with pytest.raises(PipelineExecutionError, match=expected_detail):
             await phase_runner(OrchestratorContext(), LECTURE.id)
+
+
+class TestLlmPhaseEnvironment:
+    @pytest.mark.asyncio
+    async def test_forwards_the_two_gateway_names_and_no_other_ambient_variable(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv(ADAPTER_OVERRIDE_ENV, "llama-cpp")
+        monkeypatch.setenv(CONFIG_PATH_ENV, "config/synthetic-gateway.yaml")
+        monkeypatch.setenv("OPENAI_API_KEY", "synthetic-credential-value")
+        monkeypatch.setenv("HTTPS_PROXY", "http://synthetic-proxy.invalid:3128")
+        captured = _capture_run_bounded_process(monkeypatch)
+
+        await orchestrator_module._run_phase_5(OrchestratorContext(), LECTURE.id)
+
+        assert captured["env"][ADAPTER_OVERRIDE_ENV] == "llama-cpp"
+        assert captured["env"][CONFIG_PATH_ENV] == "config/synthetic-gateway.yaml"
+        assert "OPENAI_API_KEY" not in captured["env"]
+        assert "HTTPS_PROXY" not in captured["env"]
+
+    def test_allowlist_grows_by_exactly_the_two_gateway_names(self) -> None:
+        assert set(orchestrator_module._LLM_PHASE_ENV_KEYS) == {
+            "HOME",
+            "LANG",
+            "LC_ALL",
+            "LC_CTYPE",
+            "PATH",
+            "TEMP",
+            "TMP",
+            "TMPDIR",
+            "LECTURE_STUDY_LLM_ADAPTER",
+            "LECTURE_STUDY_LLM_CONFIG",
+        }
 
 
 class TestSimplePassThroughPhases:
@@ -1003,6 +1038,26 @@ class TestPhaseRegistry:
     def test_all_registered_phases_support_single_lecture_invocation(self):
         for spec in PHASE_REGISTRY:
             assert spec.supports_single_lecture is True, spec.number
+
+    def test_declares_the_gateway_stages_each_phase_uses(self):
+        declared = {spec.number: spec.llm_stages for spec in PHASE_REGISTRY}
+
+        assert declared == {
+            2: (),
+            3: (),
+            4: (),
+            5: (Stage.SEMANTIC,),
+            6: (Stage.DRAFTING,),
+            7: (Stage.CRITIC, Stage.DRAFTING),
+            8: (),
+            9: (),
+            10: (),
+            11: (),
+            12: (),
+            13: (Stage.EXAMS,),
+            14: (Stage.PODCAST,),
+            15: (),
+        }
 
 
 def _fake_spec(

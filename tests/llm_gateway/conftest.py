@@ -11,6 +11,13 @@ of ``script-NAME.json``. A step may set ``sleep_seconds``,
 ``response_file_text`` (written to the path following ``-o``), ``stdout``,
 ``stderr`` and ``exit_code`` (default 0).
 
+Rules mode: when ``rules-NAME.json`` exists, the stub ignores the script and
+instead picks the first rule whose ``match`` text is a substring of the prompt
+(the ``-f`` file for the llama stubs, the last argument for codex), applying
+its ``stdout``, ``response_file_text``, ``token_count`` and ``exit_code`` keys.
+Rules are never consumed, so a multi-stage run can be answered by prompt
+content alone. A prompt matched by no rule exits 98.
+
 The llama stubs (``llama-completion`` and ``llama-tokenize``) also log
 ``prompt_file_text`` (the content of the file following ``-f``) and act as a
 tripwire: they exit 3 with "stub tripwire" on any download, listener or
@@ -23,6 +30,7 @@ the end-of-generation marker unless the step sets ``end_marker`` to false.
 from __future__ import annotations
 
 import json
+import os
 import sys
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -31,6 +39,7 @@ from pathlib import Path
 import pytest
 
 _EXHAUSTED_EXIT_CODE = 97
+_UNMATCHED_RULE_EXIT_CODE = 98
 
 _STUB_PROGRAM = """
 import json
@@ -88,15 +97,38 @@ if is_llama and tripwire_tripped():
     sys.stderr.write("stub tripwire")
     sys.exit(3)
 
-script_path = control_dir / f"script-{name}.json"
-cursor_path = control_dir / f"cursor-{name}.txt"
-steps = json.loads(script_path.read_text()) if script_path.exists() else []
-cursor = int(cursor_path.read_text()) if cursor_path.exists() else 0
-if cursor >= len(steps):
-    sys.stderr.write("stub script exhausted")
-    sys.exit(%(exhausted_exit_code)d)
-cursor_path.write_text(str(cursor + 1))
-step = steps[cursor]
+def prompt_text():
+    if is_llama:
+        return read_prompt_file_text() or ""
+    return arguments[-1] if arguments else ""
+
+
+def select_rule_step(rules):
+    text = prompt_text()
+    for rule in rules:
+        if rule["match"] in text:
+            return rule
+    sys.stderr.write("stub rules matched nothing")
+    sys.exit(%(unmatched_rule_exit_code)d)
+
+
+def select_scripted_step():
+    script_path = control_dir / f"script-{name}.json"
+    cursor_path = control_dir / f"cursor-{name}.txt"
+    steps = json.loads(script_path.read_text()) if script_path.exists() else []
+    cursor = int(cursor_path.read_text()) if cursor_path.exists() else 0
+    if cursor >= len(steps):
+        sys.stderr.write("stub script exhausted")
+        sys.exit(%(exhausted_exit_code)d)
+    cursor_path.write_text(str(cursor + 1))
+    return steps[cursor]
+
+
+rules_path = control_dir / f"rules-{name}.json"
+if rules_path.exists():
+    step = select_rule_step(json.loads(rules_path.read_text()))
+else:
+    step = select_scripted_step()
 
 time.sleep(step.get("sleep_seconds", 0))
 response_text = step.get("response_file_text")
@@ -111,7 +143,10 @@ sys.stdout.flush()
 sys.stderr.write(step.get("stderr", ""))
 sys.stderr.flush()
 sys.exit(step.get("exit_code", 0))
-""" % {"exhausted_exit_code": _EXHAUSTED_EXIT_CODE}
+""" % {
+    "exhausted_exit_code": _EXHAUSTED_EXIT_CODE,
+    "unmatched_rule_exit_code": _UNMATCHED_RULE_EXIT_CODE,
+}
 
 
 def write_stub_executable(directory: Path, name: str) -> Path:
@@ -133,6 +168,11 @@ class StubControl:
         script_path = self._directory / f"script-{name}.json"
         script_path.write_text(json.dumps(list(steps)), encoding="utf-8")
         (self._directory / f"cursor-{name}.txt").unlink(missing_ok=True)
+
+    def rules(self, name: str, rules: Sequence[dict[str, object]]) -> None:
+        """Answer every call by prompt content (see the module docstring)."""
+        rules_path = self._directory / f"rules-{name}.json"
+        rules_path.write_text(json.dumps(list(rules)), encoding="utf-8")
 
     def calls(self, name: str) -> list[dict[str, object]]:
         return [entry for entry in self._entries() if entry["name"] == name]
@@ -191,3 +231,23 @@ def llama_stubs(tmp_path: Path) -> LlamaStubs:
         model_path=model_path,
         control=StubControl(directory),
     )
+
+
+@dataclass(frozen=True, slots=True)
+class TripwireCodex:
+    """A ``codex`` stub placed first on PATH that must never be invoked."""
+
+    control: StubControl
+
+    def calls(self) -> list[dict[str, object]]:
+        return self.control.calls("codex")
+
+
+@pytest.fixture
+def tripwire_codex_on_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> TripwireCodex:
+    directory = tmp_path / "tripwire-codex"
+    write_stub_executable(directory, "codex")
+    monkeypatch.setenv("PATH", f"{directory}{os.pathsep}{os.environ.get('PATH', '')}")
+    return TripwireCodex(control=StubControl(directory))
