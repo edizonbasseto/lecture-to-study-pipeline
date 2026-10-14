@@ -1,0 +1,54 @@
+# LLM gateway configuration -- example with synthetic values.
+#
+# Copy to config/llm-gateway.local.yaml (git-ignored) and adjust. Without that
+# file every stage uses the codex adapter. Readers:
+#   - lecture_study.llm.config.load_gateway_configuration, used by the CLI
+#     preflight and by every scripts/generate_codex_*.py.
+#
+# Environment variables (both are optional):
+#   LECTURE_STUDY_LLM_CONFIG   path of an alternate configuration file; a path
+#                              that does not exist is an error.
+#   LECTURE_STUDY_LLM_ADAPTER  "codex" or "llama-cpp"; replaces default_adapter
+#                              AND every entry of "stages" for that run, so a
+#                              run that says local is entirely local.
+#
+# Precedence, highest first: LECTURE_STUDY_LLM_ADAPTER, the per-stage entry in
+# "stages", default_adapter, then the built-in default (codex).
+#
+# The loader validates strictly: no unknown keys, no unknown stage names and no
+# unknown adapter names. An invalid file stops the run before any model call.
+#
+# default_adapter: "codex" (remote model) or "llama-cpp" (local model).
+default_adapter: codex
+
+# stages: optional per-stage adapter. Keys: semantic, drafting, critic, exams,
+# podcast, flashcards. Values: "codex" or "llama-cpp". Example:
+#   stages:
+#     critic: llama-cpp
+stages: {}
+
+# remote_llm_allowed_lecture_ids: portal-catalog lecture ids (quoted strings of
+# [A-Za-z0-9_-]) that are allowed to use the remote codex adapter. Lectures of
+# the local registry carry "remote_llm_allowed" in
+# config/local-lectures.local.yaml instead. A lecture listed in neither place is
+# refused for codex before any call.
+remote_llm_allowed_lecture_ids: []
+
+# codex: settings of the remote adapter.
+#   executable: name or path of the codex command-line client.
+codex:
+  executable: codex
+
+# llama_cpp: settings of the local adapter; required whenever default_adapter,
+# a "stages" entry or LECTURE_STUDY_LLM_ADAPTER selects "llama-cpp".
+#   completion_executable: path of the llama.cpp completion binary.
+#   tokenize_executable:   path of the llama.cpp tokenizer binary.
+#   model_path:            path of the model file. For a split model this is the
+#                          first shard; the run record digest covers this file
+#                          only.
+#   model_family:          model family label, kept as validated metadata.
+llama_cpp:
+  completion_executable: engines/llama.cpp/build/bin/llama-completion
+  tokenize_executable: engines/llama.cpp/build/bin/llama-tokenize
+  model_path: engines/models/qwen2.5-14b-instruct-q4_k_m/qwen2.5-14b-instruct-q4_k_m-00001-of-00003.gguf
+  model_family: qwen2
