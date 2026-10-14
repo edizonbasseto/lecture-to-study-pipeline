@@ -13,7 +13,8 @@ from __future__ import annotations
 
 import os
 import tempfile
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from pathlib import Path
 
 from lecture_study.llm.bounded_call import run_adapter_process
@@ -58,8 +59,7 @@ class CodexCliAdapter:
     def complete(self, request: LlmRequest) -> LlmResponse:
         environment = _child_environment()
         self._require_argv_within_budget(request, environment)
-        with tempfile.TemporaryDirectory(prefix=_scratch_prefix(request)) as raw_dir:
-            scratch_dir = Path(raw_dir)
+        with _scratch_directory(request) as scratch_dir:
             response_path = scratch_dir / _RESPONSE_FILE_NAME
             self._run_child(request, scratch_dir, response_path, environment)
             return LlmResponse(content=_read_response(request, response_path))
@@ -92,7 +92,7 @@ class CodexCliAdapter:
         probe_arguments = self._build_arguments(
             request, probe_scratch_dir, probe_scratch_dir / _RESPONSE_FILE_NAME
         )
-        cost = _argv_cost_bytes(probe_arguments, environment)
+        cost = _argv_cost_in_bytes(request, probe_arguments, environment)
         if cost > self._argv_budget_bytes:
             raise PromptTooLargeError(
                 request.stage,
@@ -135,6 +135,31 @@ def _representative_scratch_dir(request: LlmRequest) -> Path:
     return Path(tempfile.gettempdir()) / placeholder_name
 
 
+@contextmanager
+def _scratch_directory(request: LlmRequest) -> Iterator[Path]:
+    """A fresh scratch directory; failing to create one is a typed call error."""
+
+    try:
+        directory = tempfile.TemporaryDirectory(
+            prefix=_scratch_prefix(request), ignore_cleanup_errors=True
+        )
+    except OSError as error:
+        raise _call_error(
+            request, f"could not create the scratch directory: {type(error).__name__}"
+        ) from None
+    with directory as raw_dir:
+        yield Path(raw_dir)
+
+
+def _argv_cost_in_bytes(
+    request: LlmRequest, arguments: Sequence[str], environment: Mapping[str, str]
+) -> int:
+    try:
+        return _argv_cost_bytes(arguments, environment)
+    except UnicodeEncodeError:
+        raise _call_error(request, "the prompt is not encodable as UTF-8") from None
+
+
 def _argv_cost_bytes(arguments: Sequence[str], environment: Mapping[str, str]) -> int:
     argument_cost = sum(len(argument.encode()) + 1 for argument in arguments)
     environment_cost = sum(
@@ -149,6 +174,10 @@ def _read_response(request: LlmRequest, response_path: Path) -> bytes:
         return response_path.read_bytes()
     except FileNotFoundError:
         raise _call_error(request, "the process wrote no response file") from None
+    except OSError as error:
+        raise _call_error(
+            request, f"could not read the response file: {type(error).__name__}"
+        ) from None
 
 
 def _call_error(request: LlmRequest, reason: str) -> LlmCallError:

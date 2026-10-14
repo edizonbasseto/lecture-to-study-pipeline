@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from lecture_study.llm import codex_adapter
 from lecture_study.llm.codex_adapter import CodexCliAdapter
 from lecture_study.llm.gateway import (
     LlmCallError,
@@ -164,3 +165,51 @@ def test_child_environment_keeps_home_and_drops_credentials(
     assert child_environment["HOME"] == str(home_directory)
     assert "OPENAI_API_KEY" not in child_environment
     assert "PORTAL_PASS" not in child_environment
+
+
+def test_prompt_with_a_lone_surrogate_raises_a_call_error_before_spawning(
+    codex_stub,
+) -> None:
+    adapter = CodexCliAdapter(str(codex_stub.executable))
+    unencodable_prompt = PROMPT_MARKER + " \ud800 tail"
+
+    with pytest.raises(LlmCallError) as raised:
+        adapter.complete(LlmRequest(Stage.SEMANTIC, unencodable_prompt))
+
+    assert "not encodable" in str(raised.value)
+    assert PROMPT_MARKER not in str(raised.value)
+    assert raised.value.__cause__ is None
+    assert codex_stub.control.calls("codex") == []
+
+
+def test_scratch_directory_failure_raises_a_call_error_without_the_prompt(
+    codex_stub, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def refuse_to_create(*_arguments: str, **_keywords: str) -> None:
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(codex_adapter.tempfile, "TemporaryDirectory", refuse_to_create)
+    adapter = CodexCliAdapter(str(codex_stub.executable))
+
+    with pytest.raises(LlmCallError) as raised:
+        adapter.complete(LlmRequest(Stage.SEMANTIC, PROMPT_MARKER))
+
+    assert "could not create the scratch directory: OSError" in str(raised.value)
+    assert PROMPT_MARKER not in str(raised.value)
+    assert raised.value.__cause__ is None
+    assert codex_stub.control.calls("codex") == []
+
+
+def test_unreadable_response_file_raises_a_call_error_without_the_prompt(
+    tmp_path: Path,
+) -> None:
+    request = LlmRequest(Stage.SEMANTIC, PROMPT_MARKER)
+    directory_in_place_of_file = tmp_path / "response.txt"
+    directory_in_place_of_file.mkdir()
+
+    with pytest.raises(LlmCallError) as raised:
+        codex_adapter._read_response(request, directory_in_place_of_file)
+
+    assert "could not read the response file: IsADirectoryError" in str(raised.value)
+    assert PROMPT_MARKER not in str(raised.value)
+    assert raised.value.__cause__ is None
