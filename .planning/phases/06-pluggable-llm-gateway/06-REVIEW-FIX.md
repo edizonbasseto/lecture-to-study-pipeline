@@ -86,5 +86,50 @@ the next full run.
 
 ---
 
+## Round 2 (iteration-2 review)
+
+**Source review:** `.planning/phases/06-pluggable-llm-gateway/06-REVIEW.md` (iteration 2)
+**Scope:** WR-01..WR-06 of the iteration-2 report, plus IN-02 (trivial).
+**Summary:** findings in scope 6; fixed 6; skipped 0; one Info item fixed.
+Work was committed directly on the checked-out branch (no temporary worktree),
+as instructed by the invoking workflow.
+
+### Fixed
+
+| Finding | Commit | Applied fix |
+|---------|--------|-------------|
+| WR-02 | `f3890a2` | New `src/lecture_study/ops/strict_yaml.py` holds the duplicate-key scan moved out of `llm/config.py`. `load_local_lectures` now rejects repeated keys (inside a row and repeated top-level blocks) with a `LocalLectureError` naming dotted key paths only, and maps `OSError` other than absence to a typed error instead of treating an unreadable file as an empty registry. `ops/` is imported by both `study_materials/` and `llm/` already; `site/` is untouched and `tests/test_llm_layering.py` allows the new module. Regression tests: false-then-true, true-then-false, repeated `publish`, two top-level `lectures` blocks, and a policy test asserting `GatewayConfigurationError` from `is_remote_allowed` and `require_remote_egress_allowed` for each. |
+| WR-04 | `08f79eb` | `generate_codex_drafts.py` stamps the pack's `lecture_id` and `pack_sequence` on every draft it writes; `generate_codex_critic_review.py::_load_drafts` wraps the loader in `require_lecture_ownership(..., kind="drafts")`. The error names ids only. Tests for a foreign draft, a valid draft, and the stamping over a drifted model echo. Existing behavior for valid inputs is unchanged. Older drafts with a drifted echo fail loudly and are regenerated. |
+| WR-05 | `29c9a13` | Codex adapter: lone-surrogate prompt (`UnicodeEncodeError` in the argv cost), scratch-directory creation `OSError` and response-read `OSError` now raise `LlmCallError` with the exception type name only (`from None`, no prompt text). Scratch cleanup errors are ignored. Three tests. |
+| WR-03 | `61d0c4b` | `_configuration_file_present` uses `Path.lstat`: absence is exactly `FileNotFoundError`; any other `OSError` raises `GatewayConfigurationError`. Dangling symlinks still count as present and fail in the read. Tests: unreadable parent directory (skipped when running as root) and absent default file still resolving to defaults. |
+| WR-01 | `8e32e12` | Design within D-18 (same path tree, metadata-only content, no schema change): `<stage>.json` always records the latest attempt with its true status and scope; when a failed or scoped attempt displaces a whole-stage `succeeded` record, that record is first kept as `<stage>.superseded.json` in the same `workspace/data/llm_runs/<lecture_id>/` directory, and the next whole-stage success removes it. Failing to preserve the sibling never blocks the latest record. Tests cover the failed-rerun-after-overwrite case, the scoped-success-overwrites-whole-stage case, a later attempt not replacing the preserved record, removal on a new whole-stage success, no sibling without an earlier whole-stage success, and the unpreservable-sibling case. The old test that asserted the stale record was kept was replaced. Logic-class finding: requires human verification that the sibling-file rule matches the intended provenance semantics. |
+| WR-06 | `b3ca46c` | ADR 0046 section 7 amended with a forward clarification (latest-attempt semantics, null digest on failure, `scope`, the superseded sibling, the durable write protocol, error masking rule) and section 6 with the registry repeated-key rule and the configuration probe rule. No earlier text deleted. |
+| IN-02 | `c1196dc` | Critic `--max-retries` help and podcast traceability message no longer say "Codex". |
+
+IN-04 (finding id in a docstring, over-long line) was resolved incidentally by
+the WR-01 rewrite of that function. Remaining Info items (IN-01, IN-03,
+IN-05..IN-10) were not touched, as instructed.
+
+### Skipped
+
+None.
+
+### Verification
+
+Run in the main checkout after the last fix:
+
+- `uv run pytest -q -rs`: 2548 passed, 1 warning (pre-existing starlette
+  deprecation). Baseline before this round: 2527.
+- `uv run ruff check .`: passed.
+- `uv run ruff format --check .`: 235 files already formatted.
+- `uv run mypy src`: no issues in 126 source files.
+
+Transient host exec failures ("Operation not permitted" when starting the stub
+executable, a `PermissionError` from `process_lifecycle.py`) appeared once in a
+`tests/llm_gateway` run and once in one full run; each passed on immediate
+rerun, classified as the same environmental exec race noted in Round 1.
+
+---
+
 _Fixer: Claude (gsd-code-fixer)_
-_Iteration: 1_
+_Iteration: 2_
