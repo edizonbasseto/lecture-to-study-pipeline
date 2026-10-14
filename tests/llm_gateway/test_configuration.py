@@ -263,3 +263,26 @@ def test_dangling_explicit_symlink_fails_closed(tmp_path: Path) -> None:
 
     with pytest.raises(GatewayConfigurationError, match="unreadable"):
         load_gateway_configuration(_environ_for(link))
+
+
+@pytest.mark.parametrize(
+    ("text", "repeated_path"),
+    [
+        ("default_adapter: codex\ndefault_adapter: codex\n", "default_adapter"),
+        ("stages:\n  exams: codex\n  exams: codex\n", "stages.exams"),
+        (
+            "remote_llm_allowed_lecture_ids: ['1']\n"
+            "remote_llm_allowed_lecture_ids: ['2']\n",
+            "remote_llm_allowed_lecture_ids",
+        ),
+    ],
+)
+def test_duplicate_yaml_keys_fail_closed_naming_only_the_key_path(
+    tmp_path: Path, text: str, repeated_path: str
+) -> None:
+    path = _write_configuration(tmp_path, text)
+
+    with pytest.raises(GatewayConfigurationError, match="repeats keys") as raised:
+        load_gateway_configuration(_environ_for(path))
+
+    assert repeated_path in str(raised.value)

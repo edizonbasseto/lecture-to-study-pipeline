@@ -108,11 +108,20 @@ def _read_configuration_file(environ: Mapping[str, str]) -> GatewayConfiguration
 
 def _parse_configuration_file(path: Path) -> GatewayConfiguration:
     try:
-        payload = yaml.safe_load(path.read_text(encoding="utf-8"))
+        text = path.read_text(encoding="utf-8")
+        duplicated_keys = _duplicated_key_paths(
+            yaml.compose(text, Loader=yaml.SafeLoader)
+        )
+        payload = yaml.safe_load(text)
     except (yaml.YAMLError, UnicodeDecodeError, OSError) as error:
         raise GatewayConfigurationError(
             f"gateway configuration unreadable at {path}: {type(error).__name__}"
         ) from error
+    if duplicated_keys:
+        raise GatewayConfigurationError(
+            f"gateway configuration repeats keys in {path}: "
+            + ", ".join(duplicated_keys)
+        )
     if payload is None:
         payload = {}
     if not isinstance(payload, dict):
@@ -120,6 +129,45 @@ def _parse_configuration_file(path: Path) -> GatewayConfiguration:
             f"gateway configuration root must be a mapping: {path}"
         )
     return _validate(payload, source=str(path))
+
+
+def _duplicated_key_paths(root: yaml.Node | None) -> list[str]:
+    """Dotted paths of mapping keys that occur twice in one mapping (keys only)."""
+
+    duplicated: list[str] = []
+    _collect_duplicated_keys(root, (), duplicated, set())
+    return duplicated
+
+
+def _collect_duplicated_keys(
+    node: yaml.Node | None,
+    parent_path: tuple[str, ...],
+    duplicated: list[str],
+    visited: set[int],
+) -> None:
+    if node is None or id(node) in visited:
+        return
+    visited.add(id(node))
+    if isinstance(node, yaml.SequenceNode):
+        for index, item in enumerate(node.value):
+            _collect_duplicated_keys(
+                item, (*parent_path, str(index)), duplicated, visited
+            )
+    elif isinstance(node, yaml.MappingNode):
+        seen: set[str] = set()
+        for key_node, value_node in node.value:
+            key = _scalar_key(key_node)
+            if key is not None and key in seen:
+                duplicated.append(".".join((*parent_path, key)))
+            if key is not None:
+                seen.add(key)
+            _collect_duplicated_keys(
+                value_node, (*parent_path, key or "?"), duplicated, visited
+            )
+
+
+def _scalar_key(node: yaml.Node) -> str | None:
+    return node.value if isinstance(node, yaml.ScalarNode) else None
 
 
 def _override_every_stage(
