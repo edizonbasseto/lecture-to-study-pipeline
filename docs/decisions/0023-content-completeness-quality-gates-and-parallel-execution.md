@@ -12,7 +12,7 @@ podcast, flashcards) has been removed; those stages run as Codex CLI
 generation scripts, and local execution survives only for Whisper/ASR,
 the Kokoro-82M TTS voice (ADR 0032), and the llama-mtmd-cli vision
 captioning binary. The completeness and
-parallel-execution architecture itself is unaffected.
+parallel-execution architecture itself is unaffected. Sections 15 and 16 were superseded by ADR 0038, as ADR 0045 section 4 records.
 
 
 ## Context

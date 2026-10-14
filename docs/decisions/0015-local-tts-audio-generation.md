@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted. **Erratum (ADR 0022):** the Rationale section below describes a
+Accepted. **Amended by ADR 0045:** the local-only mandate no longer binds the LLM phases; lecture content verified to carry no patient-identifying data may be sent to the remote model route. **Erratum (ADR 0022):** the Rationale section below describes a
 `PodcastScript` compiled by Phase 14 as "grammar-constrained JSON" -- this
 is no longer how Phase 14 enforces its output shape (see ADR 0022: that
 llama.cpp build's grammar sampler could not be used at all, so Phase 14

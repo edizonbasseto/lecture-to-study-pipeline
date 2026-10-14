@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted. **Superseded by ADR 0038** as to dual-route reachability: this ADR's "local route stays reachable" clause no longer holds -- the local exam generator is deleted and the Codex route is the only one.
+Accepted. **Superseded by ADR 0038** as to dual-route reachability: this ADR's "local route stays reachable" clause no longer holds -- the local exam generator is deleted and the Codex route is the only one. Amended by ADR 0045: the Codex mock-exam script reads critic-approved units from `09_validated_units`, not `08_drafts`.
 
 ## Context
 

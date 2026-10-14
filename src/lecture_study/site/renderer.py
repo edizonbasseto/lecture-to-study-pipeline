@@ -39,10 +39,20 @@ from lecture_study.site.catalog import (
     Year,
 )
 
-_UNCERTIFIED_NOTICE = (
-    "Material de estudo pessoal, gerado a partir das gravações do curso. "
-    "Nenhum conteúdo aqui é certificado clinicamente."
+UNCERTIFIED_NOTICE = (
+    "Material de estudo gerado automaticamente a partir da aula, sem "
+    "certificação nem revisão clínica humana. Confira sempre com a fonte "
+    "original."
 )
+
+
+def uncertified_notice_html() -> str:
+    """The standing uncertified-material notice (ADR 0045), shown above the
+    content of every page that renders study material. Styled by the
+    `uncertified-notice` class each page's own stylesheet defines, so no
+    inline style is needed under the hash-based CSP."""
+    return f'<p class="uncertified-notice" role="note">{escape(UNCERTIFIED_NOTICE)}</p>'
+
 
 # A lecture bundle changed within this many days shows "Novo" instead of a
 # dated "Atualizado em" badge. There is no per-viewer "already seen" state
@@ -746,9 +756,8 @@ def _document(title: str | None, body: str, depth: int) -> str:
         f"<title>{escape(page_title)}</title>\n"
         f'<link rel="stylesheet" href="{escape(stylesheet)}">\n'
         "</head>\n<body>\n"
-        f'<div class="page">{body}'
+        f'<div class="page">{uncertified_notice_html()}{body}'
         "<footer>"
-        f"<p>{escape(_UNCERTIFIED_NOTICE)}</p>"
         f'<p><a href="{escape(logout_link)}">Sair</a></p>'
         "</footer></div>\n"
         "</body>\n</html>\n"
@@ -835,6 +844,11 @@ body {
   max-width: 920px;
   margin: 0 auto;
   padding-block: 32px 64px;
+}
+
+.uncertified-notice {
+  margin: 0 0 22px; padding: 10px 14px; border-left: 4px solid var(--accent-warm);
+  border-radius: 4px; background: var(--card); color: var(--ink-soft); font-size: 14px;
 }
 
 .masthead { border-bottom: 2px solid var(--ink); padding-bottom: 14px; margin-bottom: 26px; }

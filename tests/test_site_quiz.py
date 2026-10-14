@@ -8,6 +8,7 @@ import pytest
 
 from lecture_study.domain.models import MockExam, MockQuestion
 from lecture_study.site import quiz
+from lecture_study.site.renderer import uncertified_notice_html
 
 
 def _question(
@@ -211,6 +212,29 @@ class TestRenderQuizResults:
 
         assert "1 erro)" in html
         assert "1 erros)" not in html
+
+
+class TestUncertifiedNotice:
+    """ADR 0045: the mock exam is study material too, so both of its pages
+    show the uncertified notice before the questions."""
+
+    def test_the_form_shows_the_notice_before_the_questions(self) -> None:
+        exam = MockExam(lecture_id="01aula", questions=[_question()])
+
+        html = quiz.render_quiz_form("01aula", quiz.public_view(exam))
+
+        assert html.index(uncertified_notice_html()) < html.index("<form")
+
+    def test_the_results_show_the_notice_before_the_answer_key(self) -> None:
+        exam = MockExam(lecture_id="01aula", questions=[_question()])
+        graded = quiz.grade("01aula", exam, {0: "B"})
+
+        html = quiz.render_quiz_results(graded)
+
+        assert html.index(uncertified_notice_html()) < html.index("<fieldset")
+
+    def test_the_quiz_style_styles_the_notice(self) -> None:
+        assert ".uncertified-notice {" in quiz.QUIZ_STYLE
 
 
 class TestGradedExamWithNoQuestions:

@@ -12,15 +12,19 @@ replaces for the Codex migration.
 Execution is lecture-scoped: this script takes exactly one lecture
 identifier, has no batch mode.
 
-Grounding input is `workspace/data/08_drafts` (Phase 6 LearningUnitDraft
-bodies), the same stage `generate_codex_mock_exam.py`/`generate_codex_
-personal_study_flashcards.py` already read for this batch -- not
-`workspace/data/10_canonical_documents` (Phase 8), which the local
-`podcast/generator.py` reads and which this batch's lectures do not yet
-have (the Codex route for a later batch of lectures bypasses Phase 8
-entirely, per the 2026-09-16 session's own migration). Each draft is tagged with the
-same `unit-{pack_sequence:03d}` synthetic id the retired `podcast/generator.py` used
-(`_UNIT_ID_TEMPLATE`), so the LLM can cite a specific unit in
+Grounding input is the critic-approved, post-repair content of every
+unit in `workspace/data/09_validated_units` (Phase 7
+ValidatedLearningUnits), loaded through the assembler's
+`load_critic_approved_drafts` gate (ADR 0045, superseding ADR 0037
+decision 2, which grounded this route on `workspace/data/08_drafts`):
+derivative study material is only ever built from units the critic
+approved, and a single failing unit, a gap in the pack sequence, or a
+Phase 6 draft the critic never reviewed blocks the whole lecture before
+Codex is invoked. Phase 8's `workspace/data/10_canonical_documents` is
+still not read: the Codex route bypasses Phase 8's document write, but
+applies the same completeness gate. Each unit is tagged with the same
+`unit-{pack_sequence:03d}` synthetic id the retired `podcast/generator.py`
+used (`_UNIT_ID_TEMPLATE`), so the LLM can cite a specific unit in
 `source_unit_id` exactly as the local route's instruction already asks
 for.
 
@@ -64,6 +68,12 @@ from pathlib import Path
 
 from pydantic import TypeAdapter, ValidationError
 
+from lecture_study.assembly.assembler import load_critic_approved_drafts
+from lecture_study.domain.errors import (
+    LectureNotFoundError,
+    MissingSequenceError,
+    UnresolvedReviewError,
+)
 from lecture_study.domain.models import (
     ArtifactExecutionMode,
     LearningUnitDraft,
@@ -91,6 +101,7 @@ from lecture_study.quality.student_facing_text import (
 )
 
 DEFAULT_DRAFTS_ROOT = Path("workspace/data/08_drafts")
+DEFAULT_VALIDATED_UNITS_ROOT = Path("workspace/data/09_validated_units")
 _SUBPROCESS_TIMEOUT_SECONDS = 900.0
 _MAXIMUM_PROCESS_OUTPUT_BYTES = 16 * 1024 * 1024
 _UNIT_ID_TEMPLATE = "unit-{:03d}"
@@ -143,6 +154,17 @@ def main() -> int:
     args = _build_argument_parser().parse_args()
     try:
         return _run(args)
+    except (
+        LectureNotFoundError,
+        MissingSequenceError,
+        UnresolvedReviewError,
+    ) as error:
+        print(
+            "error: aula bloqueada: o material de estudo só é gerado a partir "
+            f"de unidades aprovadas pelo crítico (ADR 0045): {error}",
+            file=sys.stderr,
+        )
+        return 1
     except (LlmResponseContractError, FileNotFoundError, ValidationError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
@@ -150,6 +172,11 @@ def main() -> int:
 
 def _run(args: argparse.Namespace) -> int:
     lecture_id = str(_LECTURE_ID_ADAPTER.validate_python(args.lecture_id))
+    # The critic-approval gate runs before anything Codex-related, so a
+    # blocked lecture never resolves, let alone invokes, the codex CLI.
+    drafts = load_critic_approved_drafts(
+        args.validated_units_root, args.drafts_root, lecture_id
+    )
     codex_executable = resolve_trusted_executable(args.codex_executable)
     environment = dict(sanitized_child_process_environment())
     # HOME is not on sanitized_child_process_environment()'s inherited
@@ -161,7 +188,6 @@ def _run(args: argparse.Namespace) -> int:
     if home_directory is not None:
         environment["HOME"] = home_directory
 
-    drafts = _load_drafts(args.drafts_root, lecture_id)
     unit_ids = tuple(_unit_id(draft.pack_sequence) for draft in drafts)
     evidence_pack = _build_evidence_pack(drafts, unit_ids)
 
@@ -415,19 +441,6 @@ def _validate_traceability(
         )
 
 
-def _load_drafts(
-    drafts_root: Path,
-    lecture_id: str,
-) -> tuple[LearningUnitDraft, ...]:
-    lecture_dir = drafts_root / lecture_id
-    draft_paths = sorted(lecture_dir.glob("draft_*.json"))
-    if not draft_paths:
-        raise FileNotFoundError(f"nenhum rascunho encontrado em {lecture_dir}")
-    return tuple(
-        LearningUnitDraft.model_validate_json(path.read_text()) for path in draft_paths
-    )
-
-
 def _build_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
@@ -436,7 +449,24 @@ def _build_argument_parser() -> argparse.ArgumentParser:
         )
     )
     parser.add_argument("lecture_id")
-    parser.add_argument("--drafts-root", type=Path, default=DEFAULT_DRAFTS_ROOT)
+    parser.add_argument(
+        "--validated-units-root",
+        type=Path,
+        default=DEFAULT_VALIDATED_UNITS_ROOT,
+        help=(
+            "Raiz das unidades validadas pelo crítico (Fase 7); fonte do "
+            "conteúdo do podcast."
+        ),
+    )
+    parser.add_argument(
+        "--drafts-root",
+        type=Path,
+        default=DEFAULT_DRAFTS_ROOT,
+        help=(
+            "Raiz dos rascunhos (Fase 6); usada apenas para conferir que "
+            "cada um foi revisado pelo crítico na versão atual."
+        ),
+    )
     parser.add_argument("--codex-executable", default="codex")
     return parser
 

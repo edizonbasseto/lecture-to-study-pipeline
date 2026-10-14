@@ -1,5 +1,14 @@
 #!/usr/bin/env python3
-"""Generate complete pt-BR personal study bundles for local lectures."""
+"""Generate complete pt-BR personal study bundles for local lectures.
+
+The apostila is built only from critic-approved units (ADR 0045): the unit
+prose comes from the post-repair content of
+`workspace/data/09_validated_units/<lecture>/unit_*.json`, never from the
+Phase 6 `08_drafts` text. A lecture with any unit whose critic review did
+not pass, any Phase 6 draft the critic never reviewed, or a gap in its pack
+sequence is blocked as a whole: the run aborts before any of that lecture's
+bundle is staged or published.
+"""
 
 from __future__ import annotations
 
@@ -22,6 +31,7 @@ from typing import Final, Iterator, Mapping
 from pydantic import TypeAdapter
 import yaml
 
+from lecture_study.assembly.assembler import load_critic_approved_drafts
 from lecture_study.captioning.catalog_store import (
     EXTRACTED_SLIDES_INPUT_DIR,
     FIGURE_CAPTIONS_OUTPUT_DIR,
@@ -107,6 +117,7 @@ DEFAULT_VIDEOS_ROOT = Path("workspace/data/01_raw")
 DEFAULT_EVIDENCE_PACKS_ROOT = Path("workspace/data/06_evidence_packs")
 DEFAULT_LEDGERS_ROOT = Path("workspace/data/07_semantic_ledgers")
 DEFAULT_DRAFTS_ROOT = Path("workspace/data/08_drafts")
+DEFAULT_VALIDATED_UNITS_ROOT = Path("workspace/data/09_validated_units")
 DEFAULT_OUTPUT_ROOT = Path("workspace/study-guides")
 # Same directory ExamCompiler writes to (src/lecture_study/exams/compiler.py's
 # EXAMS_OUTPUT_DIR) -- the opt-in inference splice reads exam.json from here.
@@ -680,8 +691,10 @@ def main() -> None:
             raise ValueError(f"aula {lecture_id!r} não encontrada na fila")
         video_path = _resolve_video_path(args.videos_root, lecture_id)
         packs = _load_evidence_packs(args.evidence_packs_root, lecture_id)
-        drafts = _load_drafts(args.drafts_root, lecture_id)
-        # Use the drafting stage's own prose directly: the drafting prompt
+        drafts = load_critic_approved_drafts(
+            args.validated_units_root, args.drafts_root, lecture_id
+        )
+        # Use the critic-approved, post-repair prose directly: the drafting prompt
         # already requires every clinical claim to be grounded in the
         # Ledger/Evidence (see ops/llm_instructions.py's DRAFT_COVERAGE_*), so
         # routing through build_ledger_grounded_drafts here discarded that
@@ -883,9 +896,22 @@ def _build_argument_parser() -> argparse.ArgumentParser:
         default=DEFAULT_LEDGERS_ROOT,
     )
     parser.add_argument(
+        "--validated-units-root",
+        type=Path,
+        default=DEFAULT_VALIDATED_UNITS_ROOT,
+        help=(
+            "Unidades aprovadas pelo crítico (Fase 7), fonte do conteúdo "
+            "pós-reparo usado na apostila."
+        ),
+    )
+    parser.add_argument(
         "--drafts-root",
         type=Path,
         default=DEFAULT_DRAFTS_ROOT,
+        help=(
+            "Rascunhos da Fase 6, usados apenas para conferir que cada um "
+            "foi revisado pelo crítico na versão atual."
+        ),
     )
     parser.add_argument(
         "--output-root",
@@ -1161,19 +1187,6 @@ def _remove_empty_academic_parents(parent: Path, output_root: Path) -> None:
         except OSError:
             return
         parent = parent.parent
-
-
-def _load_drafts(
-    drafts_root: Path,
-    lecture_id: str,
-) -> tuple[LearningUnitDraft, ...]:
-    lecture_dir = drafts_root / lecture_id
-    draft_paths = sorted(lecture_dir.glob("draft_*.json"))
-    if not draft_paths:
-        raise FileNotFoundError(f"nenhum rascunho encontrado em {lecture_dir}")
-    return tuple(
-        LearningUnitDraft.model_validate_json(path.read_text()) for path in draft_paths
-    )
 
 
 def _load_semantic_ledgers(

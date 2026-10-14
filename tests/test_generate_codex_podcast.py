@@ -20,7 +20,13 @@ from unittest.mock import patch
 
 import pytest
 
-from lecture_study.domain.models import LearningUnitDraft, PodcastLine, PodcastScript
+from lecture_study.domain.models import (
+    CriticReview,
+    LearningUnitDraft,
+    PodcastLine,
+    PodcastScript,
+    ValidatedLearningUnit,
+)
 
 
 def _load_module() -> ModuleType:
@@ -372,4 +378,110 @@ def test_main_reports_an_invalid_lecture_id_cleanly_not_as_a_traceback(
     assert exit_code == 1
     assert captured.out == ""
     assert captured.err.startswith("error: ")
+    assert "Traceback" not in captured.err
+
+
+def _write_draft(drafts_root: Path, draft: LearningUnitDraft) -> None:
+    lecture_dir = drafts_root / draft.lecture_id
+    lecture_dir.mkdir(parents=True, exist_ok=True)
+    draft_path = lecture_dir / f"draft_{draft.pack_sequence:03d}.json"
+    draft_path.write_text(draft.model_dump_json())
+
+
+def _write_validated_unit(
+    validated_units_root: Path, content: LearningUnitDraft, *, passed: bool
+) -> None:
+    unit = ValidatedLearningUnit(
+        lecture_id=content.lecture_id,
+        pack_sequence=content.pack_sequence,
+        content=content,
+        review=CriticReview(
+            passed=passed, hallucination_score=0.0, feedback="Fundamentado."
+        ),
+    )
+    lecture_dir = validated_units_root / unit.lecture_id
+    lecture_dir.mkdir(parents=True, exist_ok=True)
+    unit_path = lecture_dir / f"unit_{unit.pack_sequence:03d}.json"
+    unit_path.write_text(unit.model_dump_json())
+
+
+def _run_main_with_codex_stubbed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> tuple[int, list[str], list[PodcastScript]]:
+    """Runs main() on lecture-001 under tmp_path's roots, with every Codex
+    and output side effect replaced; returns the exit code, the evidence
+    packs Codex would have received, and the scripts handed to the
+    compiler."""
+    evidence_packs: list[str] = []
+    compiled_scripts: list[PodcastScript] = []
+
+    def fake_generate_script(*, evidence_pack: str, **_kwargs: object) -> PodcastScript:
+        evidence_packs.append(evidence_pack)
+        return _script()
+
+    def fake_compile(_compiler: object, script: PodcastScript) -> Path:
+        compiled_scripts.append(script)
+        return tmp_path / "output"
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "generate_codex_podcast.py",
+            "lecture-001",
+            "--validated-units-root",
+            str(tmp_path / "09_validated_units"),
+            "--drafts-root",
+            str(tmp_path / "08_drafts"),
+        ],
+    )
+    monkeypatch.setattr(_MODULE, "resolve_trusted_executable", lambda _name: "codex")
+    monkeypatch.setattr(_MODULE, "_generate_script", fake_generate_script)
+    monkeypatch.setattr(_MODULE.PodcastScriptCompiler, "compile", fake_compile)
+    return _MODULE.main(), evidence_packs, compiled_scripts
+
+
+def test_main_grounds_the_podcast_on_the_critic_approved_unit_content(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # ADR 0045: the repaired unit content is what the critic approved; the
+    # Phase 6 first draft it replaced must never reach the prompt.
+    _write_draft(tmp_path / "08_drafts", _draft(1, "texto do rascunho original"))
+    _write_validated_unit(
+        tmp_path / "09_validated_units",
+        _draft(1, "texto reparado e aprovado"),
+        passed=True,
+    )
+
+    exit_code, evidence_packs, compiled_scripts = _run_main_with_codex_stubbed(
+        monkeypatch, tmp_path
+    )
+
+    assert exit_code == 0
+    assert evidence_packs == ["[unit-001] texto reparado e aprovado"]
+    assert len(compiled_scripts) == 1
+
+
+def test_main_blocks_a_lecture_with_a_unit_the_critic_rejected(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    for pack_sequence, passed in ((1, True), (2, False)):
+        _write_draft(tmp_path / "08_drafts", _draft(pack_sequence))
+        _write_validated_unit(
+            tmp_path / "09_validated_units", _draft(pack_sequence), passed=passed
+        )
+
+    exit_code, evidence_packs, compiled_scripts = _run_main_with_codex_stubbed(
+        monkeypatch, tmp_path
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert evidence_packs == []
+    assert compiled_scripts == []
+    assert captured.out == ""
+    assert captured.err.startswith("error: aula bloqueada")
+    assert "pack_sequence 2" in captured.err
     assert "Traceback" not in captured.err

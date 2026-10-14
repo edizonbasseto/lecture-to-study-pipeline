@@ -29,6 +29,13 @@ RESOLVED: the output-collision-with-the-local-route note that lived here
 is obsolete -- the local generator and its runner script were deleted
 under ADR 0038 and this script is the only writer of
 `workspace/data/18_personal_study_flashcards/{lecture_id}/`.
+
+Unit titles come from the critic-approved, post-repair units in
+`workspace/data/09_validated_units/{lecture_id}/`, never from the raw
+Phase 6 drafts (ADR 0045): a lecture with any unit that failed the
+critic, a draft the critic never reviewed, or a gap in the sequence is
+blocked as a whole and no deck is written. `08_drafts` is read only to
+confirm that the critic reviewed every draft in its current version.
 """
 
 from __future__ import annotations
@@ -43,6 +50,12 @@ from pathlib import Path
 
 from pydantic import TypeAdapter, ValidationError
 
+from lecture_study.assembly.assembler import load_critic_approved_drafts
+from lecture_study.domain.errors import (
+    LectureNotFoundError,
+    MissingSequenceError,
+    UnresolvedReviewError,
+)
 from lecture_study.domain.models import (
     ArtifactExecutionMode,
     LearningUnitDraft,
@@ -69,6 +82,7 @@ from lecture_study.quality.student_facing_text import (
 
 DEFAULT_LEDGERS_ROOT = Path("workspace/data/07_semantic_ledgers")
 DEFAULT_DRAFTS_ROOT = Path("workspace/data/08_drafts")
+DEFAULT_VALIDATED_UNITS_ROOT = Path("workspace/data/09_validated_units")
 DEFAULT_OUTPUT_ROOT = Path("workspace/data/18_personal_study_flashcards")
 _DEFAULT_CARDS_PER_UNIT_CAP = 5
 _DEFAULT_MINIMUM_TOTAL_CARDS = 12
@@ -78,6 +92,11 @@ _CARD_ARRAY_ADAPTER: TypeAdapter[list[PersonalStudyFlashcard]] = TypeAdapter(
     list[PersonalStudyFlashcard]
 )
 _CARD_ARRAY_SCHEMA = json.dumps(_CARD_ARRAY_ADAPTER.json_schema())
+_CRITIC_GATE_ERRORS = (
+    LectureNotFoundError,
+    MissingSequenceError,
+    UnresolvedReviewError,
+)
 
 # Referring-phrase ban and pt-BR requirement mirror
 # the retired flashcards/personal_study_generator.py's _FLASHCARD_INSTRUCTION
@@ -141,19 +160,28 @@ def main() -> int:
     args = _build_argument_parser().parse_args()
     try:
         return _run(args)
-    except (LlmResponseContractError, FileNotFoundError) as error:
+    except _CRITIC_GATE_ERRORS as error:
+        print(
+            "error: aula bloqueada pelo crítico, deck de flashcards não "
+            f"gerado: {error}",
+            file=sys.stderr,
+        )
+        return 1
+    except (LlmResponseContractError, FileNotFoundError, ValidationError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
 
 
 def _run(args: argparse.Namespace) -> int:
+    drafts = load_critic_approved_drafts(
+        args.validated_units_root, args.drafts_root, args.lecture_id
+    )
     codex_executable = resolve_trusted_executable(args.codex_executable)
     environment = dict(sanitized_child_process_environment())
     home_directory = os.environ.get("HOME")
     if home_directory is not None:
         environment["HOME"] = home_directory
 
-    drafts = _load_drafts(args.drafts_root, args.lecture_id)
     ledgers = _load_semantic_ledgers(args.ledgers_root, args.lecture_id)
     drafts_by_sequence = {draft.pack_sequence: draft for draft in drafts}
 
@@ -432,19 +460,6 @@ def _format_facts(facts: Sequence[SemanticFact]) -> str:
     )
 
 
-def _load_drafts(
-    drafts_root: Path,
-    lecture_id: str,
-) -> tuple[LearningUnitDraft, ...]:
-    lecture_dir = drafts_root / lecture_id
-    draft_paths = sorted(lecture_dir.glob("draft_*.json"))
-    if not draft_paths:
-        raise FileNotFoundError(f"nenhum rascunho encontrado em {lecture_dir}")
-    return tuple(
-        LearningUnitDraft.model_validate_json(path.read_text()) for path in draft_paths
-    )
-
-
 def _load_semantic_ledgers(
     ledgers_root: Path,
     lecture_id: str,
@@ -467,7 +482,24 @@ def _build_argument_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("lecture_id")
     parser.add_argument("--ledgers-root", type=Path, default=DEFAULT_LEDGERS_ROOT)
-    parser.add_argument("--drafts-root", type=Path, default=DEFAULT_DRAFTS_ROOT)
+    parser.add_argument(
+        "--validated-units-root",
+        type=Path,
+        default=DEFAULT_VALIDATED_UNITS_ROOT,
+        help=(
+            "Unidades aprovadas pelo crítico (Fase 7), fonte do conteúdo "
+            "pós-reparo usado nos flashcards."
+        ),
+    )
+    parser.add_argument(
+        "--drafts-root",
+        type=Path,
+        default=DEFAULT_DRAFTS_ROOT,
+        help=(
+            "Rascunhos da Fase 6, usados apenas para conferir que cada um "
+            "foi revisado pelo crítico na versão atual."
+        ),
+    )
     parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
     parser.add_argument("--codex-executable", default="codex")
     parser.add_argument(

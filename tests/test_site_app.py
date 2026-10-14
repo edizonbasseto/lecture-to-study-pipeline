@@ -22,6 +22,7 @@ from lecture_study.site.login_csrf import (
     LOGIN_CSRF_FIELD,
     login_form_token,
 )
+from lecture_study.site.renderer import UNCERTIFIED_NOTICE
 from lecture_study.site.sessions import COOKIE_NAME, issue_session_token
 
 
@@ -303,6 +304,17 @@ class TestSessionLogin:
         assert response.status_code == 200
         assert 'action="/entrar"' in response.text
         assert "senha" in response.text
+
+    def test_the_login_form_does_not_carry_the_study_material_notice(
+        self, site_directory: Path, credentials_path: Path
+    ):
+        """ADR 0045 scopes the uncertified notice to pages that render study
+        material; the login form renders none."""
+        client = _client(site_directory, credentials_path)
+
+        response = client.get("/entrar")
+
+        assert UNCERTIFIED_NOTICE not in response.text
 
     def test_wrong_password_re_renders_the_form_with_the_error(
         self, site_directory: Path, credentials_path: Path

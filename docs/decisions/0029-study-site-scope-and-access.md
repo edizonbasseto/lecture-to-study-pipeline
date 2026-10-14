@@ -3,7 +3,8 @@
 ## Status
 
 Accepted. Access control amended by ADR 0039 (phone sessions, per-person
-revocation and edge-cache isolation).
+revocation and edge-cache isolation). Amended by ADR 0045: every page that renders
+study material shows an uncertified notice.
 
 ## Context
 

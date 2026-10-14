@@ -19,10 +19,12 @@ from unittest.mock import patch
 import pytest
 
 from lecture_study.domain.models import (
+    CriticReview,
     LearningUnitDraft,
     MockQuestion,
     SemanticFact,
     SemanticLedger,
+    ValidatedLearningUnit,
 )
 
 
@@ -259,6 +261,126 @@ def test_generate_supplemental_questions_targets_the_densest_unit_first() -> Non
     assert generate.call_args.kwargs["unit_title"] == "Densa"
 
 
+def _write_lecture_inputs(
+    root: Path,
+    lecture_id: str,
+    unit_count: int,
+    failing_sequences: frozenset[int] = frozenset(),
+) -> argparse.Namespace:
+    """Write one ledger, one Phase 6 draft and one Phase 7 validated unit
+    per pack_sequence, and return the `_run` arguments pointing at them.
+    The validated unit's post-repair title differs from the draft's, so a
+    test can tell which of the two the script consumed."""
+    roots = {name: root / name for name in ("ledgers", "drafts", "validated", "exams")}
+    for name in ("ledgers", "drafts", "validated"):
+        (roots[name] / lecture_id).mkdir(parents=True)
+
+    for sequence in range(1, unit_count + 1):
+        _write_unit_inputs(
+            roots, lecture_id, sequence, passed=sequence not in failing_sequences
+        )
+
+    return argparse.Namespace(
+        lecture_id=lecture_id,
+        ledgers_root=roots["ledgers"],
+        drafts_root=roots["drafts"],
+        validated_units_root=roots["validated"],
+        output_root=roots["exams"],
+        codex_executable="codex",
+        questions_per_unit_cap=1,
+        minimum_total_questions=1,
+    )
+
+
+def _write_unit_inputs(
+    roots: dict[str, Path], lecture_id: str, sequence: int, *, passed: bool
+) -> None:
+    ledger = SemanticLedger(
+        lecture_id=lecture_id,
+        pack_sequence=sequence,
+        facts=[_fact("Estrutura", sequence)],
+    )
+    (roots["ledgers"] / lecture_id / f"ledger_{sequence:03d}.json").write_text(
+        ledger.model_dump_json()
+    )
+    draft = LearningUnitDraft(
+        lecture_id=lecture_id,
+        pack_sequence=sequence,
+        title=f"Rascunho {sequence}",
+        body_markdown="corpo do rascunho",
+        clinical_warnings=[],
+    )
+    (roots["drafts"] / lecture_id / f"draft_{sequence:03d}.json").write_text(
+        draft.model_dump_json()
+    )
+    unit = ValidatedLearningUnit(
+        lecture_id=lecture_id,
+        pack_sequence=sequence,
+        content=draft.model_copy(
+            update={"title": f"Unidade {sequence}", "body_markdown": "corpo reparado"}
+        ),
+        review=CriticReview(
+            passed=passed, hallucination_score=0.0, feedback="Fundamentado."
+        ),
+    )
+    (roots["validated"] / lecture_id / f"unit_{sequence:03d}.json").write_text(
+        unit.model_dump_json()
+    )
+
+
+class TestRunUsesOnlyCriticApprovedUnits:
+    def test_a_unit_that_failed_the_critic_blocks_the_whole_lecture(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        args = _write_lecture_inputs(
+            tmp_path, "lecture-blocked", unit_count=3, failing_sequences=frozenset({2})
+        )
+        argv = [
+            "generate_codex_mock_exam.py",
+            args.lecture_id,
+            "--ledgers-root",
+            str(args.ledgers_root),
+            "--drafts-root",
+            str(args.drafts_root),
+            "--validated-units-root",
+            str(args.validated_units_root),
+            "--output-root",
+            str(args.output_root),
+        ]
+
+        with (
+            patch.object(sys, "argv", argv),
+            patch.object(_MODULE, "resolve_trusted_executable", return_value="codex"),
+            patch.object(_MODULE, "run_bounded_process") as run_codex,
+        ):
+            exit_code = _MODULE.main()
+
+        assert exit_code == 1
+        run_codex.assert_not_called()
+        assert not (args.output_root / args.lecture_id / "exam.json").exists()
+        assert "aula bloqueada pelo gate do crítico" in capsys.readouterr().err
+
+    def test_questions_are_grounded_in_the_post_repair_unit_not_the_draft(
+        self, tmp_path: Path
+    ) -> None:
+        args = _write_lecture_inputs(tmp_path, "lecture-repaired", unit_count=2)
+
+        with (
+            patch.object(_MODULE, "resolve_trusted_executable", return_value="codex"),
+            patch.object(
+                _MODULE, "_generate_unit_questions", return_value=[_question()]
+            ) as generate,
+            patch.object(_MODULE, "_generate_supplemental_questions", return_value=[]),
+        ):
+            exit_code = _MODULE._run(args)
+
+        assert exit_code == 0
+        assert [call.kwargs["unit_title"] for call in generate.call_args_list] == [
+            "Unidade 1",
+            "Unidade 2",
+        ]
+
+
 class TestRunShufflesOptionsBeforeWriting:
     def test_written_exam_json_is_not_still_clustered_on_the_drafted_letter(
         self, tmp_path: Path
@@ -271,41 +393,8 @@ class TestRunShufflesOptionsBeforeWriting:
         deliberately unshuffled ("A" always correct) questions, running
         `_run` for real, and reading back the file it actually wrote."""
         lecture_id = "lecture-shuffle"
-        ledgers_root = tmp_path / "ledgers"
-        drafts_root = tmp_path / "drafts"
-        output_root = tmp_path / "exams"
-        (ledgers_root / lecture_id).mkdir(parents=True)
-        (drafts_root / lecture_id).mkdir(parents=True)
-
-        for sequence in range(1, 9):
-            ledger = SemanticLedger(
-                lecture_id=lecture_id,
-                pack_sequence=sequence,
-                facts=[_fact("Estrutura", sequence)],
-            )
-            (ledgers_root / lecture_id / f"ledger_{sequence:03d}.json").write_text(
-                ledger.model_dump_json()
-            )
-            draft = LearningUnitDraft(
-                lecture_id=lecture_id,
-                pack_sequence=sequence,
-                title=f"Unidade {sequence}",
-                body_markdown="corpo",
-                clinical_warnings=[],
-            )
-            (drafts_root / lecture_id / f"draft_{sequence:03d}.json").write_text(
-                draft.model_dump_json()
-            )
-
-        args = argparse.Namespace(
-            lecture_id=lecture_id,
-            ledgers_root=ledgers_root,
-            drafts_root=drafts_root,
-            output_root=output_root,
-            codex_executable="codex",
-            questions_per_unit_cap=1,
-            minimum_total_questions=1,
-        )
+        args = _write_lecture_inputs(tmp_path, lecture_id, unit_count=8)
+        output_root = args.output_root
 
         with (
             patch.object(_MODULE, "resolve_trusted_executable", return_value="codex"),
@@ -329,3 +418,26 @@ class TestRunShufflesOptionsBeforeWriting:
             "every question is still correct-at-A: _run did not shuffle "
             "before writing exam.json"
         )
+
+
+def test_main_refuses_a_malformed_lecture_id_before_locating_codex(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    argv = [
+        "generate_codex_mock_exam.py",
+        "../escape",
+        "--drafts-root",
+        str(tmp_path / "drafts"),
+        "--validated-units-root",
+        str(tmp_path / "validated"),
+    ]
+
+    with (
+        patch.object(sys, "argv", argv),
+        patch.object(_MODULE, "resolve_trusted_executable") as locate_codex,
+    ):
+        exit_code = _MODULE.main()
+
+    assert exit_code == 1
+    locate_codex.assert_not_called()
+    assert capsys.readouterr().err.startswith("error: ")

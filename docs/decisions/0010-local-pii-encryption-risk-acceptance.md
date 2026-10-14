@@ -9,7 +9,7 @@ through the Codex CLI, which sends lecture content to a remotely hosted model,
 and ADR 0029 publishes study material to a study site served over the network. This record therefore covers only the at-rest
 protection of `workspace/data/` on the operator's machine; the confidentiality
 of content sent to those services or deployed to the site is governed by those
-ADRs, not by this risk acceptance.
+ADRs, not by this risk acceptance. ADR 0045 section 2 records that decision.
 
 ## Context
 

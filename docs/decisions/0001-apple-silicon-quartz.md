@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted.
+Accepted. **Amended by ADR 0045:** the local-only mandate no longer binds the LLM phases; lecture content verified to carry no patient-identifying data may be sent to the remote model route.
 
 ## Context
 

@@ -17,8 +17,11 @@ from typing import Any, Protocol, cast
 
 import pytest
 
+from lecture_study.assembly.assembler import load_critic_approved_drafts
+from lecture_study.domain.errors import UnresolvedReviewError
 from lecture_study.domain.models import (
     ArtifactExecutionMode,
+    CriticReview,
     EvidencePack,
     FigureCaption,
     LearningUnitDraft,
@@ -31,6 +34,7 @@ from lecture_study.domain.models import (
     PodcastScript,
     SemanticFact,
     SemanticLedger,
+    ValidatedLearningUnit,
 )
 from lecture_study.study_materials.academic_catalog import (
     ACADEMIC_BUNDLE_DOCUMENT_FILES,
@@ -54,6 +58,7 @@ from lecture_study.study_materials.bundle import (
 from lecture_study.study_materials.compiler import (
     StudyEditionKind,
     build_personal_study_editions,
+    render_study_edition_markdown,
 )
 from lecture_study.study_materials.temporal_coverage import (
     CoverageStatus,
@@ -1772,9 +1777,130 @@ def _stub_main_inputs(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         "_resolve_executables": lambda environment: {},
         "_resolve_video_path": lambda root, lecture_id: tmp_path / "video.mp4",
         "_load_evidence_packs": lambda root, lecture_id: (),
-        "_load_drafts": lambda root, lecture_id: (),
+        "load_critic_approved_drafts": lambda units_root, drafts_root, lecture_id: (),
         "_load_semantic_ledgers": lambda root, lecture_id: (),
         "_raise_if_any_draft_is_degenerate": lambda lecture_id, drafts, ledgers: None,
     }
     for name, stub in stubs.items():
         monkeypatch.setattr(_GENERATOR_MODULE, name, stub)
+
+
+_GATED_LECTURE_ID = "10003"
+_PHASE_6_BODY = "## Biópsia\n\nTexto do rascunho da Fase 6, anterior ao reparo."
+_POST_REPAIR_BODY = "## Biópsia\n\nTexto pós-reparo aprovado pelo crítico."
+
+
+def _gated_draft(pack_sequence: int, body_markdown: str) -> LearningUnitDraft:
+    return LearningUnitDraft(
+        lecture_id=_GATED_LECTURE_ID,
+        pack_sequence=pack_sequence,
+        title=f"Biópsia incisional {pack_sequence}",
+        body_markdown=body_markdown,
+        clinical_warnings=[],
+    )
+
+
+def _write_reviewed_unit(
+    lecture_roots: tuple[Path, Path], pack_sequence: int, *, review_passed: bool
+) -> None:
+    """Persist one Phase 6 draft and its Phase 7 unit, whose content is the
+    post-repair text, so the two stages are distinguishable downstream."""
+
+    drafts_root, validated_units_root = lecture_roots
+    unit = ValidatedLearningUnit(
+        lecture_id=_GATED_LECTURE_ID,
+        pack_sequence=pack_sequence,
+        content=_gated_draft(pack_sequence, _POST_REPAIR_BODY),
+        review=CriticReview(
+            passed=review_passed,
+            hallucination_score=0.0,
+            feedback="grounded" if review_passed else "unsupported claim",
+        ),
+    )
+    drafts_dir = drafts_root / _GATED_LECTURE_ID
+    units_dir = validated_units_root / _GATED_LECTURE_ID
+    drafts_dir.mkdir(parents=True, exist_ok=True)
+    units_dir.mkdir(parents=True, exist_ok=True)
+    (drafts_dir / f"draft_{pack_sequence:03d}.json").write_text(
+        _gated_draft(pack_sequence, _PHASE_6_BODY).model_dump_json()
+    )
+    (units_dir / f"unit_{pack_sequence:03d}.json").write_text(unit.model_dump_json())
+
+
+class TestMainBuildsTheGuideOnlyFromCriticApprovedUnits:
+    """ADR 0045: the apostila is derived only from critic-approved,
+    post-repair units; any failed review blocks the whole lecture."""
+
+    @pytest.fixture
+    def lecture_roots(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> tuple[Path, Path]:
+        _stub_main_inputs(monkeypatch, tmp_path)
+        monkeypatch.setattr(
+            _GENERATOR_MODULE,
+            "load_critic_approved_drafts",
+            load_critic_approved_drafts,
+        )
+        roots = (tmp_path / "08_drafts", tmp_path / "09_validated_units")
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "generate_personal_study_guides.py",
+                _GATED_LECTURE_ID,
+                "--drafts-root",
+                str(roots[0]),
+                "--validated-units-root",
+                str(roots[1]),
+            ],
+        )
+        return roots
+
+    def test_a_failed_critic_unit_produces_no_guide_for_the_lecture(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        lecture_roots: tuple[Path, Path],
+    ) -> None:
+        _write_reviewed_unit(lecture_roots, 1, review_passed=True)
+        _write_reviewed_unit(lecture_roots, 2, review_passed=False)
+        output_root = tmp_path / "study-guides"
+        output_root.mkdir()
+        monkeypatch.setattr(
+            _GENERATOR_MODULE, "_prepare_trusted_output_root", lambda _: output_root
+        )
+
+        def forbidden_editions(**_: Any) -> None:
+            raise AssertionError("a blocked lecture must never reach the compiler")
+
+        monkeypatch.setattr(
+            _GENERATOR_MODULE, "build_personal_study_editions", forbidden_editions
+        )
+
+        with pytest.raises(UnresolvedReviewError):
+            _GENERATOR_MODULE.main()
+
+        assert list(output_root.iterdir()) == []
+
+    def test_the_post_repair_unit_content_reaches_the_guide(
+        self, monkeypatch: pytest.MonkeyPatch, lecture_roots: tuple[Path, Path]
+    ) -> None:
+        _write_reviewed_unit(lecture_roots, 1, review_passed=True)
+        requested: dict[str, Any] = {}
+
+        def capture_editions(**kwargs: Any) -> None:
+            requested.update(kwargs)
+            raise _EditionsRequested
+
+        monkeypatch.setattr(
+            _GENERATOR_MODULE, "build_personal_study_editions", capture_editions
+        )
+
+        with pytest.raises(_EditionsRequested):
+            _GENERATOR_MODULE.main()
+
+        complete = render_study_edition_markdown(
+            build_personal_study_editions(**requested)[StudyEditionKind.COMPLETE]
+        )
+        assert "pós-reparo aprovado pelo crítico" in complete
+        assert "anterior ao reparo" not in complete

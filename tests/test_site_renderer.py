@@ -4,6 +4,7 @@ preview/download interaction, wayfinding links, and accessibility
 requirements it specifies."""
 
 from datetime import UTC, datetime, timedelta
+from html import escape
 
 import pytest
 
@@ -17,12 +18,16 @@ from lecture_study.site.catalog import (
     Year,
 )
 from lecture_study.site.renderer import (
+    STYLESHEET,
+    UNCERTIFIED_NOTICE,
     BreadcrumbSegment,
     LectureNavigation,
     anchor_id,
     render_home,
     render_lecture,
+    render_reading_page,
     render_watch_page,
+    uncertified_notice_html,
 )
 
 _NOW = datetime.now(UTC)
@@ -199,6 +204,51 @@ def _navigation(
     next_lecture: Lecture | None = None,
 ) -> LectureNavigation:
     return LectureNavigation(breadcrumb, previous_lecture, next_lecture)
+
+
+class TestUncertifiedNotice:
+    """ADR 0045: every page rendering study material tells the reader,
+    before the content, that it is uncertified."""
+
+    _NOTICE_TEXT = (
+        "Material de estudo gerado automaticamente a partir da aula, sem "
+        "certificação nem revisão clínica humana. Confira sempre com a fonte "
+        "original."
+    )
+
+    def test_the_notice_carries_the_decided_wording(self):
+        assert UNCERTIFIED_NOTICE == self._NOTICE_TEXT
+
+    def test_the_notice_is_escaped_and_marked_as_a_note(self):
+        assert uncertified_notice_html() == (
+            f'<p class="uncertified-notice" role="note">{escape(self._NOTICE_TEXT)}</p>'
+        )
+
+    @pytest.mark.parametrize(
+        "page",
+        ["home", "lecture", "reading", "watch"],
+    )
+    def test_every_study_page_shows_the_notice_once_before_its_content(self, page: str):
+        html = _render_study_page(page)
+
+        assert html.count(uncertified_notice_html()) == 1
+        assert html.index(uncertified_notice_html()) < html.index("<h1")
+
+    def test_the_stylesheet_styles_the_notice(self):
+        assert ".uncertified-notice {" in STYLESHEET
+
+
+def _render_study_page(page: str) -> str:
+    video = _material("video/aula.mp4", "video")
+    lecture = _lecture(materials=(video,))
+    if page == "home":
+        return render_home(_catalog_with(lecture))
+    if page == "lecture":
+        return render_lecture(lecture, _navigation())
+    if page == "watch":
+        return render_watch_page(lecture)
+    material = _material("apostila.md", "texto")
+    return render_reading_page(lecture, material, "<p>corpo</p>", (), None, None, None)
 
 
 class TestPageFooterLogoutLink:

@@ -18,11 +18,15 @@ from unittest.mock import patch
 import pytest
 
 from lecture_study.domain.models import (
+    CriticReview,
     LearningUnitDraft,
     PersonalStudyFlashcard,
     SemanticFact,
     SemanticLedger,
+    ValidatedLearningUnit,
 )
+
+_LECTURE_ID = "lecture-001"
 
 
 def _load_module() -> ModuleType:
@@ -259,3 +263,125 @@ def test_build_deck_wraps_a_cross_unit_duplicate_prompt_as_a_domain_error() -> N
 
     with pytest.raises(_MODULE.LlmResponseContractError, match="failed validation"):
         _MODULE._build_deck("lecture-001", colliding_cards)
+
+
+def _draft(pack_sequence: int, title: str) -> LearningUnitDraft:
+    return LearningUnitDraft(
+        lecture_id=_LECTURE_ID,
+        pack_sequence=pack_sequence,
+        title=title,
+        body_markdown="corpo",
+        clinical_warnings=[],
+    )
+
+
+def _validated_unit(
+    pack_sequence: int, title: str, *, review_passed: bool = True
+) -> ValidatedLearningUnit:
+    return ValidatedLearningUnit(
+        lecture_id=_LECTURE_ID,
+        pack_sequence=pack_sequence,
+        content=_draft(pack_sequence, title),
+        review=CriticReview(
+            passed=review_passed,
+            hallucination_score=0.0,
+            feedback="ok" if review_passed else "afirmação sem suporte no ledger",
+        ),
+    )
+
+
+def _write_lecture_inputs(
+    tmp_path: Path,
+    *,
+    draft_titles: dict[int, str],
+    units: list[ValidatedLearningUnit],
+) -> None:
+    """Write one ledger and one Phase 6 draft per entry of `draft_titles`,
+    plus the given Phase 7 units, under the per-stage roots of tmp_path."""
+    for pack_sequence, title in draft_titles.items():
+        ledger = SemanticLedger(
+            lecture_id=_LECTURE_ID,
+            pack_sequence=pack_sequence,
+            facts=[_fact("Nervo facial", pack_sequence)],
+        )
+        _write_json(tmp_path / "ledgers", f"ledger_{pack_sequence:03d}.json", ledger)
+        draft = _draft(pack_sequence, title)
+        _write_json(tmp_path / "drafts", f"draft_{pack_sequence:03d}.json", draft)
+    for unit in units:
+        _write_json(
+            tmp_path / "validated_units", f"unit_{unit.pack_sequence:03d}.json", unit
+        )
+
+
+def _write_json(
+    root: Path,
+    file_name: str,
+    model: SemanticLedger | LearningUnitDraft | ValidatedLearningUnit,
+) -> None:
+    lecture_dir = root / _LECTURE_ID
+    lecture_dir.mkdir(parents=True, exist_ok=True)
+    (lecture_dir / file_name).write_text(model.model_dump_json())
+
+
+def _run_script(tmp_path: Path) -> int:
+    argv = [
+        "generate_codex_personal_study_flashcards.py",
+        _LECTURE_ID,
+        "--ledgers-root",
+        str(tmp_path / "ledgers"),
+        "--drafts-root",
+        str(tmp_path / "drafts"),
+        "--validated-units-root",
+        str(tmp_path / "validated_units"),
+        "--output-root",
+        str(tmp_path / "output"),
+        "--minimum-total-cards",
+        "1",
+    ]
+    with (
+        patch.object(sys, "argv", argv),
+        patch.object(_MODULE, "resolve_trusted_executable", return_value="codex"),
+    ):
+        return _MODULE.main()
+
+
+def test_main_blocks_the_lecture_when_one_unit_failed_the_critic(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _write_lecture_inputs(
+        tmp_path,
+        draft_titles={1: "Unidade aprovada", 2: "Unidade reprovada"},
+        units=[
+            _validated_unit(1, "Unidade aprovada"),
+            _validated_unit(2, "Unidade reprovada", review_passed=False),
+        ],
+    )
+
+    with patch.object(_MODULE, "_call_codex_for_cards") as call_codex:
+        exit_code = _run_script(tmp_path)
+
+    assert exit_code == 1
+    call_codex.assert_not_called()
+    assert not (tmp_path / "output").exists()
+    assert "aula bloqueada pelo crítico" in capsys.readouterr().err
+
+
+def test_main_titles_cards_with_the_post_repair_unit_not_the_raw_draft(
+    tmp_path: Path,
+) -> None:
+    _write_lecture_inputs(
+        tmp_path,
+        draft_titles={1: "Título do rascunho bruto"},
+        units=[_validated_unit(1, "Título reparado pelo crítico")],
+    )
+
+    with patch.object(
+        _MODULE, "_call_codex_for_cards", return_value=[_card()]
+    ) as call_codex:
+        exit_code = _run_script(tmp_path)
+
+    prompt = call_codex.call_args.kwargs["prompt"]
+    assert exit_code == 0
+    assert "Título reparado pelo crítico" in prompt
+    assert "Título do rascunho bruto" not in prompt
+    assert (tmp_path / "output" / _LECTURE_ID / "deck.json").exists()

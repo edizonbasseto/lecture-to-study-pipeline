@@ -31,6 +31,7 @@ from pathlib import Path
 from pydantic import TypeAdapter, ValidationError
 
 from lecture_study.domain.models import MockExam, MockQuestion, SafeIdentifier
+from lecture_study.site.renderer import uncertified_notice_html
 
 MOCK_EXAMS_DIR = Path(
     os.environ.get("LECTURE_STUDY_SITE_MOCK_EXAMS", "workspace/data/14_mock_exams")
@@ -220,6 +221,7 @@ QUIZ_STYLE = """
   .wrong { color: #f87171; }
   .unanswered { color: #aab3bf; }
   .explanation { color: #aab3bf; margin-top: 0.4rem; }
+  .uncertified-notice { margin: 0 0 1.5rem; padding: 0.7rem 0.9rem; border-left: 4px solid #f59e0b; border-radius: 6px; background: #171e28; color: #c7cdd6; font-size: 0.9rem; }
 """
 
 
@@ -236,6 +238,7 @@ def render_quiz_form(lecture_id: str, questions: tuple[PublicQuestion, ...]) -> 
         "<title>Simulado — Pós em Veterinária</title>"
         f"<style>{QUIZ_STYLE}</style>"
         "</head><body><main>"
+        f"{uncertified_notice_html()}"
         "<h1>Simulado</h1>"
         f'<form method="post" action="/simulado/{escape(lecture_id)}">'
         f"{body}"
@@ -286,6 +289,7 @@ def render_quiz_results(graded: GradedExam) -> str:
         "<title>Resultado do simulado — Pós em Veterinária</title>"
         f"<style>{QUIZ_STYLE}</style>"
         "</head><body><main>"
+        f"{uncertified_notice_html()}"
         "<h1>Resultado</h1>"
         f'<p class="score">Nota: {graded.score} de {graded.total} '
         f"({graded.percentage_correct}% de acerto, {graded.errors} "

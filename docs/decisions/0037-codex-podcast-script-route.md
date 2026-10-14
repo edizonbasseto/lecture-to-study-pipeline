@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted.
+Accepted. Decision 2 superseded by ADR 0045: the podcast is grounded on critic-approved units from `09_validated_units`, not on `08_drafts`.
 
 ## Context
 

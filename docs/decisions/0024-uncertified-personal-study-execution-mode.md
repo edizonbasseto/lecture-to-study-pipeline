@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted. 2026-09-13.
+Accepted. 2026-09-13. Amended by ADR 0045: the route reads critic-approved units from `09_validated_units` under the Phase 8 completeness rules instead of the Phase 8 document, and the audience bound is widened to the allowlisted site audience.
 
 ## Context
 
