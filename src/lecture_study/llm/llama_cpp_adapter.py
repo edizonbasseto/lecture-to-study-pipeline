@@ -115,8 +115,9 @@ class LlamaCppAdapter:
         budget = self._stage_budgets[request.stage]
         environment = _child_environment()
         prefix = f"llama-{request.stage.value}-"
+        prompt_bytes = _encoded_prompt(request)
         with tempfile.TemporaryDirectory(prefix=prefix) as raw_dir:
-            prompt_file, work_dir = _prepare_scratch(Path(raw_dir), request.prompt)
+            prompt_file, work_dir = _prepare_scratch(Path(raw_dir), prompt_bytes)
             self._require_prompt_fits(
                 request, budget, prompt_file, work_dir, environment
             )
@@ -223,7 +224,7 @@ def _resolve_model_file(model_path: Path | str) -> Path:
         raise GatewayConfigurationError("the llama model path must not be a URL")
     try:
         resolved_path = Path(model_path).resolve(strict=True)
-    except (OSError, RuntimeError):
+    except (OSError, RuntimeError, ValueError):
         raise GatewayConfigurationError(
             "the llama model path does not resolve to an existing file"
         ) from None
@@ -270,9 +271,18 @@ def _child_environment() -> dict[str, str]:
     return environment
 
 
-def _prepare_scratch(scratch_dir: Path, prompt: str) -> tuple[Path, Path]:
+def _encoded_prompt(request: LlmRequest) -> bytes:
+    try:
+        return request.prompt.encode("utf-8")
+    except UnicodeEncodeError:
+        raise LlmCallError(
+            request.stage, AdapterName.LLAMA_CPP, "prompt is not encodable as UTF-8"
+        ) from None
+
+
+def _prepare_scratch(scratch_dir: Path, prompt_bytes: bytes) -> tuple[Path, Path]:
     prompt_file = scratch_dir / _PROMPT_FILE_NAME
-    prompt_file.write_bytes(prompt.encode("utf-8"))
+    prompt_file.write_bytes(prompt_bytes)
     work_dir = scratch_dir / _WORK_DIRECTORY_NAME
     work_dir.mkdir()
     return prompt_file, work_dir

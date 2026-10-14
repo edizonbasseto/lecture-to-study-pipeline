@@ -417,6 +417,17 @@ def test_non_zero_completion_exit_raises_a_call_error_without_the_prompt(
     assert raised.value.__cause__ is None
 
 
+def test_prompt_with_a_lone_surrogate_raises_a_call_error_before_any_spawn(
+    llama_stubs,
+) -> None:
+    with pytest.raises(LlmCallError, match="not encodable") as raised:
+        _adapter(llama_stubs).complete(LlmRequest(Stage.SEMANTIC, "bad \ud800 text"))
+
+    assert llama_stubs.control.calls("llama-tokenize") == []
+    assert llama_stubs.control.calls("llama-completion") == []
+    assert raised.value.__cause__ is None
+
+
 def test_non_zero_tokenize_exit_raises_a_call_error_before_completion(
     llama_stubs,
 ) -> None:

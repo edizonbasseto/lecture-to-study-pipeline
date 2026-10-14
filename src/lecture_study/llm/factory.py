@@ -81,7 +81,7 @@ def _resolve_configured_executable(
 ) -> str:
     try:
         return resolve_trusted_executable(configured_executable)
-    except OSError as error:
+    except (OSError, ValueError) as error:
         raise GatewayConfigurationError(
             f"the {adapter_name.value} executable {configured_executable!r} "
             f"configured for stage {stage.value} cannot be used: "

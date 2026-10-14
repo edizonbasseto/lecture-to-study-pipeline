@@ -23,6 +23,8 @@ type ProcessFailure = (
     | subprocess.TimeoutExpired
     | ProcessOutputLimitExceeded
     | OSError
+    | RuntimeError
+    | ValueError
 )
 
 
@@ -36,7 +38,12 @@ def run_adapter_process(
     timeout_seconds: float,
     maximum_output_bytes: int,
 ) -> subprocess.CompletedProcess[str]:
-    """Run one bounded child and map every process failure to ``LlmCallError``."""
+    """Run one bounded child and map every process failure to ``LlmCallError``.
+
+    ``ValueError`` (which includes ``UnicodeEncodeError``) and ``RuntimeError``
+    are mapped too; only the exception type name is reported, because their
+    messages can embed argv text.
+    """
     try:
         return run_bounded_process(
             argv,
@@ -52,6 +59,8 @@ def run_adapter_process(
         subprocess.TimeoutExpired,
         ProcessOutputLimitExceeded,
         OSError,
+        RuntimeError,
+        ValueError,
     ) as error:
         raise LlmCallError(
             stage, adapter_name, describe_process_failure(error)
@@ -70,4 +79,6 @@ def describe_process_failure(error: ProcessFailure) -> str:
         return f"timed out after {error.timeout}s"
     if isinstance(error, ProcessOutputLimitExceeded):
         return f"output exceeded {error.maximum_bytes} bytes on {error.stream_name}"
-    return f"could not start the process: {error.strerror or type(error).__name__}"
+    if isinstance(error, OSError):
+        return f"could not start the process: {error.strerror or type(error).__name__}"
+    return f"process helper failed: {type(error).__name__}"

@@ -231,3 +231,15 @@ def test_preflight_honors_the_explicit_environment_over_the_process_environment(
         environ={CONFIG_PATH_ENV: str(configuration_path)},
         local_lectures_path=tmp_path / "absent-local-lectures.yaml",
     )
+
+
+def test_executable_path_with_an_embedded_nul_is_a_configuration_error() -> None:
+    configuration = GatewayConfiguration(codex=CodexSettings(executable="codex\x00x"))
+
+    with pytest.raises(GatewayConfigurationError, match="stage drafting"):
+        build_gateway(
+            Stage.DRAFTING,
+            lecture_id=LECTURE_ID,
+            configuration=configuration,
+            egress_policy=ALLOWING,
+        )
