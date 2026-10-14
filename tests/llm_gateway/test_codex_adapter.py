@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import errno
+import os
 from pathlib import Path
 
 import pytest
 
 from lecture_study.llm import codex_adapter
 from lecture_study.llm.codex_adapter import CodexCliAdapter
+from lecture_study.ops import process_lifecycle
 from lecture_study.llm.gateway import (
     LlmCallError,
     LlmRequest,
@@ -110,6 +113,23 @@ def test_output_cap_overflow_raises_a_call_error(codex_stub) -> None:
 
     assert "output exceeded 1024 bytes" in str(raised.value)
     assert PROMPT_MARKER not in str(raised.value)
+
+
+def test_output_cap_error_survives_a_refused_process_group_kill(
+    codex_stub, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def refuse_group_signal(*args: object) -> None:
+        raise PermissionError(errno.EPERM, os.strerror(errno.EPERM))
+
+    monkeypatch.setattr(process_lifecycle.os, "killpg", refuse_group_signal)
+    codex_stub.control.script("codex", [{"stdout": "x" * 4096}])
+    adapter = CodexCliAdapter(str(codex_stub.executable), maximum_output_bytes=1024)
+
+    with pytest.raises(LlmCallError) as raised:
+        adapter.complete(LlmRequest(Stage.CRITIC, PROMPT_MARKER))
+
+    assert "output exceeded 1024 bytes" in str(raised.value)
+    assert "could not start" not in str(raised.value)
 
 
 def test_zero_exit_without_a_response_file_raises_a_call_error(codex_stub) -> None:

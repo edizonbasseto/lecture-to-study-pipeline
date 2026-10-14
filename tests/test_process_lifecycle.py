@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import errno
 import io
 import os
 import signal
@@ -157,6 +158,16 @@ class _HungSyncProcess:
         if timeout is not None:
             raise subprocess.TimeoutExpired(["child"], timeout)
         raise AssertionError("unbounded wait before kill")
+
+
+class _GroupLeaderSyncProcess(_HungSyncProcess):
+    """A sync process that exposes a pid, so cleanup signals its process group."""
+
+    pid = 4_242_424
+
+
+def _refuse_group_signals(*args: object) -> None:
+    raise PermissionError(errno.EPERM, os.strerror(errno.EPERM))
 
 
 def _patch_sync_process(
@@ -497,3 +508,43 @@ def test_sync_output_limit_remains_active_after_direct_child_exit(
     if process_state and not process_state.startswith("Z"):
         os.kill(descendant_pid, signal.SIGKILL)
         pytest.fail("flooding descendant survived output-limit cleanup")
+
+
+def test_sync_cleanup_signals_the_leader_when_the_group_kill_is_refused(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    process = _GroupLeaderSyncProcess(stdout=b"x" * 65_537)
+    _patch_sync_process(monkeypatch, process)
+    monkeypatch.setattr(process_lifecycle.os, "killpg", _refuse_group_signals)
+
+    with pytest.raises(ProcessOutputLimitExceeded, match="stdout exceeded 65536"):
+        run_bounded_process(
+            ["child"],
+            env={},
+            timeout_seconds=1.0,
+            maximum_stdout_bytes=65_536,
+            maximum_stderr_bytes=1,
+        )
+
+    assert process.terminated
+    assert process.killed
+    assert process.wait_count >= 2
+
+
+def test_sync_timeout_is_reported_when_the_group_kill_is_refused(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    process = _GroupLeaderSyncProcess()
+    _patch_sync_process(monkeypatch, process)
+    monkeypatch.setattr(process_lifecycle.os, "killpg", _refuse_group_signals)
+
+    with pytest.raises(subprocess.TimeoutExpired):
+        run_bounded_process(
+            ["child"],
+            env={},
+            timeout_seconds=0.01,
+            maximum_stdout_bytes=65_536,
+            maximum_stderr_bytes=65_536,
+        )
+
+    assert process.killed

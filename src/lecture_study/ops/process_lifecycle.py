@@ -457,10 +457,37 @@ def _signal_process_tree(
     try:
         if process_group_id is not None:
             os.killpg(process_group_id, signal_number)
-        elif signal_number == signal.SIGTERM:
-            process.terminate()
         else:
-            process.kill()
+            _signal_leader(process, signal_number)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return _signal_leader_after_group_refusal(process, signal_number)
+    return True
+
+
+def _signal_leader(
+    process: ManagedProcess | subprocess.Popen[bytes],
+    signal_number: signal.Signals,
+) -> None:
+    if signal_number == signal.SIGTERM:
+        process.terminate()
+    else:
+        process.kill()
+
+
+def _signal_leader_after_group_refusal(
+    process: ManagedProcess | subprocess.Popen[bytes],
+    signal_number: signal.Signals,
+) -> bool:
+    """Signal the leader directly when the group kill was refused.
+
+    macOS answers ``EPERM`` instead of ``ESRCH`` for a process group whose
+    leader has just exited. The leader is still signalled and later reaped, so
+    the kill guarantee holds; a refusal from the leader itself still raises.
+    """
+    try:
+        _signal_leader(process, signal_number)
     except ProcessLookupError:
         return False
     return True
@@ -488,7 +515,8 @@ def _signal_process_group(
     process_group_id: int,
     signal_number: signal.Signals,
 ) -> None:
+    """Sweep the group after the leader is reaped; EPERM means nothing is left."""
     try:
         os.killpg(process_group_id, signal_number)
-    except ProcessLookupError:
+    except (ProcessLookupError, PermissionError):
         pass
