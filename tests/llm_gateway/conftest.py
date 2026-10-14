@@ -10,6 +10,14 @@ directory (the stub's own parent directory) and then consumes the next step
 of ``script-NAME.json``. A step may set ``sleep_seconds``,
 ``response_file_text`` (written to the path following ``-o``), ``stdout``,
 ``stderr`` and ``exit_code`` (default 0).
+
+The llama stubs (``llama-completion`` and ``llama-tokenize``) also log
+``prompt_file_text`` (the content of the file following ``-f``) and act as a
+tripwire: they exit 3 with "stub tripwire" on any download, listener or
+inline-prompt flag, any URL argument, or any ``HF_`` / non-offline
+``LLAMA_ARG_`` environment variable. A ``llama-tokenize`` step may set
+``token_count``; a ``llama-completion`` step that sets ``stdout`` is followed by
+the end-of-generation marker unless the step sets ``end_marker`` to false.
 """
 
 from __future__ import annotations
@@ -34,20 +42,51 @@ from pathlib import Path
 control_dir = Path(__file__).resolve().parent
 name = Path(__file__).name
 arguments = sys.argv[1:]
+is_llama = name in ("llama-completion", "llama-tokenize")
+tripwire_arguments = {
+    "-hf", "-hfr", "--hf-repo", "-hff", "--hf-file", "-hft", "--hf-token",
+    "-mu", "--model-url", "-dr", "--docker-repo", "--port", "--host", "-p",
+    "--prompt",
+}
 
+
+def read_prompt_file_text():
+    if "-f" not in arguments:
+        return None
+    return Path(arguments[arguments.index("-f") + 1]).read_text(encoding="utf-8")
+
+
+def tripwire_tripped():
+    for argument in arguments:
+        if (
+            argument in tripwire_arguments
+            or argument.startswith("--hf-")
+            or "://" in argument
+        ):
+            return True
+    for key in os.environ:
+        if key.startswith("HF_"):
+            return True
+        if key.startswith("LLAMA_ARG_") and key != "LLAMA_ARG_OFFLINE":
+            return True
+    return False
+
+
+record = {
+    "name": name,
+    "argv": arguments,
+    "env": dict(os.environ),
+    "cwd": os.getcwd(),
+    "cwd_entries": sorted(os.listdir(os.getcwd())),
+}
+if is_llama:
+    record["prompt_file_text"] = read_prompt_file_text()
 with (control_dir / "calls.jsonl").open("a", encoding="utf-8") as call_log:
-    call_log.write(
-        json.dumps(
-            {
-                "name": name,
-                "argv": arguments,
-                "env": dict(os.environ),
-                "cwd": os.getcwd(),
-                "cwd_entries": sorted(os.listdir(os.getcwd())),
-            }
-        )
-        + "\\n"
-    )
+    call_log.write(json.dumps(record) + "\\n")
+
+if is_llama and tripwire_tripped():
+    sys.stderr.write("stub tripwire")
+    sys.exit(3)
 
 script_path = control_dir / f"script-{name}.json"
 cursor_path = control_dir / f"cursor-{name}.txt"
@@ -63,7 +102,11 @@ time.sleep(step.get("sleep_seconds", 0))
 response_text = step.get("response_file_text")
 if response_text is not None and "-o" in arguments:
     Path(arguments[arguments.index("-o") + 1]).write_text(response_text)
+if "token_count" in step:
+    sys.stdout.write("Total number of tokens: " + str(step["token_count"]) + "\\n")
 sys.stdout.write(step.get("stdout", ""))
+if name == "llama-completion" and "stdout" in step and step.get("end_marker", True):
+    sys.stdout.write(" [end of text]\\n")
 sys.stdout.flush()
 sys.stderr.write(step.get("stderr", ""))
 sys.stderr.flush()
@@ -92,14 +135,20 @@ class StubControl:
         (self._directory / f"cursor-{name}.txt").unlink(missing_ok=True)
 
     def calls(self, name: str) -> list[dict[str, object]]:
+        return [entry for entry in self._entries() if entry["name"] == name]
+
+    def call_names(self) -> list[str]:
+        """Names of every stub invocation, in call order."""
+        return [str(entry["name"]) for entry in self._entries()]
+
+    def _entries(self) -> list[dict[str, object]]:
         log_path = self._directory / "calls.jsonl"
         if not log_path.exists():
             return []
-        entries = [
+        return [
             json.loads(line)
             for line in log_path.read_text(encoding="utf-8").splitlines()
         ]
-        return [entry for entry in entries if entry["name"] == name]
 
 
 @dataclass(frozen=True, slots=True)
@@ -115,3 +164,30 @@ def codex_stub(tmp_path: Path) -> CodexStub:
     directory = tmp_path / "codex-stub"
     executable = write_stub_executable(directory, "codex")
     return CodexStub(executable=executable, control=StubControl(directory))
+
+
+@dataclass(frozen=True, slots=True)
+class LlamaStubs:
+    """Scripted stand-ins for llama-completion and llama-tokenize."""
+
+    completion_executable: Path
+    tokenize_executable: Path
+    model_path: Path
+    control: StubControl
+
+
+@pytest.fixture
+def llama_stubs(tmp_path: Path) -> LlamaStubs:
+    directory = tmp_path / "llama-stubs"
+    completion_executable = write_stub_executable(directory, "llama-completion")
+    tokenize_executable = write_stub_executable(directory, "llama-tokenize")
+    model_directory = tmp_path / "models"
+    model_directory.mkdir()
+    model_path = model_directory / "model.gguf"
+    model_path.write_bytes(b"stub-model")
+    return LlamaStubs(
+        completion_executable=completion_executable,
+        tokenize_executable=tokenize_executable,
+        model_path=model_path,
+        control=StubControl(directory),
+    )

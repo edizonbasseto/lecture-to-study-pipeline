@@ -12,11 +12,11 @@ reason that never contains the argv or any prompt text.
 from __future__ import annotations
 
 import os
-import subprocess
 import tempfile
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
+from lecture_study.llm.bounded_call import run_adapter_process
 from lecture_study.llm.gateway import (
     AdapterName,
     GatewayIdentity,
@@ -25,12 +25,7 @@ from lecture_study.llm.gateway import (
     LlmResponse,
     PromptTooLargeError,
 )
-from lecture_study.ops.llm_response_contract import llm_output_diagnostic
 from lecture_study.ops.process_environment import sanitized_child_process_environment
-from lecture_study.ops.process_lifecycle import (
-    ProcessOutputLimitExceeded,
-    run_bounded_process,
-)
 
 DEFAULT_TIMEOUT_SECONDS = 900.0
 DEFAULT_MAXIMUM_OUTPUT_BYTES = 16 * 1024 * 1024
@@ -76,39 +71,19 @@ class CodexCliAdapter:
         response_path: Path,
         environment: Mapping[str, str],
     ) -> None:
-        arguments = self._build_arguments(request, scratch_dir, response_path)
-        timeout_seconds = (
-            self._timeout_seconds
-            if request.timeout_seconds is None
-            else request.timeout_seconds
+        run_adapter_process(
+            self._build_arguments(request, scratch_dir, response_path),
+            stage=request.stage,
+            adapter_name=AdapterName.CODEX,
+            environment=environment,
+            cwd=scratch_dir,
+            timeout_seconds=(
+                self._timeout_seconds
+                if request.timeout_seconds is None
+                else request.timeout_seconds
+            ),
+            maximum_output_bytes=self._maximum_output_bytes,
         )
-        try:
-            run_bounded_process(
-                arguments,
-                env=environment,
-                cwd=scratch_dir,
-                timeout_seconds=timeout_seconds,
-                maximum_stdout_bytes=self._maximum_output_bytes,
-                maximum_stderr_bytes=self._maximum_output_bytes,
-                check=True,
-            )
-        except subprocess.CalledProcessError as error:
-            stderr_bytes = (error.stderr or "").encode()
-            reason = (
-                f"non-zero exit code {error.returncode}; "
-                f"stderr {llm_output_diagnostic(stderr_bytes)}"
-            )
-            raise _call_error(request, reason) from None
-        except subprocess.TimeoutExpired as error:
-            raise _call_error(request, f"timed out after {error.timeout}s") from None
-        except ProcessOutputLimitExceeded as error:
-            reason = (
-                f"output exceeded {error.maximum_bytes} bytes on {error.stream_name}"
-            )
-            raise _call_error(request, reason) from None
-        except OSError as error:
-            reason = f"could not start the process: {_describe_os_error(error)}"
-            raise _call_error(request, reason) from None
 
     def _require_argv_within_budget(
         self, request: LlmRequest, environment: Mapping[str, str]
@@ -178,7 +153,3 @@ def _read_response(request: LlmRequest, response_path: Path) -> bytes:
 
 def _call_error(request: LlmRequest, reason: str) -> LlmCallError:
     return LlmCallError(request.stage, AdapterName.CODEX, reason)
-
-
-def _describe_os_error(error: OSError) -> str:
-    return error.strerror or type(error).__name__
