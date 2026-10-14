@@ -158,6 +158,50 @@ def test_failing_block_writes_failed_status_and_propagates(
     assert _load_record(runs_root, "lec-1", Stage.CRITIC)["status"] == "failed"
 
 
+def test_failed_run_never_hashes_the_model(
+    runs_root: Path, model_file: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def forbidden_hash(path: Path) -> str | None:
+        raise AssertionError(f"model hashed on a failure path: {path}")
+
+    monkeypatch.setattr(run_record, "_file_sha256", forbidden_hash)
+
+    with pytest.raises(KeyboardInterrupt):
+        with record_llm_run(
+            lecture_id="lec-1",
+            script_stage=Stage.CRITIC,
+            schema_name="Critic",
+            root=runs_root,
+        ) as recorder:
+            recorder.track(_InMemoryGateway(model_file), stage=Stage.CRITIC)
+            raise KeyboardInterrupt
+
+    record = _load_record(runs_root, "lec-1", Stage.CRITIC)
+    assert record["status"] == "failed"
+    assert record["gateways"][0]["model_sha256"] is None
+
+
+def test_record_write_failure_does_not_mask_the_original_error(
+    runs_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def failing_write(path: Path, record: LlmRunRecord) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(run_record, "_write_atomically", failing_write)
+
+    with pytest.raises(LlmCallError, match="stub failure"):
+        with record_llm_run(
+            lecture_id="lec-1",
+            script_stage=Stage.EXAMS,
+            schema_name="Exam",
+            root=runs_root,
+        ) as recorder:
+            gateway = recorder.track(
+                _InMemoryGateway(None, fails=True), stage=Stage.EXAMS
+            )
+            gateway.complete(LlmRequest(Stage.EXAMS, PROMPT_MARKER))
+
+
 def test_failed_gateway_call_is_still_counted(
     runs_root: Path, model_file: Path
 ) -> None:

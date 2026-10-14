@@ -18,6 +18,7 @@ import logging
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
@@ -54,7 +55,9 @@ class GatewayUsage(BaseModel):
     model_sha256: str | None = Field(
         default=None,
         description=(
-            "SHA-256 hex digest of the configured model_path file only. For a "
+            "SHA-256 hex digest of the configured model_path file only; null "
+            "when the run failed (the digest is not computed on failure paths) "
+            "or the file is unreadable. For a "
             "split GGUF model, whose model_path names the first shard, it "
             "identifies the first shard; every shard is integrity-checked at "
             "provisioning by its pinned per-shard digest, not by this record."
@@ -130,10 +133,14 @@ class LlmRunRecorder:
         self._gateways.append(recording_gateway)
         return recording_gateway
 
-    def usages(self) -> tuple[GatewayUsage, ...]:
+    def usages(self, *, hash_models: bool = True) -> tuple[GatewayUsage, ...]:
         digests: dict[Path, str | None] = {}
         return tuple(
-            gateway.usage(model_sha256=_digest_once(gateway.describe(), digests))
+            gateway.usage(
+                model_sha256=(
+                    _digest_once(gateway.describe(), digests) if hash_models else None
+                )
+            )
             for gateway in self._gateways
         )
 
@@ -150,30 +157,69 @@ def record_llm_run(
     schema_name: str,
     root: Path = LLM_RUNS_ROOT,
 ) -> Iterator[LlmRunRecorder]:
-    """Write the run record when the block ends, whether or not it failed."""
+    """Write the run record when the block ends, whether or not it failed.
+
+    A failure while recording a failed run is logged and never replaces the
+    exception that ended the block.
+    """
 
     safe_lecture_id = _LECTURE_ID_ADAPTER.validate_python(lecture_id)
+    run = _RunClock(
+        lecture_id=safe_lecture_id,
+        script_stage=script_stage,
+        schema_name=schema_name,
+        path=run_record_path(root, safe_lecture_id, script_stage),
+    )
     recorder = LlmRunRecorder()
-    started_at = datetime.now(UTC)
-    started = time.monotonic()
-    status: RunStatus = "failed"
     try:
         yield recorder
-        status = "succeeded"
-    finally:
-        finished_at = datetime.now(UTC)
-        wall_seconds = time.monotonic() - started
-        record = LlmRunRecord(
-            lecture_id=safe_lecture_id,
-            script_stage=script_stage,
-            schema_name=schema_name,
+    except BaseException:
+        _write_failed_record_without_masking(run, recorder)
+        raise
+    _write_atomically(run.path, run.record("succeeded", recorder.usages()))
+
+
+@dataclass(frozen=True)
+class _RunClock:
+    """Identity and start time of one run, used to build its closing record."""
+
+    lecture_id: str
+    script_stage: Stage
+    schema_name: str
+    path: Path
+    started_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    started: float = field(default_factory=time.monotonic)
+
+    def record(
+        self, status: RunStatus, gateways: tuple[GatewayUsage, ...]
+    ) -> LlmRunRecord:
+        return LlmRunRecord(
+            lecture_id=self.lecture_id,
+            script_stage=self.script_stage,
+            schema_name=self.schema_name,
             status=status,
-            started_at=started_at,
-            finished_at=finished_at,
-            wall_seconds=wall_seconds,
-            gateways=recorder.usages(),
+            started_at=self.started_at,
+            finished_at=datetime.now(UTC),
+            wall_seconds=time.monotonic() - self.started,
+            gateways=gateways,
         )
-        _write_atomically(run_record_path(root, safe_lecture_id, script_stage), record)
+
+
+def _write_failed_record_without_masking(
+    run: _RunClock, recorder: LlmRunRecorder
+) -> None:
+    """Record a failed run; a sidecar problem is logged, never raised.
+
+    The model digest is skipped (``model_sha256`` stays null): hashing a
+    multi-GB model must not delay an interrupt or a refusal that never touched
+    the model, and the failure being propagated stays the one the operator sees.
+    """
+
+    try:
+        record = run.record("failed", recorder.usages(hash_models=False))
+        _write_atomically(run.path, record)
+    except Exception:
+        _logger.warning("failed run record not written: %s", run.path)
 
 
 def _digest_once(
