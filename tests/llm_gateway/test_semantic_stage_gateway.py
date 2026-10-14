@@ -225,3 +225,41 @@ def test_llama_cpp_with_a_missing_model_exits_before_any_call(
     assert exit_code == 1
     assert llama_stubs.control.call_names() == []
     assert not _ledger_path(isolated_environment).exists()
+
+
+def test_pack_of_another_lecture_is_refused_before_any_call(
+    script: ModuleType,
+    codex_stub,
+    isolated_environment: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _configure(
+        isolated_environment,
+        monkeypatch,
+        _codex_configuration(codex_stub, allowed_ids=[LECTURE_ID]),
+    )
+    pack_path = (
+        isolated_environment
+        / "workspace/data/06_evidence_packs"
+        / LECTURE_ID
+        / "pack_001.json"
+    )
+    pack_path.write_text(
+        pack_path.read_text(encoding="utf-8").replace(
+            f'"lecture_id":"{LECTURE_ID}"', '"lecture_id":"10002"'
+        ),
+        encoding="utf-8",
+    )
+    runs_root = tmp_path / "runs"
+
+    exit_code = _run_script(script, runs_root)
+
+    error_text = capsys.readouterr().err
+    assert exit_code == 1
+    assert "'10002'" in error_text
+    assert "Transcrição de exemplo" not in error_text
+    assert codex_stub.control.calls("codex") == []
+    assert not runs_root.exists()
+    assert not _ledger_path(isolated_environment).exists()

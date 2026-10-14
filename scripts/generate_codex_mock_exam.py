@@ -43,6 +43,10 @@ from pydantic import TypeAdapter, ValidationError
 
 from lecture_study.assembly.assembler import load_critic_approved_drafts
 from lecture_study.cli.llm_gateway_wiring import open_stage_gateway
+from lecture_study.domain.lecture_ownership import (
+    LectureOwnershipError,
+    require_lecture_ownership,
+)
 from lecture_study.domain.errors import (
     LectureNotFoundError,
     MissingSequenceError,
@@ -155,6 +159,7 @@ def main() -> int:
         LlmGatewayError,
         FileNotFoundError,
         ValidationError,
+        LectureOwnershipError,
     ) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
@@ -414,8 +419,10 @@ def _load_semantic_ledgers(
     ledger_paths = sorted(lecture_dir.glob("ledger_*.json"))
     if not ledger_paths:
         raise FileNotFoundError(f"nenhum ledger semântico encontrado em {lecture_dir}")
-    return tuple(
-        SemanticLedger.model_validate_json(path.read_text()) for path in ledger_paths
+    return require_lecture_ownership(
+        lecture_id,
+        (SemanticLedger.model_validate_json(path.read_text()) for path in ledger_paths),
+        kind="semantic ledgers",
     )
 
 
