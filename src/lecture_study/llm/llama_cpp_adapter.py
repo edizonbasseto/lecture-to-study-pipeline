@@ -19,7 +19,8 @@ import os
 import re
 import subprocess
 import tempfile
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
@@ -114,10 +115,9 @@ class LlamaCppAdapter:
     def complete(self, request: LlmRequest) -> LlmResponse:
         budget = self._stage_budgets[request.stage]
         environment = _child_environment()
-        prefix = f"llama-{request.stage.value}-"
         prompt_bytes = _encoded_prompt(request)
-        with tempfile.TemporaryDirectory(prefix=prefix) as raw_dir:
-            prompt_file, work_dir = _prepare_scratch(Path(raw_dir), prompt_bytes)
+        with _scratch_directory(request) as scratch_dir:
+            prompt_file, work_dir = _prepare_scratch(request, scratch_dir, prompt_bytes)
             self._require_prompt_fits(
                 request, budget, prompt_file, work_dir, environment
             )
@@ -280,12 +280,39 @@ def _encoded_prompt(request: LlmRequest) -> bytes:
         ) from None
 
 
-def _prepare_scratch(scratch_dir: Path, prompt_bytes: bytes) -> tuple[Path, Path]:
+@contextmanager
+def _scratch_directory(request: LlmRequest) -> Iterator[Path]:
+    """A fresh scratch directory; failing to create one is a typed call error."""
+
+    try:
+        directory = tempfile.TemporaryDirectory(
+            prefix=f"llama-{request.stage.value}-", ignore_cleanup_errors=True
+        )
+    except OSError as error:
+        raise _scratch_error(request, "create the scratch directory", error) from None
+    with directory as raw_dir:
+        yield Path(raw_dir)
+
+
+def _prepare_scratch(
+    request: LlmRequest, scratch_dir: Path, prompt_bytes: bytes
+) -> tuple[Path, Path]:
     prompt_file = scratch_dir / _PROMPT_FILE_NAME
-    prompt_file.write_bytes(prompt_bytes)
     work_dir = scratch_dir / _WORK_DIRECTORY_NAME
-    work_dir.mkdir()
+    try:
+        prompt_file.write_bytes(prompt_bytes)
+        work_dir.mkdir()
+    except OSError as error:
+        raise _scratch_error(request, "prepare the scratch files", error) from None
     return prompt_file, work_dir
+
+
+def _scratch_error(request: LlmRequest, action: str, error: OSError) -> LlmCallError:
+    return LlmCallError(
+        request.stage,
+        AdapterName.LLAMA_CPP,
+        f"could not {action}: {type(error).__name__}",
+    )
 
 
 def _reported_token_count(request: LlmRequest, tokenizer_stdout: str) -> int:

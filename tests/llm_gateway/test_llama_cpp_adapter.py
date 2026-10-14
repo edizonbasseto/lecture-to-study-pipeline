@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from lecture_study.llm import llama_cpp_adapter
 from lecture_study.llm.gateway import (
     AdapterName,
     GatewayConfigurationError,
@@ -426,6 +427,43 @@ def test_prompt_with_a_lone_surrogate_raises_a_call_error_before_any_spawn(
     assert llama_stubs.control.calls("llama-tokenize") == []
     assert llama_stubs.control.calls("llama-completion") == []
     assert raised.value.__cause__ is None
+
+
+def test_scratch_directory_failure_raises_a_call_error_without_the_prompt(
+    llama_stubs, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def refuse_to_create(*_arguments: str, **_keywords: str) -> None:
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(
+        llama_cpp_adapter.tempfile, "TemporaryDirectory", refuse_to_create
+    )
+
+    with pytest.raises(LlmCallError) as raised:
+        _adapter(llama_stubs).complete(LlmRequest(Stage.SEMANTIC, PROMPT_TEXT))
+
+    assert "could not create the scratch directory: OSError" in str(raised.value)
+    assert PROMPT_TEXT not in str(raised.value)
+    assert raised.value.__cause__ is None
+    assert llama_stubs.control.calls("llama-tokenize") == []
+
+
+def test_prompt_file_write_failure_raises_a_call_error_without_the_prompt(
+    llama_stubs, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def refuse_to_write(self: Path, data: bytes) -> int:
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(Path, "write_bytes", refuse_to_write)
+
+    with pytest.raises(LlmCallError) as raised:
+        _adapter(llama_stubs).complete(LlmRequest(Stage.SEMANTIC, PROMPT_TEXT))
+
+    assert "could not prepare the scratch files: OSError" in str(raised.value)
+    assert PROMPT_TEXT not in str(raised.value)
+    assert raised.value.__cause__ is None
+    assert llama_stubs.control.calls("llama-tokenize") == []
+    assert llama_stubs.control.calls("llama-completion") == []
 
 
 def test_non_zero_tokenize_exit_raises_a_call_error_before_completion(
