@@ -8,7 +8,8 @@
 # LlamaCppAdapter of the LLM gateway. llama.cpp is built for llama-completion
 # and llama-tokenize (gateway adapter) and llama-mtmd-cli (vision captioning;
 # its Qwen3-VL-8B model pair is attested in the actor inventory and was
-# provisioned outside this script). Whisper's model is always downloaded.
+# provisioned outside this script). Whisper's model is always downloaded; the
+# example text model is downloaded only with --with-example-llm-model.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -26,9 +27,15 @@ WHISPER_MODEL_NAME="large-v3-turbo"
 WHISPER_MODEL_FILE="${WHISPER_DIR}/models/ggml-${WHISPER_MODEL_NAME}.bin"
 WHISPER_MODEL_SHA256="1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69"
 
-# Qwen2.5-14B-Instruct Q4_K_M is distributed by the upstream repo as 3 GGUF
-# shards (filename:sha256), not a single file.
-LLM_MODEL_SHARDS=(
+# Example text model for the LLM gateway's local adapter (opt-in download).
+# License Apache-2.0 and shard SHA-256 values verified against the Hugging Face
+# model card and LFS file listing on 2026-10-14. The download is pinned to an
+# immutable repository revision, never to a moving branch. The upstream repo
+# distributes Q4_K_M as 3 GGUF shards (filename:sha256), not a single file.
+EXAMPLE_LLM_MODEL_REPOSITORY="Qwen/Qwen2.5-14B-Instruct-GGUF"
+EXAMPLE_LLM_MODEL_REVISION="b466e1f8c07172155743e8e1307507d8a4f91fbd"
+EXAMPLE_LLM_MODEL_DIR="${MODELS_DIR}/qwen2.5-14b-instruct-q4_k_m"
+EXAMPLE_LLM_MODEL_SHARDS=(
     "qwen2.5-14b-instruct-q4_k_m-00001-of-00003.gguf:a09ea5e7b1eafb1b30b241726c3cc3c905c96f14ad41e246ffa5f44e53904f68"
     "qwen2.5-14b-instruct-q4_k_m-00002-of-00003.gguf:21b9457d079680d284e90ef69607c4b2d8ef64a09d4729cb7b5e1357bdba41ae"
     "qwen2.5-14b-instruct-q4_k_m-00003-of-00003.gguf:c8d37006760a387a35216e070e6664d7da927f10be8eb870fef2e3d4833d9976"
@@ -136,6 +143,30 @@ build_llama_cpp() {
     require_llama_binaries
 }
 
+download_example_llm_model_shard() {
+    local shard_file="$1"
+    local shard_sha256="$2"
+    local shard_path="${EXAMPLE_LLM_MODEL_DIR}/${shard_file}"
+    local shard_url="https://huggingface.co/${EXAMPLE_LLM_MODEL_REPOSITORY}/resolve/${EXAMPLE_LLM_MODEL_REVISION}/${shard_file}"
+
+    if sha256_matches "${shard_path}" "${shard_sha256}"; then
+        echo "==> ${shard_file} already present with matching checksum, skipping"
+        return
+    fi
+    echo "==> Downloading ${shard_file}"
+    curl --fail --location --proto '=https' --tlsv1.2 --output "${shard_path}.part" "${shard_url}"
+    verify_sha256 "${shard_path}.part" "${shard_sha256}"
+    mv "${shard_path}.part" "${shard_path}"
+}
+
+download_example_llm_model() {
+    local shard_entry
+    mkdir -p "${EXAMPLE_LLM_MODEL_DIR}"
+    for shard_entry in "${EXAMPLE_LLM_MODEL_SHARDS[@]}"; do
+        download_example_llm_model_shard "${shard_entry%%:*}" "${shard_entry##*:}"
+    done
+}
+
 download_whisper_model() {
     if sha256_matches "${WHISPER_MODEL_FILE}" "${WHISPER_MODEL_SHA256}"; then
         echo "==> Whisper model ${WHISPER_MODEL_NAME} already present with matching checksum, skipping"
@@ -148,20 +179,28 @@ download_whisper_model() {
 
 print_usage() {
     cat <<'USAGE'
-Usage: scripts/01_provision_engines.sh [-h|--help]
+Usage: scripts/01_provision_engines.sh [--with-example-llm-model] [-h|--help]
 
 Builds the native engines (whisper.cpp, llama.cpp) and downloads Whisper's
 model. Idempotent: steps whose artifact is already in place are skipped.
 
 Options:
-  -h, --help  Show this help text and exit.
+  --with-example-llm-model  Also download the example text model
+                            (Qwen2.5-14B-Instruct Q4_K_M, about 9 GB) from a
+                            pinned revision with per-shard SHA-256 checks.
+                            Needs network; otherwise this step is skipped.
+  -h, --help                Show this help text and exit.
 USAGE
 }
 
 parse_arguments() {
     local argument
+    WITH_EXAMPLE_LLM_MODEL=0
     for argument in "$@"; do
         case "${argument}" in
+            --with-example-llm-model)
+                WITH_EXAMPLE_LLM_MODEL=1
+                ;;
             -h | --help)
                 print_usage
                 exit 0
@@ -181,6 +220,11 @@ main() {
     build_whisper_cpp
     build_llama_cpp
     download_whisper_model
+    if [ "${WITH_EXAMPLE_LLM_MODEL}" = "1" ]; then
+        download_example_llm_model
+    else
+        echo "==> Skipping the example LLM model (pass --with-example-llm-model to download it)"
+    fi
     echo "==> Provisioning complete"
 }
 
