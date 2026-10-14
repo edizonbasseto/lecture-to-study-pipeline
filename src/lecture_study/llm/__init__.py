@@ -21,6 +21,7 @@ from lecture_study.llm.gateway import (
     RemoteEgressRefusedError,
     Stage,
 )
+from lecture_study.llm.json_completion import complete_json
 
 __all__ = [
     "AdapterName",
@@ -34,4 +35,5 @@ __all__ = [
     "PromptTooLargeError",
     "RemoteEgressRefusedError",
     "Stage",
+    "complete_json",
 ]

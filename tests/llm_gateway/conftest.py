@@ -43,6 +43,7 @@ with (control_dir / "calls.jsonl").open("a", encoding="utf-8") as call_log:
                 "argv": arguments,
                 "env": dict(os.environ),
                 "cwd": os.getcwd(),
+                "cwd_entries": sorted(os.listdir(os.getcwd())),
             }
         )
         + "\\n"
