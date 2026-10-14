@@ -210,6 +210,29 @@ def test_run_writes_drafts_depth_report_and_run_record(
     assert record["gateways"][0]["calls"] == 1
 
 
+def test_write_drafts_stamps_the_pack_identity_over_a_drifted_model_echo(
+    tmp_path: Path, make_scripted_gateway
+) -> None:
+    drifted_echo = (
+        b'{"lecture_id":"lecture-999","pack_sequence":7,"title":"Titulo",'
+        b'"body_markdown":"Corpo do texto.","clinical_warnings":[]}'
+    )
+    gateway = make_scripted_gateway([drifted_echo])
+
+    written = _MODULE._write_drafts(
+        gateway=gateway,
+        packs=(_pack(),),
+        ledgers_by_sequence={1: _ledger()},
+        output_dir=tmp_path,
+    )
+
+    persisted = LearningUnitDraft.model_validate_json(
+        (tmp_path / "draft_001.json").read_text(encoding="utf-8")
+    )
+    assert (persisted.lecture_id, persisted.pack_sequence) == ("lecture-001", 1)
+    assert written == [persisted]
+
+
 def test_main_rejects_a_malformed_lecture_id_before_opening_a_gateway(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],

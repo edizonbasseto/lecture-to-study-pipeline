@@ -287,8 +287,13 @@ def _load_drafts(
     draft_paths = sorted(lecture_dir.glob("draft_*.json"))
     if not draft_paths:
         raise FileNotFoundError(f"nenhum rascunho encontrado em {lecture_dir}")
-    return tuple(
-        LearningUnitDraft.model_validate_json(path.read_text()) for path in draft_paths
+    return require_lecture_ownership(
+        lecture_id,
+        (
+            LearningUnitDraft.model_validate_json(path.read_text())
+            for path in draft_paths
+        ),
+        kind="drafts",
     )
 
 

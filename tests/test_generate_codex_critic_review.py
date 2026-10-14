@@ -17,6 +17,7 @@ from types import ModuleType
 
 import pytest
 
+from lecture_study.domain.lecture_ownership import LectureOwnershipError
 from lecture_study.domain.models import (
     CanonicalFrame,
     EvidencePack,
@@ -305,6 +306,32 @@ def test_script_imports_no_process_or_scratch_directory_module() -> None:
     source_text = Path(_MODULE.__file__).read_text(encoding="utf-8")
 
     assert _imported_module_names(source_text).isdisjoint(forbidden_modules)
+
+
+def test_load_drafts_returns_drafts_filed_under_the_cleared_lecture(
+    tmp_path: Path,
+) -> None:
+    roots = _write_stage_inputs(tmp_path, "lecture-001")
+
+    drafts = _MODULE._load_drafts(roots["drafts"], "lecture-001")
+
+    assert [draft.pack_sequence for draft in drafts] == [1]
+
+
+def test_load_drafts_refuses_a_draft_that_identifies_another_lecture(
+    tmp_path: Path,
+) -> None:
+    roots = _write_stage_inputs(tmp_path, "lecture-001")
+    foreign = _draft().model_copy(update={"lecture_id": "lecture-002"})
+    (roots["drafts"] / "lecture-001" / "draft_001.json").write_text(
+        foreign.model_dump_json(), encoding="utf-8"
+    )
+
+    with pytest.raises(LectureOwnershipError, match="lecture-002") as raised:
+        _MODULE._load_drafts(roots["drafts"], "lecture-001")
+
+    assert "Titulo" not in str(raised.value)
+    assert "Corpo" not in str(raised.value)
 
 
 def _write_stage_inputs(tmp_path: Path, lecture_id: str) -> dict[str, Path]:

@@ -192,7 +192,9 @@ def _write_drafts(
                 file=sys.stderr,
             )
             continue
-        draft = _generate_draft(gateway=gateway, pack=pack, ledger=ledger)
+        draft = _anchored_to_pack(
+            _generate_draft(gateway=gateway, pack=pack, ledger=ledger), pack
+        )
         output_path = output_dir / f"draft_{pack.pack_sequence:03d}.json"
         output_path.write_text(draft.model_dump_json(indent=2), encoding="utf-8")
         print(
@@ -217,6 +219,20 @@ def _write_depth_report(drafts: list[LearningUnitDraft], output_dir: Path) -> No
         render_draft_depth_report_markdown(reports), encoding="utf-8"
     )
     print(f"relatório de profundidade: escrito em {report_path}")
+
+
+def _anchored_to_pack(
+    draft: LearningUnitDraft, pack: EvidencePack
+) -> LearningUnitDraft:
+    """The draft stamped with the trusted pack identity, never the model's echo.
+
+    The critic script ties persisted drafts to the cleared lecture id, so a
+    drifted echo is corrected here instead of being filed as another lecture's.
+    """
+
+    return draft.model_copy(
+        update={"lecture_id": pack.lecture_id, "pack_sequence": pack.pack_sequence}
+    )
 
 
 def _generate_draft(
