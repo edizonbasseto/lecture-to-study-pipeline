@@ -184,7 +184,14 @@ are:
 
 - The prompt is delivered by file, never through the argument vector.
 - `--no-escape` is mandatory: the embedded schema text must not be rewritten.
-- `--reasoning off` is passed on every stage and every attempt.
+- `--reasoning off` is passed on every stage and every attempt (D-17), and
+  tests assert it for each. No per-model-family mechanism exists. The operator
+  answered the open question (OPEN-1, answered 2026-10-14, D-25) as follows:
+  the generic flag suffices, and its adequacy for thinking-style models, whose
+  reasoning text could contain braces that the single-candidate JSON parser
+  rejects, is validated in the manual run of decision 10. That validation is
+  pending the operator's run: the example model is not a thinking model, and no
+  other model was downloaded for this record.
 - `--repeat-penalty 1.3 --repeat-last-n 256` are appended only when the
   request is a retry (ADR 0034). A critic-feedback redraft is not a retry.
 - `model_family` is validated metadata (`[a-z0-9][a-z0-9._-]*`) and selects no
@@ -355,6 +362,69 @@ Artifact schemas stay unchanged.
 When one adapter serves both generator and critic, the generator-evaluator
 independence question of ADR 0045 section 4 remains open. Any future certified
 route must decide it in a new record.
+
+### 10. Manual real-model run (D-07)
+
+The Accepted status covers decisions 1-9 as built. The adapter is proven in CI
+against stub binaries only; no llama.cpp binary or GGUF model exists in CI or
+on the planning machine. D-07 therefore requires one documented real-model run
+of stages 5, 6 and 7 on one evidence pack, performed by the operator. The
+record carries no quality numbers: measured results belong to Phase 7.
+
+Procedure:
+
+1. Run `scripts/01_provision_engines.sh --with-example-llm-model`.
+2. Copy `config/llm-gateway.example.yaml` to `config/llm-gateway.local.yaml`.
+3. With `LECTURE_STUDY_LLM_ADAPTER=llama-cpp`, on a lecture whose evidence
+   packs exist locally, run in order:
+   - `uv run python scripts/generate_codex_semantic_ledgers.py LECTURE_ID --pack-sequence 1`
+   - `uv run python scripts/generate_codex_drafts.py LECTURE_ID`
+   - `uv run python scripts/generate_codex_critic_review.py LECTURE_ID`
+
+Only pack 1 has a ledger, so drafts and critic process one pack.
+
+Record (status: pending operator run; each result cell is filled when the run
+is executed):
+
+| Item | Result |
+| ---- | ------ |
+| Date | pending operator run |
+| Machine class | pending operator run |
+| llama.cpp commit (`engines/llama.cpp/build/.built-commit`) | pending operator run |
+| Model file SHA-256 values (three shards) | pending operator run |
+| Command line, stage 5 | pending operator run |
+| Command line, stage 6 | pending operator run |
+| Command line, stage 7 | pending operator run |
+| Stage 5 outcome (exit code, error class if any, run record status) | pending operator run |
+| Stage 6 outcome (exit code, error class if any, run record status) | pending operator run |
+| Stage 7 outcome (exit code, error class if any, run record status) | pending operator run |
+| Run records report adapter `llama-cpp` and no Codex process started | pending operator run |
+| GGUF chat template worked with `--single-turn`, or the `-no-cnv` fallback is needed | pending operator run |
+| Child needed `HOME` | pending operator run |
+| First shard loaded the split model | pending operator run |
+| Token-count line format as parsed by the adapter | pending operator run |
+| Every flag of decision 4 accepted at the pinned commit | pending operator run |
+| Thinking-style model with `--reasoning off` (optional): any reasoning text on stdout | pending operator run |
+
+The last row is optional and applies only if the operator supplies a
+thinking-style model; no such model has a pinned digest in provisioning.
+
+Follow-ups from this run. The Accepted status holds while these are open. This
+record implements none of them. After the run, the operator marks each cell
+"needed" or "not needed":
+
+| Item | Follow-up if the run requires it | Needed |
+| ---- | -------------------------------- | ------ |
+| (a) | The D-17 fallback: `-no-cnv` plus an adapter-rendered family envelope, if the GGUF chat template fails with `--single-turn` | pending operator run |
+| (b) | `HOME` added to the llama child environment, if the child cannot start or Metal fails without it (research assumption A3) | pending operator run |
+| (c) | A model-path or adapter change, if the first shard does not load the split model (research assumption A9) | pending operator run |
+| (d) | An adapter change if the real `llama-tokenize` count line differs from the `Total number of tokens:` format the adapter parses | pending operator run |
+| (e) | An argument change for any flag of decision 4 that the pinned commit does not accept | pending operator run |
+
+An item marked "needed" is recorded as a failed item in the phase UAT produced
+by `/gsd-verify-work`, which routes it to gap-closure planning
+(`/gsd-plan-phase 6 --gaps`). The gap plan that implements it also adds an
+amendment note to decision 4 of this record.
 
 ## Alternatives considered
 
