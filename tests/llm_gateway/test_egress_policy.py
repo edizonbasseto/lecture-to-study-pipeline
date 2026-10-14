@@ -125,6 +125,29 @@ def test_registry_with_repeated_keys_refuses_remote_clearance(
         )
 
 
+@pytest.mark.parametrize(
+    "registry_text",
+    [
+        "lectures: []\nreleased: 2001-13-45\n",
+        "lectures: " + "[" * 5000 + "]" * 5000 + "\n",
+    ],
+    ids=["calendar-invalid-timestamp", "deep-nesting"],
+)
+def test_registry_with_unparseable_yaml_refuses_remote_clearance(
+    tmp_path: Path, registry_text: str
+) -> None:
+    path = tmp_path / "unparseable.yaml"
+    path.write_text(registry_text, encoding="utf-8")
+
+    with pytest.raises(GatewayConfigurationError, match="unreadable"):
+        _policy(path).is_remote_allowed(FLAGGED_LOCAL_ID)
+
+    with pytest.raises(GatewayConfigurationError):
+        require_remote_egress_allowed(
+            _policy(path), lecture_id=FLAGGED_LOCAL_ID, stage=Stage.DRAFTING
+        )
+
+
 def test_portal_lecture_is_allowed_only_when_listed(registry_path: Path) -> None:
     policy = _policy(registry_path, portal_ids=(PORTAL_ID,))
 

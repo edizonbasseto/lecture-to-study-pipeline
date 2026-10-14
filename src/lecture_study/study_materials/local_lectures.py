@@ -151,8 +151,7 @@ def _parse_registry(path: Path) -> list[LocalLecture]:
     text = _read_registry_text(path)
     if text is None:
         return []
-    _require_no_repeated_keys(text)
-    payload = yaml.safe_load(text) or {}
+    payload = _parse_registry_yaml(text) or {}
     if not isinstance(payload, dict):
         raise LocalLectureError("raiz do arquivo deve ser um mapa")
     lectures = _LOCAL_LECTURES_ADAPTER.validate_python(
@@ -173,10 +172,24 @@ def _read_registry_text(path: Path) -> str | None:
         raise LocalLectureError(f"arquivo ilegível ({type(error).__name__})") from error
 
 
-def _require_no_repeated_keys(text: str) -> None:
-    repeated = duplicated_key_paths(text)
+def _parse_registry_yaml(text: str) -> object:
+    """Parse the registry text, refusing repeated keys and unparseable scalars.
+
+    ``ValueError`` (a calendar-invalid timestamp such as ``2001-13-45``) and
+    ``RecursionError`` (deep nesting) are mapped to a typed error that names
+    only the exception type, never the document content.
+    """
+
+    try:
+        repeated = duplicated_key_paths(text)
+        payload = yaml.safe_load(text)
+    except (ValueError, RecursionError) as error:
+        raise LocalLectureError(
+            f"conteúdo YAML não interpretável ({type(error).__name__})"
+        ) from None
     if repeated:
         raise LocalLectureError("chaves repetidas: " + ", ".join(repeated))
+    return payload
 
 
 def _require_unique_lecture_ids(lectures: list[LocalLecture]) -> None:

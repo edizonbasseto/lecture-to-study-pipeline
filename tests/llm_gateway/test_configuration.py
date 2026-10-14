@@ -314,3 +314,22 @@ def test_duplicate_yaml_keys_fail_closed_naming_only_the_key_path(
         load_gateway_configuration(_environ_for(path))
 
     assert repeated_path in str(raised.value)
+
+
+@pytest.mark.parametrize(
+    ("text", "type_name"),
+    [
+        ("released: 2001-13-45\n", "ValueError"),
+        ("a: " + "[" * 5000 + "]" * 5000 + "\n", "RecursionError"),
+    ],
+    ids=["calendar-invalid-timestamp", "deep-nesting"],
+)
+def test_unparseable_yaml_scalars_fail_closed_without_content(
+    tmp_path: Path, text: str, type_name: str
+) -> None:
+    path = _write_configuration(tmp_path, text)
+
+    with pytest.raises(GatewayConfigurationError, match=type_name) as raised:
+        load_gateway_configuration(_environ_for(path))
+
+    assert "2001-13-45" not in str(raised.value)

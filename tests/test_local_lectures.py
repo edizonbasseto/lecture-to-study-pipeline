@@ -295,6 +295,27 @@ def test_repeated_registry_keys_are_rejected_naming_only_the_key_path(
     assert "925101" not in str(raised.value)
 
 
+@pytest.mark.parametrize(
+    ("text", "type_name"),
+    [
+        (_ROW_PREFIX + "  note: 2001-13-45\n", "ValueError"),
+        ("lectures: " + "[" * 5000 + "]" * 5000 + "\n", "RecursionError"),
+    ],
+    ids=["calendar-invalid-timestamp", "deep-nesting"],
+)
+def test_unparseable_registry_yaml_is_a_typed_error_without_content(
+    tmp_path: Path, text: str, type_name: str
+) -> None:
+    path = tmp_path / "local.yaml"
+    path.write_text(text)
+
+    with pytest.raises(LocalLectureError, match=type_name) as raised:
+        load_local_lectures(path)
+
+    assert "2001-13-45" not in str(raised.value)
+    assert "925101" not in str(raised.value)
+
+
 def test_unreadable_registry_is_a_typed_error_not_an_empty_registry(
     tmp_path: Path,
 ) -> None:

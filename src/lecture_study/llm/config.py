@@ -131,7 +131,9 @@ def _parse_configuration_file(path: Path) -> GatewayConfiguration:
         text = path.read_text(encoding="utf-8")
         duplicated_keys = duplicated_key_paths(text)
         payload = yaml.safe_load(text)
-    except (yaml.YAMLError, UnicodeDecodeError, OSError) as error:
+    except (yaml.YAMLError, ValueError, RecursionError, OSError) as error:
+        # ValueError covers UnicodeDecodeError and calendar-invalid timestamp
+        # scalars; RecursionError covers deeply nested documents.
         raise GatewayConfigurationError(
             f"gateway configuration unreadable at {path}: {type(error).__name__}"
         ) from error
