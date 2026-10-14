@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 6
 current_phase_name: Pluggable LLM gateway
 status: executing
-stopped_at: Completed 06-01-PLAN.md
-last_updated: "2026-10-14T21:55:30.311Z"
+stopped_at: Completed 06-10-PLAN.md
+last_updated: "2026-10-14T21:58:40.264Z"
 last_activity: 2026-10-14
 last_activity_desc: Phase 6 execution started
-state_head: 8e8283c7bb15a3ee48ed336c23127cd7463e1e33
+state_head: 4b5659877c7aae815aae6204f05f7df9f09fd0fd
 progress:
   total_phases: 9
   completed_phases: 5
   total_plans: 12
-  completed_plans: 1
+  completed_plans: 2
 ---
 
 # Project State
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-10-14)
 ## Current Position
 
 Phase: 6 (Pluggable LLM gateway) — EXECUTING
-Plan: 2 of 12
+Plan: 3 of 12
 Status: Ready to execute
 Last activity: 2026-10-14 — Phase 6 execution started
 Next action: `/gsd-plan-phase 6`
@@ -57,6 +57,7 @@ Progress: [██████░░░░] 56% (phases, 5 of 9; Phases 1-5 are c
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
 | Phase 06 P01 | 10 min | 3 tasks | 9 files |
+| Phase 06 P10 | 2 min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -74,6 +75,7 @@ Recent decisions affecting current work:
 - [Restructure 2026-10-14]: The local adapter of the LLM gateway is planned (Phase 6); a new ADR amends ADR 0038 and closes ADR 0045 section 2 (GW-05)
 - [Process 2026-10-14]: Canonical R0.4 mechanism is `/gsd-code-review` plus `/gsd-secure-phase` on the phase-final diff, re-run after material fixes
 - [Phase 06]: 06-01: argv budget guard measures cost with a representative scratch path so it runs before the scratch directory exists; complete_json never retries LlmGatewayError
+- [Phase 06]: Example LLM model download pinned to Hugging Face revision b466e1f8c07172155743e8e1307507d8a4f91fbd (Apache-2.0), HTTPS-only, per-shard SHA-256, opt-in via --with-example-llm-model
 
 ### Pending Todos
 
@@ -100,6 +102,6 @@ Items acknowledged and deferred at roadmap creation (detail in REQUIREMENTS.md v
 
 ## Session Continuity
 
-Last session: 2026-10-14T21:55:30.297Z
-Stopped at: Completed 06-01-PLAN.md
+Last session: 2026-10-14T21:58:40.249Z
+Stopped at: Completed 06-10-PLAN.md
 Resume file: None
