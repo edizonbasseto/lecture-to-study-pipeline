@@ -373,7 +373,7 @@ def _build_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
             "Gera o roteiro de podcast de estudo pessoal de uma aula via "
-            "Codex CLI, com fundamentação por unidade de aprendizagem."
+            "gateway LLM, com fundamentação por unidade de aprendizagem."
         )
     )
     parser.add_argument("lecture_id")
