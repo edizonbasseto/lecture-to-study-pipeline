@@ -321,27 +321,125 @@ def test_record_is_fsynced_before_it_replaces_the_previous_one(
     assert events[:2] == ["fsync", "replace"]
 
 
-def test_failed_rerun_keeps_the_earlier_successful_record(runs_root: Path) -> None:
-    with record_llm_run(
-        lecture_id="lec-1",
-        script_stage=Stage.SEMANTIC,
-        schema_name="SemanticLedger",
-        root=runs_root,
-    ):
-        pass
-    with pytest.raises(RuntimeError):
+def _attempt(
+    runs_root: Path,
+    *,
+    adapter: AdapterName,
+    scope: str | None = None,
+    fails: bool = False,
+) -> None:
+    """One run of the semantic stage whose gateway is served by ``adapter``."""
+
+    try:
         with record_llm_run(
             lecture_id="lec-1",
             script_stage=Stage.SEMANTIC,
             schema_name="SemanticLedger",
             root=runs_root,
-            scope="pack_sequence=2",
-        ):
-            raise RuntimeError("rerun failed")
+            scope=scope,
+        ) as recorder:
+            recorder.track(
+                _InMemoryGateway(None, adapter_name=adapter), stage=Stage.SEMANTIC
+            )
+            if fails:
+                raise RuntimeError("attempt failed")
+    except RuntimeError:
+        pass
 
-    record = _load_record(runs_root, "lec-1", Stage.SEMANTIC)
-    assert record["status"] == "succeeded"
-    assert record["scope"] is None
+
+def _superseded_record(runs_root: Path) -> dict[str, Any]:
+    path = run_record.superseded_record_path(
+        run_record_path(runs_root, "lec-1", Stage.SEMANTIC)
+    )
+    return json.loads(path.read_text("utf-8"))
+
+
+def _record_files(runs_root: Path) -> list[str]:
+    return sorted(item.name for item in (runs_root / "lec-1").iterdir())
+
+
+def test_failed_rerun_is_recorded_and_keeps_the_displaced_success(
+    runs_root: Path,
+) -> None:
+    _attempt(runs_root, adapter=AdapterName.CODEX)
+    _attempt(runs_root, adapter=AdapterName.LLAMA_CPP, fails=True)
+
+    latest = _load_record(runs_root, "lec-1", Stage.SEMANTIC)
+    assert latest["status"] == "failed"
+    assert latest["gateways"][0]["adapter_name"] == "llama-cpp"
+    displaced = _superseded_record(runs_root)
+    assert displaced["status"] == "succeeded"
+    assert displaced["scope"] is None
+    assert displaced["gateways"][0]["adapter_name"] == "codex"
+    assert _record_files(runs_root) == ["semantic.json", "semantic.superseded.json"]
+
+
+def test_scoped_success_is_recorded_and_keeps_the_whole_stage_success(
+    runs_root: Path,
+) -> None:
+    _attempt(runs_root, adapter=AdapterName.CODEX)
+    _attempt(runs_root, adapter=AdapterName.LLAMA_CPP, scope="pack_sequence=2")
+
+    latest = _load_record(runs_root, "lec-1", Stage.SEMANTIC)
+    assert (latest["status"], latest["scope"]) == ("succeeded", "pack_sequence=2")
+    assert latest["gateways"][0]["adapter_name"] == "llama-cpp"
+    displaced = _superseded_record(runs_root)
+    assert (displaced["status"], displaced["scope"]) == ("succeeded", None)
+    assert displaced["gateways"][0]["adapter_name"] == "codex"
+
+
+def test_later_attempts_never_replace_the_displaced_whole_stage_success(
+    runs_root: Path,
+) -> None:
+    _attempt(runs_root, adapter=AdapterName.CODEX)
+    _attempt(runs_root, adapter=AdapterName.LLAMA_CPP, scope="pack_sequence=2")
+    _attempt(runs_root, adapter=AdapterName.LLAMA_CPP, fails=True)
+
+    assert _load_record(runs_root, "lec-1", Stage.SEMANTIC)["status"] == "failed"
+    assert _superseded_record(runs_root)["scope"] is None
+    assert _superseded_record(runs_root)["gateways"][0]["adapter_name"] == "codex"
+
+
+def test_new_whole_stage_success_removes_the_stale_superseded_record(
+    runs_root: Path,
+) -> None:
+    _attempt(runs_root, adapter=AdapterName.CODEX)
+    _attempt(runs_root, adapter=AdapterName.LLAMA_CPP, fails=True)
+    _attempt(runs_root, adapter=AdapterName.LLAMA_CPP)
+
+    latest = _load_record(runs_root, "lec-1", Stage.SEMANTIC)
+    assert (latest["status"], latest["gateways"][0]["adapter_name"]) == (
+        "succeeded",
+        "llama-cpp",
+    )
+    assert _record_files(runs_root) == ["semantic.json"]
+
+
+def test_failure_without_an_earlier_whole_stage_success_writes_no_sibling(
+    runs_root: Path,
+) -> None:
+    _attempt(runs_root, adapter=AdapterName.CODEX, scope="pack_sequence=1")
+    _attempt(runs_root, adapter=AdapterName.CODEX, fails=True)
+
+    assert _load_record(runs_root, "lec-1", Stage.SEMANTIC)["status"] == "failed"
+    assert _record_files(runs_root) == ["semantic.json"]
+
+
+def test_unpreservable_displaced_record_never_blocks_the_latest_record(
+    runs_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _attempt(runs_root, adapter=AdapterName.CODEX)
+    original_write = run_record._write_atomically
+
+    def failing_sibling_write(path: Path, record: LlmRunRecord) -> None:
+        if path.name.endswith(".superseded.json"):
+            raise OSError("disk full")
+        original_write(path, record)
+
+    monkeypatch.setattr(run_record, "_write_atomically", failing_sibling_write)
+    _attempt(runs_root, adapter=AdapterName.LLAMA_CPP, fails=True)
+
+    assert _load_record(runs_root, "lec-1", Stage.SEMANTIC)["status"] == "failed"
 
 
 def test_partial_run_records_its_scope(runs_root: Path) -> None:

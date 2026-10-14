@@ -6,6 +6,13 @@ stage output directory: the progress dashboard counts the entries of its fixed
 stage directories and ``quality/delivery.py`` fingerprints only its own
 explicit output roots, so neither ever sees this tree.
 
+``<script_stage>.json`` always describes the latest attempt, with its true
+status and scope, so it never claims a model produced outputs that a later
+attempt altered. When a failed or scoped attempt replaces a fully successful
+whole-stage record, that earlier record is kept beside it as
+``<script_stage>.superseded.json`` (same directory, same metadata-only
+content). Its outputs may since have been overwritten by the later attempt.
+
 Prompt and response bytes are never stored. ``RecordingGateway`` keeps
 counters only, and the record holds identifiers, digests, timestamps and
 durations.
@@ -171,8 +178,9 @@ def record_llm_run(
 ) -> Iterator[LlmRunRecorder]:
     """Write the run record when the block ends, whether or not it failed.
 
-    A failure while recording a failed run is logged and never replaces the
-    exception that ended the block.
+    The record states the latest attempt as it ended. A failure while recording
+    a failed run is logged and never replaces the exception that ended the
+    block.
     """
 
     safe_lecture_id = _LECTURE_ID_ADAPTER.validate_python(lecture_id)
@@ -189,7 +197,7 @@ def record_llm_run(
     except BaseException:
         _write_failed_record_without_masking(run, recorder)
         raise
-    _write_atomically(run.path, run.record("succeeded", recorder.usages()))
+    _publish_record(run.path, run.record("succeeded", recorder.usages()))
 
 
 @dataclass(frozen=True)
@@ -225,34 +233,70 @@ def _write_failed_record_without_masking(
 ) -> None:
     """Record a failed run; a sidecar problem is logged, never raised.
 
-    An earlier succeeded record stays in place: its outputs are still on disk
-    and a failed rerun must not misattribute them (WR-05). The model digest is skipped (``model_sha256`` stays null): hashing a
+    The model digest is skipped (``model_sha256`` stays null): hashing a
     multi-GB model must not delay an interrupt or a refusal that never touched
-    the model, and the failure being propagated stays the one the operator sees.
+    the model, and the failure being propagated stays the one the operator
+    sees.
     """
 
     try:
-        if _holds_successful_record(run.path):
-            _logger.warning(
-                "failed run kept the earlier successful record: %s", run.path
-            )
-            return
         record = run.record("failed", recorder.usages(hash_models=False))
-        _write_atomically(run.path, record)
+        _publish_record(run.path, record)
     except Exception:
         _logger.warning("failed run record not written: %s", run.path)
 
 
-def _holds_successful_record(path: Path) -> bool:
-    """True when ``path`` already holds a succeeded record a failure must not erase."""
+def superseded_record_path(path: Path) -> Path:
+    """Sibling that keeps the last whole-stage success a later attempt replaced."""
 
+    return path.with_name(f"{path.stem}.superseded.json")
+
+
+def _publish_record(path: Path, record: LlmRunRecord) -> None:
+    """Write ``record`` as the latest attempt, keeping a displaced success.
+
+    A whole-stage success makes any sibling stale and removes it. Any other
+    record first moves a displaced whole-stage success to the sibling file.
+    """
+
+    if _is_whole_stage_success(record):
+        _write_atomically(path, record)
+        _discard_superseded_record(path)
+        return
+    _preserve_whole_stage_success(path)
+    _write_atomically(path, record)
+
+
+def _is_whole_stage_success(record: LlmRunRecord) -> bool:
+    return record.status == "succeeded" and record.scope is None
+
+
+def _preserve_whole_stage_success(path: Path) -> None:
+    """Copy a whole-stage success about to be displaced; never blocks the new record."""
+
+    displaced = _read_record(path)
+    if displaced is None or not _is_whole_stage_success(displaced):
+        return
     try:
-        existing = LlmRunRecord.model_validate_json(
+        _write_atomically(superseded_record_path(path), displaced)
+    except OSError:
+        _logger.warning("superseded run record not preserved: %s", path)
+
+
+def _discard_superseded_record(path: Path) -> None:
+    try:
+        superseded_record_path(path).unlink(missing_ok=True)
+    except OSError:
+        _logger.warning("stale superseded run record not removed: %s", path)
+
+
+def _read_record(path: Path) -> LlmRunRecord | None:
+    try:
+        return LlmRunRecord.model_validate_json(
             path.read_text(encoding="utf-8"), strict=False
         )
     except (OSError, ValueError):
-        return False
-    return existing.status == "succeeded"
+        return None
 
 
 def _digest_once(
