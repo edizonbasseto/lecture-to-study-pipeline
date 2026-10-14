@@ -100,11 +100,30 @@ def load_gateway_configuration(environ: Mapping[str, str]) -> GatewayConfigurati
 def _read_configuration_file(environ: Mapping[str, str]) -> GatewayConfiguration:
     explicit_path = environ.get(CONFIG_PATH_ENV, "")
     path = Path(explicit_path) if explicit_path else DEFAULT_GATEWAY_CONFIG_PATH
-    if path.is_symlink() or path.exists():
+    if _configuration_file_present(path):
         return _parse_configuration_file(path)
     if explicit_path:
         raise GatewayConfigurationError(f"gateway configuration file not found: {path}")
     return GatewayConfiguration()
+
+
+def _configuration_file_present(path: Path) -> bool:
+    """True when something exists at ``path`` (a dangling symlink counts).
+
+    Absence is exactly ``FileNotFoundError``. ``Path.exists`` is avoided: it
+    swallows other ``OSError`` on newer Python versions and raises raw on
+    older ones, so an unreadable parent could select the built-in default.
+    """
+
+    try:
+        path.lstat()
+    except FileNotFoundError:
+        return False
+    except OSError as error:
+        raise GatewayConfigurationError(
+            f"gateway configuration unreadable at {path}: {type(error).__name__}"
+        ) from error
+    return True
 
 
 def _parse_configuration_file(path: Path) -> GatewayConfiguration:

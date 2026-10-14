@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -263,6 +264,33 @@ def test_dangling_explicit_symlink_fails_closed(tmp_path: Path) -> None:
 
     with pytest.raises(GatewayConfigurationError, match="unreadable"):
         load_gateway_configuration(_environ_for(link))
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root ignores directory permissions")
+def test_unreadable_parent_directory_fails_closed_instead_of_selecting_codex(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    locked_directory = tmp_path / "locked"
+    locked_directory.mkdir()
+    monkeypatch.setattr(
+        config, "DEFAULT_GATEWAY_CONFIG_PATH", locked_directory / "gateway.yaml"
+    )
+    locked_directory.chmod(0o000)
+    try:
+        with pytest.raises(
+            GatewayConfigurationError, match="unreadable.*PermissionError"
+        ):
+            load_gateway_configuration({})
+    finally:
+        locked_directory.chmod(0o700)
+
+
+def test_absent_default_file_still_resolves_to_defaults(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(config, "DEFAULT_GATEWAY_CONFIG_PATH", tmp_path / "absent.yaml")
+
+    assert load_gateway_configuration({}).default_adapter is AdapterName.CODEX
 
 
 @pytest.mark.parametrize(
