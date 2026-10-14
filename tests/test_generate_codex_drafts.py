@@ -1,19 +1,19 @@
-"""Unit tests for the Codex-based personal-study draft generator.
+"""Unit tests for the draft generator on the LLM gateway (Phase 6, ADR 0046).
 
-The `codex` subprocess itself is never invoked here -- these tests stub
-`run_bounded_process` and exercise the pure logic: prompt construction and
-the scratch-cwd security invariant (mirrors
-tests/test_generate_codex_mock_exam.py's own coverage for the sibling
-Codex-based generator)."""
+No model is ever called: a scripted gateway double replays canned responses.
+The tests exercise prompt construction, the bounded retry, the critic-feedback
+redraft, the depth report, the run record and the import boundary that keeps
+process code out of the script."""
 
 from __future__ import annotations
 
 import argparse
+import ast
 import importlib.util
+import json
 import sys
 from pathlib import Path
 from types import ModuleType
-from unittest.mock import patch
 
 import pytest
 
@@ -25,6 +25,7 @@ from lecture_study.domain.models import (
     SemanticLedger,
     TranscriptionSegment,
 )
+from lecture_study.llm import Stage
 
 
 def _load_module() -> ModuleType:
@@ -47,6 +48,8 @@ _DRAFT_JSON = (
     b'{"lecture_id":"lecture-001","pack_sequence":1,"title":"Titulo",'
     b'"body_markdown":"Corpo do texto.","clinical_warnings":[]}'
 )
+_INVALID_JSON = b'{"unexpected": "shape"}'
+_CRITIC_REJECTION_HEADING = "A previous attempt was rejected by the critic reviewer"
 
 
 def _pack() -> EvidencePack:
@@ -94,74 +97,47 @@ def test_build_prompt_embeds_evidence_ledger_and_schema() -> None:
     assert '"title"' in prompt
 
 
-def test_call_codex_for_draft_runs_with_a_scratch_cwd_not_the_repo_root() -> None:
-    """Mirrors test_generate_codex_mock_exam.py's own security-review
-    coverage: the subprocess must never run with the repository checkout
-    (which holds .env) as its cwd/-C working root."""
+def test_generate_draft_retries_once_with_feedback_on_first_failure(
+    make_scripted_gateway,
+) -> None:
+    gateway = make_scripted_gateway([_INVALID_JSON, _DRAFT_JSON])
 
-    captured: dict[str, object] = {}
-
-    def fake_run_bounded_process(args, *, cwd, **kwargs):
-        captured["cwd"] = cwd
-        captured["dash_c"] = args[args.index("-C") + 1]
-        output_index = args.index("-o") + 1
-        Path(args[output_index]).write_bytes(_DRAFT_JSON)
-
-    with patch.object(
-        _MODULE, "run_bounded_process", side_effect=fake_run_bounded_process
-    ):
-        draft = _MODULE._call_codex_for_draft(
-            codex_executable="codex",
-            environment={},
-            prompt="prompt",
-        )
-
-    repo_root = Path(__file__).parents[1].resolve()
-    assert draft.title == "Titulo"
-    assert Path(captured["cwd"]).resolve() != repo_root
-    assert str(captured["cwd"]) == captured["dash_c"]
-
-
-def test_call_codex_for_draft_raises_on_schema_mismatch() -> None:
-    def fake_run_bounded_process(args, **_kwargs):
-        output_index = args.index("-o") + 1
-        Path(args[output_index]).write_bytes(b'{"unexpected": "shape"}')
-
-    with (
-        patch.object(
-            _MODULE, "run_bounded_process", side_effect=fake_run_bounded_process
-        ),
-        pytest.raises(_MODULE.LlmResponseContractError),
-    ):
-        _MODULE._call_codex_for_draft(
-            codex_executable="codex",
-            environment={},
-            prompt="prompt",
-        )
-
-
-def test_generate_draft_retries_once_with_feedback_on_first_failure() -> None:
-    attempts: list[str] = []
-
-    def fake_call_codex_for_draft(*, codex_executable, environment, prompt):
-        attempts.append(prompt)
-        if len(attempts) == 1:
-            raise _MODULE.LlmResponseContractError("boom", retry_category="schema")
-        return _MODULE._DRAFT_ADAPTER.validate_json(_DRAFT_JSON)
-
-    with patch.object(
-        _MODULE, "_call_codex_for_draft", side_effect=fake_call_codex_for_draft
-    ):
-        draft = _MODULE._generate_draft(
-            codex_executable="codex",
-            environment={},
-            pack=_pack(),
-            ledger=_ledger(),
-        )
+    draft = _MODULE._generate_draft(gateway=gateway, pack=_pack(), ledger=_ledger())
 
     assert draft.title == "Titulo"
-    assert len(attempts) == 2
-    assert "Retry feedback:" in attempts[1]
+    assert [request.is_retry for request in gateway.requests] == [False, True]
+    assert all(request.stage is Stage.DRAFTING for request in gateway.requests)
+    assert "Retry feedback:" in gateway.requests[1].prompt
+    assert "Retry feedback:" not in gateway.requests[0].prompt
+
+
+def test_generate_draft_raises_after_two_schema_mismatches(
+    make_scripted_gateway,
+) -> None:
+    gateway = make_scripted_gateway([_INVALID_JSON, _INVALID_JSON])
+
+    with pytest.raises(_MODULE.LlmResponseContractError):
+        _MODULE._generate_draft(gateway=gateway, pack=_pack(), ledger=_ledger())
+
+    assert len(gateway.requests) == 2
+
+
+def test_generate_draft_with_critic_feedback_is_a_first_attempt_request(
+    make_scripted_gateway,
+) -> None:
+    gateway = make_scripted_gateway([_DRAFT_JSON])
+
+    _MODULE._generate_draft(
+        gateway=gateway,
+        pack=_pack(),
+        ledger=_ledger(),
+        feedback="FEEDBACK-MARKER-7",
+    )
+
+    (request,) = gateway.requests
+    assert request.is_retry is False
+    assert _CRITIC_REJECTION_HEADING in request.prompt
+    assert "FEEDBACK-MARKER-7" in request.prompt
 
 
 def test_write_depth_report_writes_markdown_table_next_to_drafts(
@@ -191,16 +167,18 @@ def test_write_depth_report_is_a_no_op_for_an_empty_lecture(
     assert not (tmp_path / "depth_report.md").exists()
 
 
-def test_run_writes_a_depth_report_alongside_the_lecture_drafts(
+def test_run_writes_drafts_depth_report_and_run_record(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    make_scripted_gateway,
 ) -> None:
-    """Proves the wiring in `_run`, not just the `_write_depth_report`
-    helper in isolation: a real (stubbed-Codex) run must leave
-    depth_report.md next to the draft_*.json files it writes."""
+    """Proves the wiring in `_run`: drafts, the depth report next to them and
+    the drafting run record all land through one scripted gateway."""
     lecture_id = "lecture-001"
     packs_root = tmp_path / "packs"
     ledgers_root = tmp_path / "ledgers"
     output_root = tmp_path / "drafts"
+    runs_root = tmp_path / "runs"
     (packs_root / lecture_id).mkdir(parents=True)
     (ledgers_root / lecture_id).mkdir(parents=True)
     (packs_root / lecture_id / "pack_001.json").write_text(
@@ -209,28 +187,63 @@ def test_run_writes_a_depth_report_alongside_the_lecture_drafts(
     (ledgers_root / lecture_id / "ledger_001.json").write_text(
         _ledger().model_dump_json(), encoding="utf-8"
     )
-
+    gateway = make_scripted_gateway([_DRAFT_JSON])
+    monkeypatch.setattr(_MODULE, "open_stage_gateway", lambda *_a, **_k: gateway)
     args = argparse.Namespace(
         lecture_id=lecture_id,
         packs_root=packs_root,
         ledgers_root=ledgers_root,
         output_root=output_root,
-        codex_executable="codex",
+        codex_executable=None,
+        llm_runs_root=runs_root,
     )
 
-    with (
-        patch.object(
-            _MODULE, "resolve_trusted_executable", return_value="/trusted/codex"
-        ),
-        patch.object(
-            _MODULE,
-            "_generate_draft",
-            return_value=_MODULE._DRAFT_ADAPTER.validate_json(_DRAFT_JSON),
-        ),
-    ):
-        exit_code = _MODULE._run(args)
+    exit_code = _MODULE._run(args)
 
     assert exit_code == 0
-    report_path = output_root / lecture_id / "depth_report.md"
-    assert report_path.exists()
-    assert "| 1 |" in report_path.read_text(encoding="utf-8")
+    lecture_output = output_root / lecture_id
+    assert (lecture_output / "draft_001.json").exists()
+    assert "| 1 |" in (lecture_output / "depth_report.md").read_text(encoding="utf-8")
+    record = json.loads((runs_root / lecture_id / "drafting.json").read_text())
+    assert record["status"] == "succeeded"
+    assert record["script_stage"] == "drafting"
+    assert record["gateways"][0]["calls"] == 1
+
+
+def test_main_rejects_a_malformed_lecture_id_before_opening_a_gateway(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    opened_gateways: list[int] = []
+    monkeypatch.setattr(
+        _MODULE, "open_stage_gateway", lambda *_a, **_k: opened_gateways.append(1)
+    )
+    monkeypatch.setattr(sys, "argv", ["generate_codex_drafts", "../x"])
+
+    exit_code = _MODULE.main()
+
+    assert exit_code == 1
+    assert "error:" in capsys.readouterr().err
+    assert opened_gateways == []
+
+
+def test_script_imports_no_process_or_scratch_directory_module() -> None:
+    forbidden_modules = {
+        "tempfile",
+        "subprocess",
+        "lecture_study.ops.process_lifecycle",
+        "lecture_study.ops.process_environment",
+    }
+    source_text = Path(_MODULE.__file__).read_text(encoding="utf-8")
+
+    assert _imported_module_names(source_text).isdisjoint(forbidden_modules)
+
+
+def _imported_module_names(source_text: str) -> set[str]:
+    names: set[str] = set()
+    for node in ast.walk(ast.parse(source_text)):
+        if isinstance(node, ast.Import):
+            names.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module is not None:
+            names.add(node.module)
+    return names

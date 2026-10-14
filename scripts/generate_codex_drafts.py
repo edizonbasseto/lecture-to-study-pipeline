@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 """Generate one lecture's learning-unit drafts (Phase 6 artifact,
-ADR 0024's uncertified personal-study route) with the Codex CLI
-(`codex exec`) instead of the local llama.cpp drafting worker.
+ADR 0024's uncertified personal-study route) through the LLM gateway.
+
+Stage 6 calls the `LlmGateway` port (ADR 0046); the adapter that serves it
+is chosen by the gateway configuration (Codex CLI by default, the local
+llama.cpp adapter when configured). The Codex route is refused for any
+lecture the operator has not flagged as cleared for remote processing.
 
 Execution is lecture-scoped: this script takes exactly one lecture
 identifier, has no batch mode, and never discovers over the evidence
@@ -12,15 +16,17 @@ The prompt instruction mirrors (verbatim; that module was deleted under ADR 0038
 rule, same coverage categories, same "no word count target" rule -- the
 operator's standing decision applies identically regardless of which
 inference backend writes the draft). Only the invocation backend
-changes: Codex CLI via the operator's ChatGPT subscription login, not a
-local model, per the same 2026-09-15 operator decision
-generate_codex_mock_exam.py's own module docstring documents (local
-drafting quality was rejected; Codex's was not).
+changes: the gateway adapter chosen by configuration (by default the
+Codex CLI via the operator's ChatGPT subscription login), per the same
+2026-09-15 operator decision generate_codex_mock_exam.py's own module
+docstring documents (local drafting quality was rejected; Codex's was not).
 
-After this script writes every draft, the existing local critic
-(`python -m lecture_study.cli run-phase 7 <lecture_id> --llm-model-path
-... --llm-model-family qwen3`) still runs to validate them -- Phase 7
-was never swapped out; only Phase 6 (drafting) was.
+After this script writes every draft, stage 7 validates them with
+`scripts/generate_codex_critic_review.py`, which also runs through the
+gateway (ADR 0046) with the adapter chosen by configuration, and reuses
+`_generate_draft` below to redraft a rejected unit. Each run writes a
+metadata-only run record under
+`workspace/data/llm_runs/<lecture_id>/drafting.json`.
 
 Alongside the per-pack `draft_NNN.json` files, this script also writes
 one `depth_report.md` per lecture: a no-verdict, per-draft table of word
@@ -33,18 +39,25 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
-import tempfile
+from collections.abc import Mapping
 from pathlib import Path
 
-from pydantic import TypeAdapter
+from pydantic import TypeAdapter, ValidationError
 
-from lecture_study.domain.models import EvidencePack, LearningUnitDraft, SemanticLedger
+from lecture_study.cli.llm_gateway_wiring import open_stage_gateway
+from lecture_study.domain.models import (
+    EvidencePack,
+    LearningUnitDraft,
+    SafeIdentifier,
+    SemanticLedger,
+)
 from lecture_study.drafting.depth_report import (
     render_draft_depth_report_markdown,
     summarize_draft_depth,
 )
+from lecture_study.llm import LlmGateway, LlmGatewayError, Stage, complete_json
+from lecture_study.llm.run_record import LLM_RUNS_ROOT, record_llm_run
 from lecture_study.ops.llm_instructions import (
     DRAFT_COVERAGE_CATEGORIES as _DRAFT_COVERAGE_CATEGORIES,
 )
@@ -52,20 +65,13 @@ from lecture_study.ops.llm_response_contract import (
     UNIQUE_JSON_OBJECT_MEMBERS_INSTRUCTION,
     LlmResponseContractError,
     build_bounded_retry_prompt_section,
-    build_llm_retry_feedback,
     parse_llm_json_response,
 )
-from lecture_study.ops.process_environment import (
-    resolve_trusted_executable,
-    sanitized_child_process_environment,
-)
-from lecture_study.ops.process_lifecycle import run_bounded_process
 
 DEFAULT_PACKS_ROOT = Path("workspace/data/06_evidence_packs")
 DEFAULT_LEDGERS_ROOT = Path("workspace/data/07_semantic_ledgers")
 DEFAULT_OUTPUT_ROOT = Path("workspace/data/08_drafts")
-_SUBPROCESS_TIMEOUT_SECONDS = 900.0
-_MAXIMUM_PROCESS_OUTPUT_BYTES = 16 * 1024 * 1024
+_LECTURE_ID_ADAPTER: TypeAdapter[str] = TypeAdapter(SafeIdentifier)
 _DRAFT_ADAPTER: TypeAdapter[LearningUnitDraft] = TypeAdapter(LearningUnitDraft)
 _DRAFT_SCHEMA = json.dumps(LearningUnitDraft.model_json_schema())
 
@@ -124,31 +130,54 @@ def main() -> int:
     args = _build_argument_parser().parse_args()
     try:
         return _run(args)
-    except (LlmResponseContractError, FileNotFoundError) as error:
+    except (
+        LlmResponseContractError,
+        LlmGatewayError,
+        FileNotFoundError,
+        ValidationError,
+    ) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
 
 
 def _run(args: argparse.Namespace) -> int:
-    codex_executable = resolve_trusted_executable(args.codex_executable)
-    environment = dict(sanitized_child_process_environment())
-    # HOME is not on sanitized_child_process_environment()'s inherited
-    # whitelist, but codex needs it to locate its ChatGPT-subscription auth
-    # session under ~/.codex -- same restoration generate_codex_mock_exam.py
-    # already does, scoped to this one call.
-    home_directory = os.environ.get("HOME")
-    if home_directory is not None:
-        environment["HOME"] = home_directory
-
-    packs = _load_evidence_packs(args.packs_root, args.lecture_id)
+    lecture_id = _LECTURE_ID_ADAPTER.validate_python(args.lecture_id)
+    packs = _load_evidence_packs(args.packs_root, lecture_id)
     ledgers_by_sequence = {
         ledger.pack_sequence: ledger
-        for ledger in _load_semantic_ledgers(args.ledgers_root, args.lecture_id)
+        for ledger in _load_semantic_ledgers(args.ledgers_root, lecture_id)
     }
-
-    output_dir = args.output_root / args.lecture_id
+    gateway = open_stage_gateway(
+        Stage.DRAFTING,
+        lecture_id=lecture_id,
+        codex_executable_override=args.codex_executable,
+    )
+    output_dir = args.output_root / lecture_id
     output_dir.mkdir(parents=True, exist_ok=True)
+    with record_llm_run(
+        lecture_id=lecture_id,
+        script_stage=Stage.DRAFTING,
+        schema_name="LearningUnitDraft",
+        root=args.llm_runs_root,
+    ) as recorder:
+        tracked_gateway = recorder.track(gateway, stage=Stage.DRAFTING)
+        written_drafts = _write_drafts(
+            gateway=tracked_gateway,
+            packs=packs,
+            ledgers_by_sequence=ledgers_by_sequence,
+            output_dir=output_dir,
+        )
+    _write_depth_report(written_drafts, output_dir)
+    return 0
 
+
+def _write_drafts(
+    *,
+    gateway: LlmGateway,
+    packs: tuple[EvidencePack, ...],
+    ledgers_by_sequence: Mapping[int, SemanticLedger],
+    output_dir: Path,
+) -> list[LearningUnitDraft]:
     written_drafts: list[LearningUnitDraft] = []
     for pack in packs:
         ledger = ledgers_by_sequence.get(pack.pack_sequence)
@@ -158,21 +187,14 @@ def _run(args: argparse.Namespace) -> int:
                 file=sys.stderr,
             )
             continue
-        draft = _generate_draft(
-            codex_executable=codex_executable,
-            environment=environment,
-            pack=pack,
-            ledger=ledger,
-        )
+        draft = _generate_draft(gateway=gateway, pack=pack, ledger=ledger)
         output_path = output_dir / f"draft_{pack.pack_sequence:03d}.json"
         output_path.write_text(draft.model_dump_json(indent=2), encoding="utf-8")
         print(
             f"unidade {pack.pack_sequence} ({draft.title!r}): escrito em {output_path}"
         )
         written_drafts.append(draft)
-
-    _write_depth_report(written_drafts, output_dir)
-    return 0
+    return written_drafts
 
 
 def _write_depth_report(drafts: list[LearningUnitDraft], output_dir: Path) -> None:
@@ -194,29 +216,17 @@ def _write_depth_report(drafts: list[LearningUnitDraft], output_dir: Path) -> No
 
 def _generate_draft(
     *,
-    codex_executable: str,
-    environment: dict[str, str],
+    gateway: LlmGateway,
     pack: EvidencePack,
     ledger: SemanticLedger,
     feedback: str | None = None,
 ) -> LearningUnitDraft:
-    prompt = _build_prompt(pack, ledger, feedback)
-    try:
-        return _call_codex_for_draft(
-            codex_executable=codex_executable,
-            environment=environment,
-            prompt=prompt,
-        )
-    except LlmResponseContractError as error:
-        retry_prompt = prompt + build_bounded_retry_prompt_section(
-            heading="Retry feedback:",
-            feedback=build_llm_retry_feedback(error),
-        )
-        return _call_codex_for_draft(
-            codex_executable=codex_executable,
-            environment=environment,
-            prompt=retry_prompt,
-        )
+    return complete_json(
+        gateway,
+        stage=Stage.DRAFTING,
+        prompt=_build_prompt(pack, ledger, feedback),
+        parse=_parse_draft,
+    )
 
 
 def _build_prompt(
@@ -255,42 +265,6 @@ def _build_prompt(
             feedback=feedback,
         )
     return prompt
-
-
-def _call_codex_for_draft(
-    *,
-    codex_executable: str,
-    environment: dict[str, str],
-    prompt: str,
-) -> LearningUnitDraft:
-    # Scratch cwd, never the repository checkout -- same least-privilege
-    # rationale as generate_codex_mock_exam.py's own _call_codex_for_questions:
-    # the prompt is self-contained, and the repository root holds `.env`.
-    with tempfile.TemporaryDirectory(prefix="codex-draft-") as raw_scratch_dir:
-        scratch_dir = Path(raw_scratch_dir)
-        output_path = scratch_dir / "response.txt"
-        run_bounded_process(
-            [
-                codex_executable,
-                "exec",
-                "--skip-git-repo-check",
-                "--sandbox",
-                "read-only",
-                "-C",
-                str(scratch_dir),
-                "-o",
-                str(output_path),
-                prompt,
-            ],
-            env=environment,
-            cwd=scratch_dir,
-            timeout_seconds=_SUBPROCESS_TIMEOUT_SECONDS,
-            maximum_stdout_bytes=_MAXIMUM_PROCESS_OUTPUT_BYTES,
-            maximum_stderr_bytes=_MAXIMUM_PROCESS_OUTPUT_BYTES,
-            check=True,
-        )
-        output_bytes = output_path.read_bytes()
-    return _parse_draft(output_bytes)
 
 
 def _parse_draft(output_bytes: bytes) -> LearningUnitDraft:
@@ -332,14 +306,22 @@ def _build_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
             "Gera os rascunhos de unidade de aprendizagem de uma aula via "
-            "Codex CLI (Fase 6, rota de estudo pessoal não certificada)."
+            "gateway LLM (Fase 6, rota de estudo pessoal não certificada)."
         )
     )
     parser.add_argument("lecture_id")
     parser.add_argument("--packs-root", type=Path, default=DEFAULT_PACKS_ROOT)
     parser.add_argument("--ledgers-root", type=Path, default=DEFAULT_LEDGERS_ROOT)
     parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
-    parser.add_argument("--codex-executable", default="codex")
+    parser.add_argument(
+        "--codex-executable",
+        default=None,
+        help=(
+            "sobrescreve `codex.executable` da configuração do gateway "
+            "(padrão: o valor da configuração)"
+        ),
+    )
+    parser.add_argument("--llm-runs-root", type=Path, default=LLM_RUNS_ROOT)
     return parser
 
 
