@@ -303,6 +303,14 @@ even for an unrelated lecture.
 A registry that lists one lecture identifier in more than one row is invalid:
 the loader rejects it with a typed error, and the policy independently refuses
 remote egress for such an identifier whatever the flags say (fail closed).
+The same holds for a registry that repeats a mapping key, inside a row (a
+`remote_llm_allowed` set to `false` and later to `true`) or at the top level
+(two `lectures` blocks): the loader rejects it with a typed error that names
+only the dotted key paths, using the duplicate-key scan shared with the gateway
+configuration (`src/lecture_study/ops/strict_yaml.py`), and a registry file
+that cannot be read is a typed error, never an empty registry. The configuration
+file probe distinguishes absence (`FileNotFoundError`) from an uninspectable
+path, which fails closed instead of selecting the built-in default.
 
 Detecting patient-identifying data stays the operator's responsibility. The
 flag is the operator's recorded verification that the lecture carries none;
@@ -331,6 +339,25 @@ split example model that file is the first shard, so the digest identifies the
 first shard, while every shard is verified at provisioning by its pinned
 SHA-256 (decision 5). The digest of a file shared by several gateways of one
 run is computed once.
+
+Clarification of the failure and rerun behavior (forward amendment; the text
+above stays as decided). `SCRIPT_STAGE.json` always describes the latest
+attempt with its true `status`, so a record never claims that a model produced
+outputs a later attempt altered. `model_sha256` is null on every failure path:
+the digest is not computed when a run fails, so an interrupt or a refusal is
+never delayed by hashing a multi-gigabyte model. An optional `scope` field
+holds a bounded token such as `pack_sequence=3` when a run covered only part of
+the stage outputs and is null for a whole-stage run. When a failed or scoped
+attempt would replace a whole-stage `succeeded` record, that record is first
+kept as `SCRIPT_STAGE.superseded.json` in the same
+`workspace/data/llm_runs/LECTURE_ID` directory (never in a stage output
+directory); the next whole-stage success removes it. A superseded record
+states which adapter and model produced the earlier whole-stage run, and its
+outputs may since have been overwritten by the attempt in `SCRIPT_STAGE.json`.
+Records are published with a unique temporary file in the target directory,
+a file `fsync`, an atomic replace and a directory `fsync`. A failure to write a
+record of a failed run is logged and never replaces the original error; a
+failure to write the record of a successful run is raised.
 
 The record is not stored beside the stage outputs because those directories are
 counted by the progress dashboard (`scripts/generate_progress_dashboard.py`
