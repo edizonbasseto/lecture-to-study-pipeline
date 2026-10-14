@@ -30,6 +30,9 @@ from lecture_study.domain.models import (
     ValidatedLearningUnit,
 )
 from lecture_study.llm import (
+    AdapterName,
+    LlmCallError,
+    PromptTooLargeError,
     Stage,
 )
 
@@ -305,6 +308,20 @@ def test_generate_script_recovers_when_the_retry_is_valid(
     assert len(gateway.requests) == 2
 
 
+def test_generate_script_never_retries_a_typed_call_error(
+    make_scripted_gateway,
+) -> None:
+    # D-22: before the gateway a failed `codex exec` was wrapped as a
+    # contract error and retried once; now it is a typed error, one request.
+    call_error = LlmCallError(Stage.PODCAST, AdapterName.CODEX, "non-zero exit code 1")
+    gateway = make_scripted_gateway([call_error, _VALID_SCRIPT_BYTES])
+
+    with pytest.raises(LlmCallError, match="non-zero exit code 1"):
+        _generate(gateway)
+
+    assert len(gateway.requests) == 1
+
+
 def test_the_call_timeout_reaches_every_request(make_scripted_gateway) -> None:
     unfit = _VALID_SCRIPT_BYTES.replace(b"Fala.", b"Segundo o material, sim.")
     gateway = make_scripted_gateway([unfit, _VALID_SCRIPT_BYTES])
@@ -320,6 +337,19 @@ def test_the_podcast_stage_is_the_one_requested(make_scripted_gateway) -> None:
     _generate(gateway)
 
     assert gateway.requests[0].stage is Stage.PODCAST
+
+
+@pytest.mark.parametrize("raw_value", ["0", "-5", "nan", "inf", "abc"])
+def test_a_non_positive_or_non_finite_timeout_is_rejected_by_the_parser(
+    raw_value: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    parser = _MODULE._build_argument_parser()
+
+    with pytest.raises(SystemExit) as exit_info:
+        parser.parse_args(["lecture-001", "--call-timeout-seconds", raw_value])
+
+    assert exit_info.value.code == 2
+    assert "--call-timeout-seconds" in capsys.readouterr().err
 
 
 def test_the_call_timeout_defaults_to_nine_hundred_seconds() -> None:
@@ -528,6 +558,98 @@ def test_main_produces_the_uncertified_script_and_a_run_record(
     assert record["status"] == "succeeded"
     assert record["script_stage"] == "podcast"
     assert record["gateways"][0]["calls"] == 1
+
+
+def test_main_exits_one_on_a_call_error_without_echoing_the_prompt(
+    make_scripted_gateway,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _write_approved_unit(tmp_path, "corpo clinico distintivo")
+    gateway = make_scripted_gateway(
+        [
+            LlmCallError(Stage.PODCAST, AdapterName.CODEX, "non-zero exit code 1"),
+            _VALID_SCRIPT_BYTES,
+        ]
+    )
+    _open_scripted_gateway(monkeypatch, gateway)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, "argv", _command_line(tmp_path))
+
+    exit_code = _MODULE.main()
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert len(gateway.requests) == 1
+    assert "non-zero exit code 1" in captured.err
+    assert "Deep Dive" not in captured.err
+    assert "corpo clinico distintivo" not in captured.err
+    assert "Traceback" not in captured.err
+    assert not (tmp_path / "workspace").exists()
+    assert _run_record(tmp_path)["status"] == "failed"
+
+
+def test_main_exits_one_when_the_whole_lecture_prompt_is_too_large(
+    make_scripted_gateway,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _write_approved_unit(tmp_path)
+    gateway = make_scripted_gateway(
+        [
+            PromptTooLargeError(
+                Stage.PODCAST, required=300_000, limit=100_000, unit="bytes"
+            )
+        ]
+    )
+    _open_scripted_gateway(monkeypatch, gateway)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, "argv", _command_line(tmp_path))
+
+    exit_code = _MODULE.main()
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert len(gateway.requests) == 1
+    assert "podcast" in captured.err
+    assert "300000" in captured.err
+    assert "Traceback" not in captured.err
+    assert not (tmp_path / "workspace").exists()
+    assert _run_record(tmp_path)["status"] == "failed"
+
+
+def test_call_timeout_seconds_flag_reaches_the_request(
+    make_scripted_gateway,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _write_approved_unit(tmp_path)
+    gateway = make_scripted_gateway([_VALID_SCRIPT_BYTES])
+    _open_scripted_gateway(monkeypatch, gateway)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        sys, "argv", _command_line(tmp_path, "--call-timeout-seconds", "2700")
+    )
+
+    exit_code = _MODULE.main()
+
+    assert exit_code == 0, capsys.readouterr().err
+    assert [request.timeout_seconds for request in gateway.requests] == [2700.0]
+
+
+def test_script_imports_no_process_or_scratch_directory_module() -> None:
+    forbidden_modules = {
+        "tempfile",
+        "subprocess",
+        "lecture_study.ops.process_lifecycle",
+        "lecture_study.ops.process_environment",
+    }
+    source_text = Path(_MODULE.__file__).read_text(encoding="utf-8")
+
+    assert _imported_module_names(source_text).isdisjoint(forbidden_modules)
 
 
 def _imported_module_names(source_text: str) -> set[str]:
