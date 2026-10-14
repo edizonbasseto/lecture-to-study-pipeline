@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 6
 current_phase_name: Pluggable LLM gateway
 status: executing
-stopped_at: Completed 06-07-PLAN.md
-last_updated: "2026-10-14T22:28:17.225Z"
+stopped_at: Completed 06-08-PLAN.md
+last_updated: "2026-10-14T22:37:16.732Z"
 last_activity: 2026-10-14
 last_activity_desc: Phase 6 execution started
-state_head: 2a6e9ba6ff92115be1e25c1f5d93b5ec86388e7c
+state_head: c37e3c0a87af562994e5bf0eaf53a6ab53cb7cd9
 progress:
   total_phases: 9
   completed_phases: 5
   total_plans: 12
-  completed_plans: 8
+  completed_plans: 9
 ---
 
 # Project State
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-10-14)
 ## Current Position
 
 Phase: 6 (Pluggable LLM gateway) — EXECUTING
-Plan: 9 of 12
+Plan: 10 of 12
 Status: Ready to execute
 Last activity: 2026-10-14 — Phase 6 execution started
 Next action: `/gsd-plan-phase 6`
@@ -64,6 +64,7 @@ Progress: [██████░░░░] 56% (phases, 5 of 9; Phases 1-5 are c
 | Phase 6 P05 | 8min | 3 tasks | 7 files |
 | Phase 06 P06 | 6min | 3 tasks | 5 files |
 | Phase 6 P07 | 6min | 2 tasks | 4 files |
+| Phase 06 P08 | 12min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -90,6 +91,7 @@ Recent decisions affecting current work:
 - [Phase 06]: 06-06: critic builds critic-stage and drafting-stage gateways before any call so redrafts honor the drafting-stage adapter and egress check (D-21)
 - [Phase 06]: 06-06: critic-feedback redraft is a non-retry request; the repeat penalty stays retry-only (ADR 0034)
 - [Phase 6]: 06-07: semantic ledgers load before the gateway opens in stages 13 and 18; stage 18 relies on open_stage_gateway as its whole D-12 validation
+- [Phase 06]: 06-08: podcast process failure is a typed LlmCallError, never retried (D-22); --call-timeout-seconds validated at the parser, default 900
 
 ### Pending Todos
 
@@ -116,6 +118,6 @@ Items acknowledged and deferred at roadmap creation (detail in REQUIREMENTS.md v
 
 ## Session Continuity
 
-Last session: 2026-10-14T22:28:17.208Z
-Stopped at: Completed 06-07-PLAN.md
+Last session: 2026-10-14T22:37:16.714Z
+Stopped at: Completed 06-08-PLAN.md
 Resume file: None
