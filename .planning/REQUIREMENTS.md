@@ -103,7 +103,7 @@ Committed scope. Each requirement maps to exactly one roadmap phase.
 ### Pluggable LLM Gateway (Phase 6) - open
 
 - [x] **GW-01**: An `LlmGateway` port is defined inward of the scripts (application layer); the six LLM-backed stages (5 semantic ledgers, 6 drafts, 7 critic, 13 exam, 14 podcast, 18 personal-study flashcards) call it instead of spawning the Codex CLI directly. (Operator decision 2026-10-14; ADR 0038 section 1; ADR 0045 section 2)
-- [ ] **GW-02**: `CodexCliAdapter` preserves current Codex behavior: bounded child process, sanitized environment, read-only sandbox, and failure capture under `tmp/codex_phase_failures/`. (Operator decision 2026-10-14; ADR 0035; ADR 0038 section 1)
+- [x] **GW-02**: `CodexCliAdapter` preserves current Codex behavior: bounded child process, sanitized environment, read-only sandbox, and failure capture under `tmp/codex_phase_failures/`. (Operator decision 2026-10-14; ADR 0035; ADR 0038 section 1)
 - [ ] **GW-03**: `LlamaCppAdapter` runs a local GGUF model through llama.cpp, restored from the repository history before ADR 0038 and adapted to the port, with no network egress. (Operator decision 2026-10-14; ADR 0038 section 8; ADR 0045 section 2)
 - [x] **GW-04**: The adapter is selected by configuration (globally, optionally per stage), defaults to Codex, and an unknown or misconfigured adapter fails closed before any call. (Operator decision 2026-10-14)
 - [x] **GW-05**: A new ADR amends ADR 0038 (the local text-LLM route is reinstated as a gateway adapter) and closes ADR 0045 section 2 (content that may carry patient-identifying data runs only on the local adapter). Baseline requirement GEN-07 is amended by this record. (Operator decision 2026-10-14; ADR 0038; ADR 0045 section 2)
@@ -249,7 +249,7 @@ Which phases cover which requirements. Each requirement maps to exactly one phas
 | REPO-03 | Phase 5 | Complete |
 | REPO-04 | Phase 5 | Complete |
 | GW-01 | Phase 6 | Complete |
-| GW-02 | Phase 6 | Pending |
+| GW-02 | Phase 6 | Complete |
 | GW-03 | Phase 6 | Pending |
 | GW-04 | Phase 6 | Complete |
 | GW-05 | Phase 6 | Complete |
