@@ -1,12 +1,19 @@
 ---
-gsd_state_version: '1.0'
+gsd_state_version: "1.0"
+milestone: v1.0
+current_phase: 6
+current_phase_name: Pluggable LLM gateway
 status: planning
+stopped_at: Phase 6 context gathered
+last_updated: "2026-10-14T18:46:10.733Z"
+last_activity: 2026-10-14
+last_activity_desc: "Milestone v1.0 restructured by operator decision: Phases 6-9 (LLM gateway, synthetic demo, portfolio README, pre-public gate) replace the former Phases 6-7"
+state_head: efc1d3600ceb228720fc1f5b13c61d05e2462be0
 progress:
   total_phases: 9
   completed_phases: 5
   total_plans: 0
   completed_plans: 0
-  percent: 56
 ---
 
 # Project State
@@ -87,6 +94,6 @@ Items acknowledged and deferred at roadmap creation (detail in REQUIREMENTS.md v
 
 ## Session Continuity
 
-Last session: 2026-10-14
-Stopped at: Milestone v1.0 restructure written to PROJECT.md, REQUIREMENTS.md, ROADMAP.md and STATE.md; next action `/gsd-plan-phase 6`
-Resume file: None
+Last session: 2026-10-14T18:46:10.723Z
+Stopped at: Phase 6 context gathered
+Resume file: .planning/phases/06-pluggable-llm-gateway/06-CONTEXT.md
