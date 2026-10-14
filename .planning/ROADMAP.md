@@ -106,8 +106,8 @@ Plans:
 - [ ] 06-08-PLAN.md — Stage 14 podcast, typed call errors without retry, timeout override (wave 4)
 - [ ] 06-09-PLAN.md — Orchestrator preflight and env forwarding; criteria 1 and 2 end to end (wave 5)
 - [ ] 06-10-PLAN.md — Provisioning: gateway binaries and opt-in example model with SHA-256 (wave 1)
-- [ ] 06-11-PLAN.md — ADR 0046, amendments to ADR 0038/0045, GEN-07 and GW-03; OPEN-1 checkpoint; D-07 manual run record (wave 6)
-- [ ] 06-12-PLAN.md — Forward notes on ADRs 0020, 0022, 0034, 0035, 0036, 0037 and PROJECT.md decisions (wave 6)
+- [ ] 06-11-PLAN.md — ADR 0046, amendments to ADR 0038/0045, GEN-07, GW-03 and GW-05 clarification; OPEN-1 checkpoint; D-07 manual run record and follow-ups (wave 6)
+- [ ] 06-12-PLAN.md — Forward notes on ADRs 0020, 0022, 0034, 0035, 0036, 0037 and PROJECT.md decisions, GW-05 and egress lines (wave 6)
 
 ### Phase 7: Synthetic demo lecture and measured results
 **Goal**: A lecture authored for this repository runs end to end to a served page, and the pipeline's quality is reported with real numbers
