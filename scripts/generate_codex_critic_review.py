@@ -1,7 +1,14 @@
 #!/usr/bin/env python3
 """Generate one lecture's critic reviews (Phase 7 artifact, ADR 0024's
-uncertified personal-study route) with the Codex CLI (`codex exec`)
-instead of the local qwen3-32b/llama.cpp critic worker.
+uncertified personal-study route) through the LLM gateway.
+
+Stage 7 calls the `LlmGateway` port (ADR 0046) instead of the local
+qwen3-32b/llama.cpp critic worker. Reviews use the gateway of the critic
+stage; the redrafts of the repair loop below use the gateway of the drafting
+stage (each stage selects its adapter by configuration, and the Codex route
+is refused for any lecture the operator has not flagged as cleared for remote
+processing). Each run writes a metadata-only run record under
+`workspace/data/llm_runs/<lecture_id>/critic.json`.
 
 Per ADR 0035: the local route's reproducible defect on 10006's pack 12
 (the model substituting a Chinese-language JSON key and appending an
@@ -33,40 +40,35 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
-import tempfile
+from collections.abc import Mapping
 from pathlib import Path
 
 import generate_codex_drafts
-from pydantic import TypeAdapter
+from pydantic import TypeAdapter, ValidationError
 
-from lecture_study.ops.llm_instructions import CRITIC_INSTRUCTION as _CRITIC_INSTRUCTION
+from lecture_study.cli.llm_gateway_wiring import open_stage_gateway
 from lecture_study.domain.models import (
     CriticReview,
     EvidencePack,
     LearningUnitDraft,
+    SafeIdentifier,
     SemanticLedger,
     ValidatedLearningUnit,
 )
+from lecture_study.llm import LlmGateway, LlmGatewayError, Stage, complete_json
+from lecture_study.llm.run_record import LLM_RUNS_ROOT, record_llm_run
+from lecture_study.ops.llm_instructions import CRITIC_INSTRUCTION as _CRITIC_INSTRUCTION
 from lecture_study.ops.llm_response_contract import (
     LlmResponseContractError,
-    build_bounded_retry_prompt_section,
-    build_llm_retry_feedback,
     parse_llm_json_response,
 )
-from lecture_study.ops.process_environment import (
-    resolve_trusted_executable,
-    sanitized_child_process_environment,
-)
-from lecture_study.ops.process_lifecycle import run_bounded_process
 
 DEFAULT_DRAFTS_ROOT = Path("workspace/data/08_drafts")
 DEFAULT_PACKS_ROOT = Path("workspace/data/06_evidence_packs")
 DEFAULT_LEDGERS_ROOT = Path("workspace/data/07_semantic_ledgers")
 DEFAULT_OUTPUT_ROOT = Path("workspace/data/09_validated_units")
-_SUBPROCESS_TIMEOUT_SECONDS = 900.0
-_MAXIMUM_PROCESS_OUTPUT_BYTES = 16 * 1024 * 1024
+_LECTURE_ID_ADAPTER: TypeAdapter[str] = TypeAdapter(SafeIdentifier)
 _REVIEW_ADAPTER: TypeAdapter[CriticReview] = TypeAdapter(CriticReview)
 _REVIEW_SCHEMA = json.dumps(CriticReview.model_json_schema())
 
@@ -75,31 +77,69 @@ def main() -> int:
     args = _build_argument_parser().parse_args()
     try:
         return _run(args)
-    except (LlmResponseContractError, FileNotFoundError) as error:
+    except (
+        LlmResponseContractError,
+        LlmGatewayError,
+        FileNotFoundError,
+        ValidationError,
+    ) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
 
 
 def _run(args: argparse.Namespace) -> int:
-    codex_executable = resolve_trusted_executable(args.codex_executable)
-    environment = dict(sanitized_child_process_environment())
-    home_directory = os.environ.get("HOME")
-    if home_directory is not None:
-        environment["HOME"] = home_directory
-
-    drafts = _load_drafts(args.drafts_root, args.lecture_id)
+    lecture_id = _LECTURE_ID_ADAPTER.validate_python(args.lecture_id)
+    drafts = _load_drafts(args.drafts_root, lecture_id)
     packs_by_sequence = {
         pack.pack_sequence: pack
-        for pack in _load_evidence_packs(args.packs_root, args.lecture_id)
+        for pack in _load_evidence_packs(args.packs_root, lecture_id)
     }
     ledgers_by_sequence = {
         ledger.pack_sequence: ledger
-        for ledger in _load_semantic_ledgers(args.ledgers_root, args.lecture_id)
+        for ledger in _load_semantic_ledgers(args.ledgers_root, lecture_id)
     }
-
-    output_dir = args.output_root / args.lecture_id
+    # Both gateways are built (and so policy-checked) before the first call:
+    # redrafts inside stage 7 honor the drafting-stage adapter selection.
+    critic_gateway = open_stage_gateway(
+        Stage.CRITIC,
+        lecture_id=lecture_id,
+        codex_executable_override=args.codex_executable,
+    )
+    drafting_gateway = open_stage_gateway(
+        Stage.DRAFTING,
+        lecture_id=lecture_id,
+        codex_executable_override=args.codex_executable,
+    )
+    output_dir = args.output_root / lecture_id
     output_dir.mkdir(parents=True, exist_ok=True)
+    with record_llm_run(
+        lecture_id=lecture_id,
+        script_stage=Stage.CRITIC,
+        schema_name="CriticReview",
+        root=args.llm_runs_root,
+    ) as recorder:
+        _review_drafts(
+            critic_gateway=recorder.track(critic_gateway, stage=Stage.CRITIC),
+            drafting_gateway=recorder.track(drafting_gateway, stage=Stage.DRAFTING),
+            drafts=drafts,
+            packs_by_sequence=packs_by_sequence,
+            ledgers_by_sequence=ledgers_by_sequence,
+            max_retries=args.max_retries,
+            output_dir=output_dir,
+        )
+    return 0
 
+
+def _review_drafts(
+    *,
+    critic_gateway: LlmGateway,
+    drafting_gateway: LlmGateway,
+    drafts: tuple[LearningUnitDraft, ...],
+    packs_by_sequence: Mapping[int, EvidencePack],
+    ledgers_by_sequence: Mapping[int, SemanticLedger],
+    max_retries: int,
+    output_dir: Path,
+) -> None:
     for draft in drafts:
         pack = packs_by_sequence.get(draft.pack_sequence)
         ledger = ledgers_by_sequence.get(draft.pack_sequence)
@@ -111,40 +151,52 @@ def _run(args: argparse.Namespace) -> int:
             )
             continue
         final_draft, review, attempts = _evaluate_with_repair(
-            codex_executable=codex_executable,
-            environment=environment,
+            critic_gateway=critic_gateway,
+            drafting_gateway=drafting_gateway,
             draft=draft,
             pack=pack,
             ledger=ledger,
-            max_retries=args.max_retries,
+            max_retries=max_retries,
         )
-        # Anchored to the trusted `pack`, not `final_draft` -- matches
-        # CriticOrchestrator._process_draft's own identity guard
-        # (critic/pipeline.py). A repair attempt's redraft is untrusted
-        # model output: its own echoed lecture_id/pack_sequence could
-        # drift (the exact model-echo defect class ADR 0035 exists to
-        # guard against) without this file's own identity silently
-        # corrupting to match it.
-        unit = ValidatedLearningUnit(
-            lecture_id=pack.lecture_id,
-            pack_sequence=pack.pack_sequence,
-            content=final_draft,
-            review=review,
+        _write_validated_unit(
+            output_dir, pack=pack, draft=final_draft, review=review, attempts=attempts
         )
-        output_path = output_dir / f"unit_{draft.pack_sequence:03d}.json"
-        output_path.write_text(unit.model_dump_json(indent=2), encoding="utf-8")
-        verdict = "aprovado" if review.passed else "REPROVADO"
-        print(
-            f"unidade {draft.pack_sequence}: {verdict} "
-            f"({attempts} tentativa(s) de reparo), escrito em {output_path}"
-        )
-    return 0
+
+
+def _write_validated_unit(
+    output_dir: Path,
+    *,
+    pack: EvidencePack,
+    draft: LearningUnitDraft,
+    review: CriticReview,
+    attempts: int,
+) -> None:
+    # Anchored to the trusted `pack`, not `draft` -- matches
+    # CriticOrchestrator._process_draft's own identity guard
+    # (critic/pipeline.py). A repair attempt's redraft is untrusted
+    # model output: its own echoed lecture_id/pack_sequence could
+    # drift (the exact model-echo defect class ADR 0035 exists to
+    # guard against) without this file's own identity silently
+    # corrupting to match it.
+    unit = ValidatedLearningUnit(
+        lecture_id=pack.lecture_id,
+        pack_sequence=pack.pack_sequence,
+        content=draft,
+        review=review,
+    )
+    output_path = output_dir / f"unit_{pack.pack_sequence:03d}.json"
+    output_path.write_text(unit.model_dump_json(indent=2), encoding="utf-8")
+    verdict = "aprovado" if review.passed else "REPROVADO"
+    print(
+        f"unidade {pack.pack_sequence}: {verdict} "
+        f"({attempts} tentativa(s) de reparo), escrito em {output_path}"
+    )
 
 
 def _evaluate_with_repair(
     *,
-    codex_executable: str,
-    environment: dict[str, str],
+    critic_gateway: LlmGateway,
+    drafting_gateway: LlmGateway,
     draft: LearningUnitDraft,
     pack: EvidencePack,
     ledger: SemanticLedger,
@@ -156,27 +208,18 @@ def _evaluate_with_repair(
     produced."""
     current_draft = draft
     review = _generate_review(
-        codex_executable=codex_executable,
-        environment=environment,
-        draft=current_draft,
-        pack=pack,
-        ledger=ledger,
+        gateway=critic_gateway, draft=current_draft, pack=pack, ledger=ledger
     )
     attempts = 0
     while not review.passed and attempts < max_retries:
         current_draft = generate_codex_drafts._generate_draft(
-            codex_executable=codex_executable,
-            environment=environment,
+            gateway=drafting_gateway,
             pack=pack,
             ledger=ledger,
             feedback=review.feedback,
         )
         review = _generate_review(
-            codex_executable=codex_executable,
-            environment=environment,
-            draft=current_draft,
-            pack=pack,
-            ledger=ledger,
+            gateway=critic_gateway, draft=current_draft, pack=pack, ledger=ledger
         )
         attempts += 1
     return current_draft, review, attempts
@@ -184,29 +227,17 @@ def _evaluate_with_repair(
 
 def _generate_review(
     *,
-    codex_executable: str,
-    environment: dict[str, str],
+    gateway: LlmGateway,
     draft: LearningUnitDraft,
     pack: EvidencePack,
     ledger: SemanticLedger,
 ) -> CriticReview:
-    prompt = _build_prompt(draft, pack, ledger)
-    try:
-        return _call_codex_for_review(
-            codex_executable=codex_executable,
-            environment=environment,
-            prompt=prompt,
-        )
-    except LlmResponseContractError as error:
-        retry_prompt = prompt + build_bounded_retry_prompt_section(
-            heading="Retry feedback:",
-            feedback=build_llm_retry_feedback(error),
-        )
-        return _call_codex_for_review(
-            codex_executable=codex_executable,
-            environment=environment,
-            prompt=retry_prompt,
-        )
+    return complete_json(
+        gateway,
+        stage=Stage.CRITIC,
+        prompt=_build_prompt(draft, pack, ledger),
+        parse=_parse_review,
+    )
 
 
 def _build_prompt(
@@ -232,41 +263,6 @@ def _build_prompt(
         "Respond with ONLY the JSON object matching the schema above -- "
         "no explanation, no markdown fences, no extra text, no comments."
     )
-
-
-def _call_codex_for_review(
-    *,
-    codex_executable: str,
-    environment: dict[str, str],
-    prompt: str,
-) -> CriticReview:
-    # Scratch cwd, never the repository checkout -- same least-privilege
-    # rationale as the sibling Codex scripts.
-    with tempfile.TemporaryDirectory(prefix="codex-critic-") as raw_scratch_dir:
-        scratch_dir = Path(raw_scratch_dir)
-        output_path = scratch_dir / "response.txt"
-        run_bounded_process(
-            [
-                codex_executable,
-                "exec",
-                "--skip-git-repo-check",
-                "--sandbox",
-                "read-only",
-                "-C",
-                str(scratch_dir),
-                "-o",
-                str(output_path),
-                prompt,
-            ],
-            env=environment,
-            cwd=scratch_dir,
-            timeout_seconds=_SUBPROCESS_TIMEOUT_SECONDS,
-            maximum_stdout_bytes=_MAXIMUM_PROCESS_OUTPUT_BYTES,
-            maximum_stderr_bytes=_MAXIMUM_PROCESS_OUTPUT_BYTES,
-            check=True,
-        )
-        output_bytes = output_path.read_bytes()
-    return _parse_review(output_bytes)
 
 
 def _parse_review(output_bytes: bytes) -> CriticReview:
@@ -320,8 +316,8 @@ def _load_semantic_ledgers(
 def _build_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Gera as revisões críticas dos rascunhos de uma aula via Codex "
-            "CLI (Fase 7, rota de estudo pessoal não certificada, ADR 0035)."
+            "Gera as revisões críticas dos rascunhos de uma aula via gateway "
+            "LLM (Fase 7, rota de estudo pessoal não certificada, ADR 0035)."
         )
     )
     parser.add_argument("lecture_id")
@@ -329,7 +325,15 @@ def _build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--packs-root", type=Path, default=DEFAULT_PACKS_ROOT)
     parser.add_argument("--ledgers-root", type=Path, default=DEFAULT_LEDGERS_ROOT)
     parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
-    parser.add_argument("--codex-executable", default="codex")
+    parser.add_argument(
+        "--codex-executable",
+        default=None,
+        help=(
+            "sobrescreve `codex.executable` da configuração do gateway "
+            "(padrão: o valor da configuração)"
+        ),
+    )
+    parser.add_argument("--llm-runs-root", type=Path, default=LLM_RUNS_ROOT)
     parser.add_argument(
         "--max-retries",
         type=int,

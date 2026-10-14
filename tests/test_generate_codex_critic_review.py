@@ -1,19 +1,19 @@
-"""Unit tests for the Codex-based critic-review generator (Phase 7,
-ADR 0035).
+"""Unit tests for the critic-review generator on the LLM gateway (Phase 7,
+ADR 0035, ADR 0036, ADR 0046).
 
-The `codex` subprocess itself is never invoked here -- these tests stub
-`run_bounded_process` and exercise the pure logic: prompt construction,
-the scratch-cwd security invariant, and the retry-on-failure path,
-mirroring tests/test_generate_codex_drafts.py's own coverage for the
-sibling Codex-based generator."""
+No model is ever called: scripted gateway doubles replay canned responses.
+Two gateways are scripted because reviews belong to the critic stage and
+redrafts of the repair loop belong to the drafting stage (D-21)."""
 
 from __future__ import annotations
 
+import argparse
+import ast
 import importlib.util
+import json
 import sys
 from pathlib import Path
 from types import ModuleType
-from unittest.mock import patch
 
 import pytest
 
@@ -25,6 +25,7 @@ from lecture_study.domain.models import (
     SemanticLedger,
     TranscriptionSegment,
 )
+from lecture_study.llm import Stage
 
 
 def _load_module() -> ModuleType:
@@ -51,7 +52,16 @@ def _load_module() -> ModuleType:
 
 _MODULE = _load_module()
 
-_REVIEW_JSON = b'{"passed":true,"hallucination_score":0.0,"feedback":"Grounded."}'
+_APPROVED_JSON = b'{"passed":true,"hallucination_score":0.0,"feedback":"Grounded."}'
+_REJECTED_JSON = (
+    b'{"passed":false,"hallucination_score":0.8,"feedback":"Claim X is unsupported."}'
+)
+_REPAIRED_DRAFT_JSON = (
+    b'{"lecture_id":"lecture-001","pack_sequence":1,"title":"Titulo reparado",'
+    b'"body_markdown":"Corpo reparado.","clinical_warnings":[]}'
+)
+_INVALID_JSON = b'{"unexpected": "shape"}'
+_CRITIC_REJECTION_HEADING = "A previous attempt was rejected by the critic reviewer"
 
 
 def _pack() -> EvidencePack:
@@ -108,200 +118,220 @@ def test_build_prompt_embeds_draft_evidence_ledger_and_schema() -> None:
     assert '"passed"' in prompt
 
 
-def test_call_codex_for_review_runs_with_a_scratch_cwd_not_the_repo_root() -> None:
-    """Mirrors test_generate_codex_drafts.py's own security-review
-    coverage: the subprocess must never run with the repository checkout
-    (which holds .env) as its cwd/-C working root."""
+def test_generate_review_retries_once_with_feedback_on_first_failure(
+    make_scripted_gateway,
+) -> None:
+    gateway = make_scripted_gateway([_INVALID_JSON, _APPROVED_JSON])
 
-    captured: dict[str, object] = {}
-
-    def fake_run_bounded_process(args, *, cwd, **kwargs):
-        captured["cwd"] = cwd
-        captured["dash_c"] = args[args.index("-C") + 1]
-        output_index = args.index("-o") + 1
-        Path(args[output_index]).write_bytes(_REVIEW_JSON)
-
-    with patch.object(
-        _MODULE, "run_bounded_process", side_effect=fake_run_bounded_process
-    ):
-        review = _MODULE._call_codex_for_review(
-            codex_executable="codex",
-            environment={},
-            prompt="prompt",
-        )
-
-    repo_root = Path(__file__).parents[1].resolve()
-    assert review.passed is True
-    assert Path(captured["cwd"]).resolve() != repo_root
-    assert str(captured["cwd"]) == captured["dash_c"]
-
-
-def test_call_codex_for_review_raises_on_schema_mismatch() -> None:
-    def fake_run_bounded_process(args, **_kwargs):
-        output_index = args.index("-o") + 1
-        Path(args[output_index]).write_bytes(b'{"unexpected": "shape"}')
-
-    with (
-        patch.object(
-            _MODULE, "run_bounded_process", side_effect=fake_run_bounded_process
-        ),
-        pytest.raises(_MODULE.LlmResponseContractError),
-    ):
-        _MODULE._call_codex_for_review(
-            codex_executable="codex",
-            environment={},
-            prompt="prompt",
-        )
-
-
-def test_generate_review_retries_once_with_feedback_on_first_failure() -> None:
-    attempts: list[str] = []
-
-    def fake_call_codex_for_review(*, codex_executable, environment, prompt):
-        attempts.append(prompt)
-        if len(attempts) == 1:
-            raise _MODULE.LlmResponseContractError("boom", retry_category="schema")
-        return _MODULE._REVIEW_ADAPTER.validate_json(_REVIEW_JSON)
-
-    with patch.object(
-        _MODULE, "_call_codex_for_review", side_effect=fake_call_codex_for_review
-    ):
-        review = _MODULE._generate_review(
-            codex_executable="codex",
-            environment={},
-            draft=_draft(),
-            pack=_pack(),
-            ledger=_ledger(),
-        )
-
-    assert review.passed is True
-    assert len(attempts) == 2
-    assert "Retry feedback:" in attempts[1]
-
-
-def test_generate_review_reports_a_rejected_draft_verdict_unchanged() -> None:
-    """_generate_review() itself is a single-shot verdict, with no repair
-    logic of its own -- the repair loop lives one layer up, in
-    _evaluate_with_repair (see tests below)."""
-    rejected = _MODULE._REVIEW_ADAPTER.validate_json(
-        b'{"passed":false,"hallucination_score":0.9,"feedback":"Unsupported claim."}'
+    review = _MODULE._generate_review(
+        gateway=gateway, draft=_draft(), pack=_pack(), ledger=_ledger()
     )
 
-    with patch.object(_MODULE, "_call_codex_for_review", return_value=rejected):
-        review = _MODULE._generate_review(
-            codex_executable="codex",
-            environment={},
-            draft=_draft(),
-            pack=_pack(),
-            ledger=_ledger(),
-        )
+    assert review.passed is True
+    assert [request.is_retry for request in gateway.requests] == [False, True]
+    assert all(request.stage is Stage.CRITIC for request in gateway.requests)
+    assert "Retry feedback:" in gateway.requests[1].prompt
+    assert "Retry feedback:" not in gateway.requests[0].prompt
+
+
+def test_generate_review_reports_a_rejected_draft_verdict_unchanged(
+    make_scripted_gateway,
+) -> None:
+    """_generate_review() itself is a single-shot verdict, with no repair
+    logic of its own -- a rejection is valid JSON, so it is not retried. The
+    repair loop lives one layer up, in _evaluate_with_repair."""
+    gateway = make_scripted_gateway([_REJECTED_JSON])
+
+    review = _MODULE._generate_review(
+        gateway=gateway, draft=_draft(), pack=_pack(), ledger=_ledger()
+    )
 
     assert review.passed is False
-    assert review.feedback == "Unsupported claim."
+    assert review.feedback == "Claim X is unsupported."
+    assert len(gateway.requests) == 1
 
 
-def test_evaluate_with_repair_skips_redraft_when_first_review_passes() -> None:
-    """No repair attempt (and no call into generate_codex_drafts at all)
-    when the first review already passes -- matches
-    CriticOrchestrator._evaluate_with_repair's own short-circuit."""
-    approved = _MODULE._REVIEW_ADAPTER.validate_json(_REVIEW_JSON)
+def test_evaluate_with_repair_skips_redraft_when_first_review_passes(
+    make_scripted_gateway,
+) -> None:
+    """No repair attempt (and no drafting-gateway request at all) when the
+    first review already passes -- matches CriticOrchestrator's own
+    short-circuit."""
+    critic_gateway = make_scripted_gateway([_APPROVED_JSON])
+    drafting_gateway = make_scripted_gateway([])
     original_draft = _draft()
 
-    with (
-        patch.object(_MODULE, "_generate_review", return_value=approved),
-        patch.object(
-            _MODULE.generate_codex_drafts,
-            "_generate_draft",
-            side_effect=AssertionError("must not redraft on a first-try pass"),
-        ),
-    ):
-        final_draft, review, attempts = _MODULE._evaluate_with_repair(
-            codex_executable="codex",
-            environment={},
-            draft=original_draft,
-            pack=_pack(),
-            ledger=_ledger(),
-            max_retries=2,
-        )
+    final_draft, review, attempts = _MODULE._evaluate_with_repair(
+        critic_gateway=critic_gateway,
+        drafting_gateway=drafting_gateway,
+        draft=original_draft,
+        pack=_pack(),
+        ledger=_ledger(),
+        max_retries=2,
+    )
 
     assert review.passed is True
     assert attempts == 0
     assert final_draft is original_draft
+    assert drafting_gateway.requests == []
 
 
-def test_evaluate_with_repair_redrafts_with_critic_feedback_until_passing() -> None:
-    """ADR 0035 decision 4 revision (2026-09-16, operator report): a real
-    batch run rejected 19/23 units for genuine grounding defects with no
-    repair path, leaving most of a lecture permanently flagged. This
-    mirrors CriticOrchestrator._evaluate_with_repair: on rejection,
-    redraft via generate_codex_drafts._generate_draft with the critic's
-    feedback, then re-review, until it passes or retries run out."""
-    rejected = _MODULE._REVIEW_ADAPTER.validate_json(
-        b'{"passed":false,"hallucination_score":0.8,'
-        b'"feedback":"Claim X is unsupported."}'
+def test_evaluate_with_repair_redrafts_with_critic_feedback_until_passing(
+    make_scripted_gateway,
+) -> None:
+    """ADR 0035 decision 4 revision (2026-09-16): on rejection, redraft with
+    the critic's feedback through the drafting gateway, then re-review
+    through the critic gateway, until it passes or retries run out."""
+    critic_gateway = make_scripted_gateway([_REJECTED_JSON, _APPROVED_JSON])
+    drafting_gateway = make_scripted_gateway([_REPAIRED_DRAFT_JSON])
+
+    final_draft, review, attempts = _MODULE._evaluate_with_repair(
+        critic_gateway=critic_gateway,
+        drafting_gateway=drafting_gateway,
+        draft=_draft(),
+        pack=_pack(),
+        ledger=_ledger(),
+        max_retries=2,
     )
-    approved = _MODULE._REVIEW_ADAPTER.validate_json(_REVIEW_JSON)
-    reviews = iter([rejected, approved])
-    repaired_draft = _draft()
-
-    def fake_generate_draft(*, codex_executable, environment, pack, ledger, feedback):
-        assert feedback == "Claim X is unsupported."
-        return repaired_draft
-
-    with (
-        patch.object(
-            _MODULE, "_generate_review", side_effect=lambda **_kw: next(reviews)
-        ),
-        patch.object(
-            _MODULE.generate_codex_drafts,
-            "_generate_draft",
-            side_effect=fake_generate_draft,
-        ) as mock_generate_draft,
-    ):
-        final_draft, review, attempts = _MODULE._evaluate_with_repair(
-            codex_executable="codex",
-            environment={},
-            draft=_draft(),
-            pack=_pack(),
-            ledger=_ledger(),
-            max_retries=2,
-        )
 
     assert review.passed is True
     assert attempts == 1
-    assert final_draft is repaired_draft
-    assert mock_generate_draft.call_count == 1
+    assert final_draft.title == "Titulo reparado"
+    (redraft_request,) = drafting_gateway.requests
+    assert redraft_request.stage is Stage.DRAFTING
+    assert redraft_request.is_retry is False
+    assert _CRITIC_REJECTION_HEADING in redraft_request.prompt
+    assert "Claim X is unsupported." in redraft_request.prompt
+    assert [request.stage for request in critic_gateway.requests] == [
+        Stage.CRITIC,
+        Stage.CRITIC,
+    ]
+    assert "Titulo reparado" in critic_gateway.requests[1].prompt
 
 
-def test_evaluate_with_repair_gives_up_after_max_retries_and_keeps_last_attempt() -> (
-    None
-):
+def test_evaluate_with_repair_gives_up_after_max_retries_and_keeps_last_attempt(
+    make_scripted_gateway,
+) -> None:
     """Matches the local CriticOrchestrator's own exhausted-retries
     behavior: a unit that never passes is still persisted, with its last
     (failing) attempt and verdict, not silently discarded."""
-    always_rejected = _MODULE._REVIEW_ADAPTER.validate_json(
-        b'{"passed":false,"hallucination_score":0.5,"feedback":"Still unsupported."}'
-    )
-    last_draft = _draft()
+    critic_gateway = make_scripted_gateway([_REJECTED_JSON] * 3)
+    drafting_gateway = make_scripted_gateway([_REPAIRED_DRAFT_JSON] * 2)
 
-    with (
-        patch.object(_MODULE, "_generate_review", return_value=always_rejected),
-        patch.object(
-            _MODULE.generate_codex_drafts,
-            "_generate_draft",
-            return_value=last_draft,
-        ) as mock_generate_draft,
-    ):
-        final_draft, review, attempts = _MODULE._evaluate_with_repair(
-            codex_executable="codex",
-            environment={},
-            draft=_draft(),
-            pack=_pack(),
-            ledger=_ledger(),
-            max_retries=2,
-        )
+    final_draft, review, attempts = _MODULE._evaluate_with_repair(
+        critic_gateway=critic_gateway,
+        drafting_gateway=drafting_gateway,
+        draft=_draft(),
+        pack=_pack(),
+        ledger=_ledger(),
+        max_retries=2,
+    )
 
     assert review.passed is False
+    assert review.feedback == "Claim X is unsupported."
     assert attempts == 2
-    assert final_draft is last_draft
-    assert mock_generate_draft.call_count == 2
+    assert final_draft.title == "Titulo reparado"
+    assert len(critic_gateway.requests) == 3
+    assert len(drafting_gateway.requests) == 2
+
+
+def test_run_persists_the_last_failing_pair_and_records_both_gateways(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    make_scripted_gateway,
+) -> None:
+    lecture_id = "lecture-001"
+    roots = _write_stage_inputs(tmp_path, lecture_id)
+    critic_gateway = make_scripted_gateway([_REJECTED_JSON] * 2)
+    drafting_gateway = make_scripted_gateway([_REPAIRED_DRAFT_JSON])
+    opened_stages: list[Stage] = []
+    gateways_by_stage = {Stage.CRITIC: critic_gateway, Stage.DRAFTING: drafting_gateway}
+
+    def open_scripted_gateway(stage: Stage, **_keywords: object):
+        opened_stages.append(stage)
+        return gateways_by_stage[stage]
+
+    monkeypatch.setattr(_MODULE, "open_stage_gateway", open_scripted_gateway)
+    args = argparse.Namespace(
+        lecture_id=lecture_id,
+        drafts_root=roots["drafts"],
+        packs_root=roots["packs"],
+        ledgers_root=roots["ledgers"],
+        output_root=roots["output"],
+        codex_executable=None,
+        llm_runs_root=roots["runs"],
+        max_retries=1,
+    )
+
+    exit_code = _MODULE._run(args)
+
+    assert exit_code == 0
+    assert opened_stages == [Stage.CRITIC, Stage.DRAFTING]
+    unit = json.loads((roots["output"] / lecture_id / "unit_001.json").read_text())
+    assert unit["review"]["passed"] is False
+    assert unit["content"]["title"] == "Titulo reparado"
+    record = json.loads((roots["runs"] / lecture_id / "critic.json").read_text())
+    assert record["status"] == "succeeded"
+    assert [(usage["stage"], usage["calls"]) for usage in record["gateways"]] == [
+        ("critic", 2),
+        ("drafting", 1),
+    ]
+
+
+def test_main_rejects_a_malformed_lecture_id_before_opening_a_gateway(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    opened_gateways: list[int] = []
+    monkeypatch.setattr(
+        _MODULE, "open_stage_gateway", lambda *_a, **_k: opened_gateways.append(1)
+    )
+    monkeypatch.setattr(sys, "argv", ["generate_codex_critic_review", "../x"])
+
+    exit_code = _MODULE.main()
+
+    assert exit_code == 1
+    assert "error:" in capsys.readouterr().err
+    assert opened_gateways == []
+
+
+def test_script_imports_no_process_or_scratch_directory_module() -> None:
+    forbidden_modules = {
+        "tempfile",
+        "subprocess",
+        "lecture_study.ops.process_lifecycle",
+        "lecture_study.ops.process_environment",
+    }
+    source_text = Path(_MODULE.__file__).read_text(encoding="utf-8")
+
+    assert _imported_module_names(source_text).isdisjoint(forbidden_modules)
+
+
+def _write_stage_inputs(tmp_path: Path, lecture_id: str) -> dict[str, Path]:
+    roots = {
+        "drafts": tmp_path / "drafts",
+        "packs": tmp_path / "packs",
+        "ledgers": tmp_path / "ledgers",
+        "output": tmp_path / "validated",
+        "runs": tmp_path / "runs",
+    }
+    inputs = (
+        ("drafts", "draft_001.json", _draft().model_dump_json()),
+        ("packs", "pack_001.json", _pack().model_dump_json()),
+        ("ledgers", "ledger_001.json", _ledger().model_dump_json()),
+    )
+    for root_name, file_name, content in inputs:
+        lecture_directory = roots[root_name] / lecture_id
+        lecture_directory.mkdir(parents=True)
+        (lecture_directory / file_name).write_text(content, encoding="utf-8")
+    return roots
+
+
+def _imported_module_names(source_text: str) -> set[str]:
+    names: set[str] = set()
+    for node in ast.walk(ast.parse(source_text)):
+        if isinstance(node, ast.Import):
+            names.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module is not None:
+            names.add(node.module)
+    return names
