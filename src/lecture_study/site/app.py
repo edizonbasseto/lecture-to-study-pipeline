@@ -90,10 +90,10 @@ _ACCOUNT_REFERENCE_HEX_DIGITS = 16
 _HEALTH_CHECK_PATH = "/up"
 _LOGIN_PATH = "/entrar"
 _LOGOUT_PATH = "/sair"
-# The only (path, method) pairs answered without credentials. Matching the
-# method as well as the path keeps any other method on these paths -- HEAD,
-# PUT, DELETE -- behind the ordinary authentication check instead of letting
-# it fall through to the static-file handler mounted at "/".
+# The only (path, method) pairs answered without credentials. Any other
+# method on these paths -- HEAD, PUT, DELETE -- is refused with 405 before
+# authentication (see `_method_not_allowed_response`) instead of falling
+# through to the static-file handler mounted at "/".
 _UNAUTHENTICATED_METHODS_BY_PATH = {
     _HEALTH_CHECK_PATH: frozenset({"GET", "HEAD"}),
     _LOGIN_PATH: frozenset({"GET", "POST"}),
@@ -583,6 +583,8 @@ def _build_application(
         served_path = _unambiguous_served_path(request)
         if served_path is None:
             return _AMBIGUOUS_PATH_RESPONSE
+        if _is_exempt_path_with_other_method(served_path, request.method):
+            return _method_not_allowed_response(served_path)
         if not _is_unauthenticated_route(served_path, request.method):
             return await admit_authorized_person(request, served_path, call_next)
         if served_path == _HEALTH_CHECK_PATH:
@@ -730,6 +732,26 @@ def _account_reference(account: str, signing_secret: bytes) -> str:
 
 def _is_unauthenticated_route(served_path: str, method: str) -> bool:
     return method in _UNAUTHENTICATED_METHODS_BY_PATH.get(served_path, frozenset())
+
+
+def _is_exempt_path_with_other_method(served_path: str, method: str) -> bool:
+    return served_path in _UNAUTHENTICATED_METHODS_BY_PATH and not (
+        _is_unauthenticated_route(served_path, method)
+    )
+
+
+def _method_not_allowed_response(served_path: str) -> Response:
+    """A plain refusal rather than the usual denial: the login redirect
+    that denial sends a browser to is itself an exempt path, so a client
+    that keeps HEAD across redirects would follow it forever."""
+    allowed_methods = sorted(_UNAUTHENTICATED_METHODS_BY_PATH[served_path])
+    return Response(
+        status_code=405,
+        headers={
+            "Allow": ", ".join(allowed_methods),
+            "Cache-Control": _PRIVATE_CACHE_DIRECTIVE,
+        },
+    )
 
 
 def _denial_for(request: Request) -> Response:

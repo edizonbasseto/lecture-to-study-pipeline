@@ -43,7 +43,7 @@ jobs:
             --text --no-ext-diff --no-textconv --no-color \
             --format='%an%n%ae%n%cn%n%ce%n%B' > "$RUNNER_TEMP/history.txt"
           git for-each-ref \
-            --format='%(refname)%0a%(taggername) %(taggeremail)%0a%(contents)' \
+            --format='%(refname)%0a%(tag)%0a%(taggername) %(taggeremail)%0a%(contents)' \
             >> "$RUNNER_TEMP/history.txt"
           python3 -I scripts/denylist_scan.py "$RUNNER_TEMP/denylist.txt" \
             < "$RUNNER_TEMP/history.txt"

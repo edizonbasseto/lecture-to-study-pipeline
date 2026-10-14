@@ -1,0 +1,11 @@
+# Only the site package and its runtime files are copied into the image;
+# compiled bytecode embeds absolute host paths and must never be included.
+**/__pycache__
+**/*.py[oc]
+.git
+.venv
+workspace
+config
+tmp
+.env
+.env.*

@@ -1981,28 +1981,37 @@ def test_ambiguous_paths_cannot_escape_a_restricted_scope(
 
 
 @pytest.mark.parametrize(
-    ("method", "path"),
+    ("method", "path", "allowed_methods"),
     (
-        ("HEAD", "/entrar"),
-        ("PUT", "/entrar"),
-        ("DELETE", "/entrar"),
-        ("PUT", "/sair"),
-        ("POST", "/sair"),
-        ("HEAD", "/sair"),
-        ("POST", "/up"),
+        ("HEAD", "/entrar", "GET, POST"),
+        ("PUT", "/entrar", "GET, POST"),
+        ("DELETE", "/entrar", "GET, POST"),
+        ("PUT", "/sair", "GET"),
+        ("POST", "/sair", "GET"),
+        ("HEAD", "/sair", "GET"),
+        ("POST", "/up", "GET, HEAD"),
     ),
 )
-def test_exempt_paths_are_exempt_only_for_their_own_methods(
-    method: str, path: str, site_directory: Path, credentials_path: Path
+def test_exempt_paths_refuse_other_methods_without_redirecting(
+    method: str,
+    path: str,
+    allowed_methods: str,
+    site_directory: Path,
+    credentials_path: Path,
 ) -> None:
     """The unauthenticated exemptions name a method as well as a path, so
-    any other method reaches the ordinary authentication check instead of
-    the static-file handler mounted behind it."""
+    any other method is refused outright -- never handed to the static
+    files behind it, and never redirected to the login form, which a
+    client that keeps HEAD across redirects would follow forever."""
     client = _client(site_directory, credentials_path)
 
-    response = client.request(method, path)
+    response = client.request(
+        method, path, headers={"Accept": "text/html"}, follow_redirects=False
+    )
 
-    assert response.status_code == 401
+    assert response.status_code == 405
+    assert response.headers["Allow"] == allowed_methods
+    assert response.headers["X-Frame-Options"] == "DENY"
 
 
 def test_exempt_methods_still_answer_without_credentials(

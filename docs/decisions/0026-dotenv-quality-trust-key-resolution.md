@@ -101,11 +101,13 @@ in plan `01-17`'s Task 1 and Task 3 fails the plan if either file moves.
 Loading the key into the parent process's environment through dotenv has no
 effect on what the sanitizer strips, because the sanitizer filters by prefix
 at the moment a child environment is built, regardless of how the parent's
-own environment was populated. This is proven, not merely asserted:
-`tests/test_quality_trust.py::test_sanitized_child_environment_excludes_key_after_dotenv_resolution`
-resolves the key from a dotenv file into a parent environment mapping and
-then asserts that `sanitized_child_process_environment()` over that same
-mapping still excludes `LECTURE_STUDY_QUALITY_HMAC_KEY_B64`. Plan `01-17`'s
+own environment was populated. This was proven at the time by a test that
+resolved the key from a dotenv file into a parent environment mapping and
+asserted that `sanitized_child_process_environment()` over that mapping
+still excluded `LECTURE_STUDY_QUALITY_HMAC_KEY_B64` (historical: since the
+ADR 0044 amendment the key is never written into the parent environment;
+`tests/test_quality_trust.py::test_dotenv_resolution_never_mutates_the_parent_environment`
+and `tests/test_process_environment.py` now carry the guarantee). Plan `01-17`'s
 Task 3 repeats the same proof empirically, in one process, against the real
 production call sites.
 

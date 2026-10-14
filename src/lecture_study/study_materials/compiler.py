@@ -34,6 +34,11 @@ _SPEAKER_INTRODUCTION_TITLE: Final = re.compile(
 _SUPPLEMENTARY_VIDEO_TITLE_SUFFIX: Final = re.compile(
     r"\s*\bsuper video\s*$", re.IGNORECASE
 )
+# A real line break or its literal escaped spelling ("\\n") just before a
+# "Super Video" label, in any letter case.
+_LINE_BROKEN_SUPER_VIDEO_LABEL: Final = re.compile(
+    r"(?:\\n|\n)(?=super video)", re.IGNORECASE
+)
 _SUMMARY_KEYWORDS: Final = (
     "alerta",
     "avaliação",
@@ -771,13 +776,11 @@ def _join_super_video_line_break(value: str) -> str:
     """Replace a real or literal escaped line break before "Super Video"
     with a space, so the label reads as part of the same line."""
 
-    return value.replace("\\nSuper Video", " Super Video").replace(
-        "\nSuper Video", " Super Video"
-    )
+    return _LINE_BROKEN_SUPER_VIDEO_LABEL.sub(" ", value)
 
 
 def _normalize_pt_br(value: str) -> str:
-    normalized = value.replace("\\nSuper Video", " ").replace("\nSuper Video", " ")
+    normalized = _join_super_video_line_break(value)
     for pattern, replacement in _TERM_REPLACEMENTS:
         normalized = re.sub(pattern, replacement, normalized, flags=re.IGNORECASE)
     return re.sub(r"[ \t]+", " ", normalized).strip()

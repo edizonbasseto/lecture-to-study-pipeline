@@ -3,15 +3,21 @@
 Used by the git hooks (staged content, commit messages, pushed history) and
 by the CI history scan. The denylist lives outside the repository: committing
 it would publish the very terms it protects. For the same reason a match is
-reported by denylist line number only, never by the term itself.
+reported by the term's position among the denylist terms (comments and
+blank lines are not counted), never by the term itself.
 
 Terms and text are folded before comparison -- case, accents, compatibility
 forms (full-width letters), and invisible format characters are ignored --
 and the text is compared both as written and percent-decoded/HTML-unescaped.
 A single-word term matches as a substring. A multi-word term also matches
-when its words are joined by any short run of separators, including a line
-break, so it survives hyphenation, URL encoding, and wrapping; words of
-unrelated text are never fused into a single-word term.
+when its words are joined by a short run of separators, optionally continued
+on the next line after any indentation or diff marker, so it survives
+hyphenation, URL encoding, and line wrapping; words of unrelated text are
+never fused into a single-word term.
+
+Knowingly not caught: separators inside a single word ("seg redo"),
+double-encoded text, look-alike letters from other scripts, and encodings
+such as base64. The gate targets accidental leaks, not a deliberate adversary.
 """
 
 import html
@@ -25,7 +31,7 @@ MATCH_EXIT_CODE = 1
 UNAVAILABLE_EXIT_CODE = 2
 
 _WORD = re.compile(r"[0-9a-z]+")
-_SEPARATORS_BETWEEN_WORDS = r"[^0-9a-z]{0,8}"
+_SEPARATORS_BETWEEN_WORDS = r"[^0-9a-z\n]{0,8}(?:\n[^0-9a-z\n]{0,40})?"
 
 
 class DenylistUnavailableError(RuntimeError):
@@ -67,7 +73,7 @@ def main(argv: list[str]) -> int:
     matches = matching_entry_numbers(text, terms)
     if matches:
         entries = ", ".join(str(number) for number in matches)
-        print(f"denylisted term found (denylist line {entries})", file=sys.stderr)
+        print(f"denylisted term found (denylist term {entries})", file=sys.stderr)
         return MATCH_EXIT_CODE
     return 0
 

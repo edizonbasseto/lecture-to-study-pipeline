@@ -77,30 +77,36 @@ Three layers keep private terms and secrets out of history:
     ref names, tag names and annotated tag messages, author and committer
     identities, and commit messages, against the denylist and `gitleaks`.
 
-  Every git invocation in the hooks and in CI sets `core.quotePath=false`, so
-  non-ASCII file names reach the scanner as written rather than as octal
-  escapes that would hide a term.
+  Every git command in the hooks and in CI that prints file paths (`diff`,
+  `log -p`) sets `core.quotePath=false`, so non-ASCII file names reach the
+  scanner as written rather than as octal escapes that would hide a term.
+  The hook scripts are exercised end to end by `tests/test_git_hooks.py`.
 - **Denylist scanner** (`scripts/denylist_scan.py`), shared by the hooks and
   CI. The denylist is kept outside the repository (by default under the
   user's configuration directory, overridable through
   `LECTURE_STUDY_DENYLIST`), because committing it would publish the very
-  terms it protects. Terms and text are compared in a folded spelling (NFKD
-  decomposition, case folding, accents stripped) and in a separator-squashed
-  spelling of that folded text. The squashed comparison is limited to a
-  window of each line joined with the next, so a term split across a line
-  break is still caught without matching letters gathered from unrelated,
-  distant text. The same comparisons also run over a percent-decoded and
-  HTML-unescaped copy of the text, so an encoded spelling does not slip
-  through. A match is reported by denylist line number only, never by the
-  term, so a failure never echoes a protected term into a terminal or a CI
-  log. A missing, unreadable, or empty denylist fails the scan rather than
-  skipping it.
+  terms it protects. Terms and text are folded before comparison (NFKD
+  decomposition, case folding, accents and invisible format characters
+  stripped), and the text is compared both as written and percent-decoded
+  and HTML-unescaped. A single-word term matches as a substring of the
+  folded text. A multi-word term also matches when its words are joined by
+  up to eight separator characters, optionally continued on the next line
+  after up to forty characters of indentation or diff marker, so hyphenated,
+  URL-encoded, and wrapped spellings are caught while words of unrelated text
+  are never fused into a term. Knowingly not caught: separators inside a
+  single word, double-encoded text, look-alike letters from other scripts,
+  and encodings such as base64 -- the gate targets accidental leaks, not a
+  deliberate adversary. A match is reported by the term's position among the
+  denylist terms, never by the term, so a failure never echoes a protected
+  term into a terminal or a CI log. A missing, unreadable, or empty denylist
+  fails the scan rather than skipping it.
 - **CI** (`.github/workflows/ci.yml`), on every push to `main` and every pull
   request:
   - `secret-scan` checks out the full history and runs the `gitleaks` action.
   - `denylist-scan` writes the `DENYLIST` repository secret to a temporary
-    file and runs the scanner over the full history with the same coverage as
-    `pre-push`. When the secret is absent -- including on pull requests from
+    file and runs the scanner over the full history of every ref (merge diffs,
+    author and committer identities, commit messages) plus every ref name,
+    tag name, tagger, and annotated tag message. When the secret is absent -- including on pull requests from
     forks, where repository secrets are not exposed -- the job fails closed
     instead of passing vacuously.
   - `test` runs `ruff` (lint and format check), `mypy`, and `pytest` on macOS

@@ -60,6 +60,20 @@ def test_separate_words_never_fuse_into_a_single_word_term() -> None:
     assert denylist_scan.matching_entry_numbers("na tal hora", ["natal"]) == []
 
 
+def test_a_term_wrapped_across_an_indented_diff_line_is_matched() -> None:
+    diff_lines = (
+        '+    texto = (\n+        "texto do Instituto "\n+        "Exemplo de teste"\n'
+    )
+
+    assert denylist_scan.matching_entry_numbers(diff_lines, _TERMS) == [1]
+
+
+def test_words_separated_by_other_text_across_lines_do_not_match() -> None:
+    text = "do Instituto\noutra coisa Exemplo"
+
+    assert denylist_scan.matching_entry_numbers(text, _TERMS) == []
+
+
 def test_clean_text_matches_nothing() -> None:
     assert denylist_scan.matching_entry_numbers("material de estudo", _TERMS) == []
 

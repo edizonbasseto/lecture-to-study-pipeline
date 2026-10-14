@@ -171,6 +171,8 @@ def test_normalizes_known_english_terms_and_pt_br_document_labels() -> None:
         "Técnica cirúrgica Super Video",
         "Técnica cirúrgica\\nSuper Video",
         "Técnica cirúrgica\nSuper Video",
+        "Técnica cirúrgica\\nsuper video",
+        "Técnica cirúrgica\nSUPER VIDEO",
     ],
 )
 def test_normalizes_the_supplementary_video_lecture_title(lecture_title: str) -> None:
