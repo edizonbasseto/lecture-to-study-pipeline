@@ -102,7 +102,8 @@ Three layers keep private terms and secrets out of history:
   fails the scan rather than skipping it.
 - **CI** (`.github/workflows/ci.yml`), on every push to `main` and every pull
   request:
-  - `secret-scan` checks out the full history and runs the `gitleaks` action.
+  - `secret-scan` checks out the full history and runs a pinned, checksum-verified
+    `gitleaks` CLI over every ref.
   - `denylist-scan` writes the `DENYLIST` repository secret to a temporary
     file and runs the scanner over the full history of every ref (merge diffs,
     author and committer identities, commit messages) plus every ref name,

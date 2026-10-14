@@ -218,10 +218,15 @@ def test_run_writes_a_depth_report_alongside_the_lecture_drafts(
         codex_executable="codex",
     )
 
-    with patch.object(
-        _MODULE,
-        "_generate_draft",
-        return_value=_MODULE._DRAFT_ADAPTER.validate_json(_DRAFT_JSON),
+    with (
+        patch.object(
+            _MODULE, "resolve_trusted_executable", return_value="/trusted/codex"
+        ),
+        patch.object(
+            _MODULE,
+            "_generate_draft",
+            return_value=_MODULE._DRAFT_ADAPTER.validate_json(_DRAFT_JSON),
+        ),
     ):
         exit_code = _MODULE._run(args)
 
