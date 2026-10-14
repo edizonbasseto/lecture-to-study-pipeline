@@ -1,15 +1,19 @@
-"""Unit tests for the Codex-based personal-study flashcard generator.
+"""Unit tests for the personal-study flashcard generator on the LLM gateway
+(ADR 0046).
 
-The `codex` subprocess itself is never invoked here -- these tests stub
-`_call_codex_for_cards`/`run_bounded_process` and exercise the pure
-logic: fact formatting, per-unit card-count derivation, the
-supplemental-backfill loop, and the count-mismatch retry/error path,
-mirroring tests/test_generate_codex_mock_exam.py's own coverage for the
-sibling Codex-based generator."""
+No model is ever called: a scripted gateway double replays canned responses.
+The tests exercise fact formatting, per-unit card-count derivation, the
+supplemental-backfill loop, the count-mismatch retry/error path, the critic
+gate that must run before any gateway is built (ADR 0045), the stage's own
+gateway-configuration validation (it runs outside the orchestrator), the run
+record and the import boundary, mirroring
+tests/test_generate_codex_mock_exam.py for the sibling generator."""
 
 from __future__ import annotations
 
+import ast
 import importlib.util
+import json
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -18,6 +22,7 @@ from unittest.mock import patch
 import pytest
 
 from lecture_study.domain.models import (
+    ArtifactExecutionMode,
     CriticReview,
     LearningUnitDraft,
     PersonalStudyFlashcard,
@@ -25,6 +30,8 @@ from lecture_study.domain.models import (
     SemanticLedger,
     ValidatedLearningUnit,
 )
+from lecture_study.llm import Stage
+from lecture_study.llm.config import ADAPTER_OVERRIDE_ENV
 
 _LECTURE_ID = "lecture-001"
 
@@ -91,58 +98,57 @@ def test_accepts_clean_ptbr_cards() -> None:
     _MODULE._reject_cards_unfit_for_a_student([_card()])
 
 
-def test_call_codex_for_cards_raises_on_count_mismatch() -> None:
-    def fake_run_bounded_process(args, **_kwargs):
-        output_index = args.index("-o") + 1
-        Path(args[output_index]).write_bytes(b"[]")
-
-    with (
-        patch.object(
-            _MODULE, "run_bounded_process", side_effect=fake_run_bounded_process
-        ),
-        patch.object(_MODULE, "_parse_card_array", return_value=[_card(), _card()]),
-        pytest.raises(_MODULE.LlmResponseContractError, match="expected 1 card"),
-    ):
-        _MODULE._call_codex_for_cards(
-            codex_executable="codex",
-            environment={},
-            prompt="prompt",
-            expected_count=1,
-        )
+def _card_array_json(*cards: PersonalStudyFlashcard) -> bytes:
+    return json.dumps([card.model_dump(mode="json") for card in cards]).encode("utf-8")
 
 
-def test_call_codex_for_cards_runs_with_a_scratch_cwd_not_the_repo_root() -> None:
-    """Mirrors test_generate_codex_mock_exam.py's own security-review
-    coverage: the subprocess must never run with the repository checkout
-    (which holds .env) as its cwd/-C working root."""
+def test_request_cards_raises_after_two_count_mismatches(
+    make_scripted_gateway,
+) -> None:
+    wrong_count = _card_array_json(_card("Primeira?"), _card("Segunda?"))
+    gateway = make_scripted_gateway([wrong_count, wrong_count])
 
-    captured: dict[str, object] = {}
+    with pytest.raises(_MODULE.LlmResponseContractError, match="expected 1 card"):
+        _MODULE._request_cards(gateway=gateway, prompt="prompt", expected_count=1)
 
-    def fake_run_bounded_process(args, *, cwd, **kwargs):
-        captured["cwd"] = cwd
-        captured["dash_c"] = args[args.index("-C") + 1]
-        output_index = args.index("-o") + 1
-        Path(args[output_index]).write_bytes(
-            b'[{"prompt":"p","answer":"a","source_unit_sequence":1}]'
-        )
+    assert len(gateway.requests) == 2
+    assert all(request.stage is Stage.FLASHCARDS for request in gateway.requests)
 
-    with patch.object(
-        _MODULE, "run_bounded_process", side_effect=fake_run_bounded_process
-    ):
-        cards = _MODULE._call_codex_for_cards(
-            codex_executable="codex",
-            environment={},
-            prompt="prompt",
-            expected_count=1,
-        )
 
-    repo_root = Path(__file__).parents[1].resolve()
+def test_request_cards_retries_once_with_feedback_after_a_count_mismatch(
+    make_scripted_gateway,
+) -> None:
+    gateway = make_scripted_gateway(
+        [
+            _card_array_json(_card("Primeira?"), _card("Segunda?")),
+            _card_array_json(_card()),
+        ]
+    )
+
+    cards = _MODULE._request_cards(gateway=gateway, prompt="prompt", expected_count=1)
+
     assert len(cards) == 1
-    assert Path(captured["cwd"]).resolve() != repo_root
-    assert str(captured["cwd"]) == captured["dash_c"]
+    assert [request.is_retry for request in gateway.requests] == [False, True]
+    assert "Retry feedback:" in gateway.requests[1].prompt
+    assert "Retry feedback:" not in gateway.requests[0].prompt
 
 
-def test_generate_supplemental_cards_stops_once_floor_is_met() -> None:
+def test_request_cards_retries_when_the_student_guard_rejects_the_text(
+    make_scripted_gateway,
+) -> None:
+    leak = _card().model_copy(update={"answer": "Segundo o material, usar dipirona."})
+    gateway = make_scripted_gateway([_card_array_json(leak), _card_array_json(_card())])
+
+    cards = _MODULE._request_cards(gateway=gateway, prompt="prompt", expected_count=1)
+
+    assert cards[0].answer == "Resposta."
+    assert len(gateway.requests) == 2
+    assert "Retry feedback:" in gateway.requests[1].prompt
+
+
+def test_generate_supplemental_cards_stops_once_floor_is_met(
+    make_scripted_gateway,
+) -> None:
     ledger = SemanticLedger(
         lecture_id="lecture-001",
         pack_sequence=1,
@@ -162,8 +168,7 @@ def test_generate_supplemental_cards_stops_once_floor_is_met() -> None:
         return_value=[_card()],
     ) as generate:
         supplemental = _MODULE._generate_supplemental_cards(
-            codex_executable="codex",
-            environment={},
+            gateway=make_scripted_gateway([]),
             grounded_units=(ledger,),
             drafts_by_sequence={1: draft},
             existing_cards=[],
@@ -175,7 +180,9 @@ def test_generate_supplemental_cards_stops_once_floor_is_met() -> None:
     assert generate.call_count == 2
 
 
-def test_generate_supplemental_cards_gives_up_when_units_are_exhausted() -> None:
+def test_generate_supplemental_cards_gives_up_when_units_are_exhausted(
+    make_scripted_gateway,
+) -> None:
     ledger = SemanticLedger(
         lecture_id="lecture-001",
         pack_sequence=1,
@@ -192,8 +199,7 @@ def test_generate_supplemental_cards_gives_up_when_units_are_exhausted() -> None
 
     with patch.object(_MODULE, "_generate_supplemental_unit_card") as generate:
         supplemental = _MODULE._generate_supplemental_cards(
-            codex_executable="codex",
-            environment={},
+            gateway=make_scripted_gateway([]),
             grounded_units=(ledger,),
             drafts_by_sequence={1: draft},
             existing_cards=already_asked,
@@ -204,7 +210,9 @@ def test_generate_supplemental_cards_gives_up_when_units_are_exhausted() -> None
     generate.assert_not_called()
 
 
-def test_generate_supplemental_cards_targets_the_densest_unit_first() -> None:
+def test_generate_supplemental_cards_targets_the_densest_unit_first(
+    make_scripted_gateway,
+) -> None:
     sparse_ledger = SemanticLedger(
         lecture_id="lecture-001", pack_sequence=1, facts=[_fact("a", 1)]
     )
@@ -236,8 +244,7 @@ def test_generate_supplemental_cards_targets_the_densest_unit_first() -> None:
         return_value=[_card()],
     ) as generate:
         supplemental = _MODULE._generate_supplemental_cards(
-            codex_executable="codex",
-            environment={},
+            gateway=make_scripted_gateway([]),
             grounded_units=(sparse_ledger, dense_ledger),
             drafts_by_sequence=drafts_by_sequence,
             existing_cards=[],
@@ -323,6 +330,20 @@ def _write_json(
     (lecture_dir / file_name).write_text(model.model_dump_json())
 
 
+def _open_scripted_gateway(
+    monkeypatch: pytest.MonkeyPatch, gateway: object
+) -> list[Stage]:
+    """Replace the module's gateway opener; return the stages it was asked for."""
+    opened_stages: list[Stage] = []
+
+    def open_stage_gateway(stage: Stage, **_kwargs: object) -> object:
+        opened_stages.append(stage)
+        return gateway
+
+    monkeypatch.setattr(_MODULE, "open_stage_gateway", open_stage_gateway)
+    return opened_stages
+
+
 def _run_script(tmp_path: Path) -> int:
     argv = [
         "generate_codex_personal_study_flashcards.py",
@@ -335,18 +356,19 @@ def _run_script(tmp_path: Path) -> int:
         str(tmp_path / "validated_units"),
         "--output-root",
         str(tmp_path / "output"),
+        "--llm-runs-root",
+        str(tmp_path / "llm_runs"),
         "--minimum-total-cards",
         "1",
     ]
-    with (
-        patch.object(sys, "argv", argv),
-        patch.object(_MODULE, "resolve_trusted_executable", return_value="codex"),
-    ):
+    with patch.object(sys, "argv", argv):
         return _MODULE.main()
 
 
 def test_main_blocks_the_lecture_when_one_unit_failed_the_critic(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _write_lecture_inputs(
         tmp_path,
@@ -356,32 +378,111 @@ def test_main_blocks_the_lecture_when_one_unit_failed_the_critic(
             _validated_unit(2, "Unidade reprovada", review_passed=False),
         ],
     )
+    opened_stages = _open_scripted_gateway(monkeypatch, object())
 
-    with patch.object(_MODULE, "_call_codex_for_cards") as call_codex:
-        exit_code = _run_script(tmp_path)
+    exit_code = _run_script(tmp_path)
 
     assert exit_code == 1
-    call_codex.assert_not_called()
+    assert opened_stages == []
     assert not (tmp_path / "output").exists()
+    assert not (tmp_path / "llm_runs").exists()
     assert "aula bloqueada pelo crítico" in capsys.readouterr().err
 
 
 def test_main_titles_cards_with_the_post_repair_unit_not_the_raw_draft(
-    tmp_path: Path,
+    tmp_path: Path, make_scripted_gateway, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _write_lecture_inputs(
         tmp_path,
         draft_titles={1: "Título do rascunho bruto"},
         units=[_validated_unit(1, "Título reparado pelo crítico")],
     )
+    gateway = make_scripted_gateway([_card_array_json(_card())])
+    opened_stages = _open_scripted_gateway(monkeypatch, gateway)
 
-    with patch.object(
-        _MODULE, "_call_codex_for_cards", return_value=[_card()]
-    ) as call_codex:
-        exit_code = _run_script(tmp_path)
+    exit_code = _run_script(tmp_path)
 
-    prompt = call_codex.call_args.kwargs["prompt"]
+    prompt = gateway.requests[0].prompt
     assert exit_code == 0
+    assert opened_stages == [Stage.FLASHCARDS]
     assert "Título reparado pelo crítico" in prompt
     assert "Título do rascunho bruto" not in prompt
     assert (tmp_path / "output" / _LECTURE_ID / "deck.json").exists()
+
+
+def test_main_writes_an_uncertified_deck_and_a_flashcards_run_record(
+    tmp_path: Path, make_scripted_gateway, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_lecture_inputs(
+        tmp_path,
+        draft_titles={1: "Unidade 1"},
+        units=[_validated_unit(1, "Unidade 1")],
+    )
+    gateway = make_scripted_gateway([_card_array_json(_card())])
+    _open_scripted_gateway(monkeypatch, gateway)
+
+    exit_code = _run_script(tmp_path)
+
+    deck = json.loads(
+        (tmp_path / "output" / _LECTURE_ID / "deck.json").read_text(encoding="utf-8")
+    )
+    record = json.loads(
+        (tmp_path / "llm_runs" / _LECTURE_ID / "flashcards.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert exit_code == 0
+    assert deck["execution_mode"] == (
+        ArtifactExecutionMode.UNCERTIFIED_PERSONAL_STUDY.value
+    )
+    assert not list((tmp_path / "output" / _LECTURE_ID).glob("*.tmp"))
+    assert record["status"] == "succeeded"
+    assert record["script_stage"] == "flashcards"
+    assert record["gateways"][0]["calls"] == len(gateway.requests) == 1
+
+
+def test_main_with_an_unknown_adapter_exits_1_before_any_call_or_deck(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """D-12 second layer: stage 18 has no orchestrator preflight, so the
+    script's own `open_stage_gateway` is the whole configuration check."""
+    _write_lecture_inputs(
+        tmp_path,
+        draft_titles={1: "Unidade 1"},
+        units=[_validated_unit(1, "Unidade 1")],
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv(ADAPTER_OVERRIDE_ENV, "bogus")
+
+    exit_code = _run_script(tmp_path)
+
+    error_text = capsys.readouterr().err
+    assert exit_code == 1
+    assert '"codex"' in error_text
+    assert '"llama-cpp"' in error_text
+    assert not (tmp_path / "output").exists()
+    assert not (tmp_path / "llm_runs").exists()
+
+
+def test_script_imports_no_process_or_scratch_directory_module() -> None:
+    forbidden_modules = {
+        "tempfile",
+        "subprocess",
+        "lecture_study.ops.process_lifecycle",
+        "lecture_study.ops.process_environment",
+    }
+    source_text = Path(_MODULE.__file__).read_text(encoding="utf-8")
+
+    assert _imported_module_names(source_text).isdisjoint(forbidden_modules)
+
+
+def _imported_module_names(source_text: str) -> set[str]:
+    names: set[str] = set()
+    for node in ast.walk(ast.parse(source_text)):
+        if isinstance(node, ast.Import):
+            names.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module is not None:
+            names.add(node.module)
+    return names

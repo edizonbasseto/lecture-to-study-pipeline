@@ -1,8 +1,15 @@
 #!/usr/bin/env python3
 """Generate one lecture's personal-study flashcard deck (ADR 0024's
-uncertified personal-study route) with the Codex CLI (`codex exec`),
+uncertified personal-study route) through the LLM gateway (ADR 0046),
 grounded per learning unit -- mirrors scripts/generate_codex_mock_exam.py
-exactly, same family of Codex-route scripts.
+exactly, same family of gateway-backed scripts.
+
+The adapter selected by the gateway configuration owns the child process,
+its environment and its scratch directory; this script holds no process
+code. It runs outside the orchestrator, so `open_stage_gateway` is its own
+configuration and egress validation: an unknown or misconfigured adapter
+exits 1 before the first call. Each run writes a metadata-only run record
+under `workspace/data/llm_runs/<lecture_id>/flashcards.json`.
 
 Execution is lecture-scoped: this script takes exactly one lecture
 identifier, has no batch mode, and never discovers over the ledgers root.
@@ -42,15 +49,14 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
-import tempfile
 from collections.abc import Sequence
 from pathlib import Path
 
 from pydantic import TypeAdapter, ValidationError
 
 from lecture_study.assembly.assembler import load_critic_approved_drafts
+from lecture_study.cli.llm_gateway_wiring import open_stage_gateway
 from lecture_study.domain.errors import (
     LectureNotFoundError,
     MissingSequenceError,
@@ -64,17 +70,12 @@ from lecture_study.domain.models import (
     SemanticFact,
     SemanticLedger,
 )
+from lecture_study.llm import LlmGateway, LlmGatewayError, Stage, complete_json
+from lecture_study.llm.run_record import LLM_RUNS_ROOT, record_llm_run
 from lecture_study.ops.llm_response_contract import (
     LlmResponseContractError,
-    build_bounded_retry_prompt_section,
-    build_llm_retry_feedback,
     parse_llm_json_response,
 )
-from lecture_study.ops.process_environment import (
-    resolve_trusted_executable,
-    sanitized_child_process_environment,
-)
-from lecture_study.ops.process_lifecycle import run_bounded_process
 from lecture_study.quality.student_facing_text import (
     describe_student_facing_text_defects,
     student_facing_text_defects,
@@ -86,8 +87,6 @@ DEFAULT_VALIDATED_UNITS_ROOT = Path("workspace/data/09_validated_units")
 DEFAULT_OUTPUT_ROOT = Path("workspace/data/18_personal_study_flashcards")
 _DEFAULT_CARDS_PER_UNIT_CAP = 5
 _DEFAULT_MINIMUM_TOTAL_CARDS = 12
-_SUBPROCESS_TIMEOUT_SECONDS = 900.0
-_MAXIMUM_PROCESS_OUTPUT_BYTES = 16 * 1024 * 1024
 _CARD_ARRAY_ADAPTER: TypeAdapter[list[PersonalStudyFlashcard]] = TypeAdapter(
     list[PersonalStudyFlashcard]
 )
@@ -167,7 +166,12 @@ def main() -> int:
             file=sys.stderr,
         )
         return 1
-    except (LlmResponseContractError, FileNotFoundError, ValidationError) as error:
+    except (
+        LlmResponseContractError,
+        LlmGatewayError,
+        FileNotFoundError,
+        ValidationError,
+    ) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
 
@@ -176,28 +180,54 @@ def _run(args: argparse.Namespace) -> int:
     drafts = load_critic_approved_drafts(
         args.validated_units_root, args.drafts_root, args.lecture_id
     )
-    codex_executable = resolve_trusted_executable(args.codex_executable)
-    environment = dict(sanitized_child_process_environment())
-    home_directory = os.environ.get("HOME")
-    if home_directory is not None:
-        environment["HOME"] = home_directory
-
     ledgers = _load_semantic_ledgers(args.ledgers_root, args.lecture_id)
     drafts_by_sequence = {draft.pack_sequence: draft for draft in drafts}
-
     grounded_units = tuple(
         ledger
         for ledger in sorted(ledgers, key=lambda ledger: ledger.pack_sequence)
         if ledger.facts and ledger.pack_sequence in drafts_by_sequence
     )
 
+    gateway = open_stage_gateway(
+        Stage.FLASHCARDS,
+        lecture_id=args.lecture_id,
+        codex_executable_override=args.codex_executable,
+    )
+    with record_llm_run(
+        lecture_id=args.lecture_id,
+        script_stage=Stage.FLASHCARDS,
+        schema_name="list[PersonalStudyFlashcard]",
+        root=args.llm_runs_root,
+    ) as recorder:
+        cards = _generate_all_cards(
+            gateway=recorder.track(gateway, stage=Stage.FLASHCARDS),
+            grounded_units=grounded_units,
+            drafts_by_sequence=drafts_by_sequence,
+            cards_per_unit_cap=args.cards_per_unit_cap,
+            minimum_total_cards=args.minimum_total_cards,
+        )
+        deck = _build_deck(args.lecture_id, cards)
+
+    output_path = _write_deck_atomically(deck, args.output_root / args.lecture_id)
+    print(f"gerado(s) {len(cards)} card(s) para a aula {args.lecture_id!r}")
+    print(f"escrito em {output_path}")
+    return 0
+
+
+def _generate_all_cards(
+    *,
+    gateway: LlmGateway,
+    grounded_units: tuple[SemanticLedger, ...],
+    drafts_by_sequence: dict[int, LearningUnitDraft],
+    cards_per_unit_cap: int,
+    minimum_total_cards: int,
+) -> list[PersonalStudyFlashcard]:
     cards: list[PersonalStudyFlashcard] = []
     for ledger in grounded_units:
         draft = drafts_by_sequence[ledger.pack_sequence]
-        card_count = min(len(ledger.facts), args.cards_per_unit_cap)
+        card_count = min(len(ledger.facts), cards_per_unit_cap)
         unit_cards = _generate_unit_cards(
-            codex_executable=codex_executable,
-            environment=environment,
+            gateway=gateway,
             unit_title=draft.title,
             facts=ledger.facts,
             card_count=card_count,
@@ -212,17 +242,17 @@ def _run(args: argparse.Namespace) -> int:
 
     cards.extend(
         _generate_supplemental_cards(
-            codex_executable=codex_executable,
-            environment=environment,
+            gateway=gateway,
             grounded_units=grounded_units,
             drafts_by_sequence=drafts_by_sequence,
             existing_cards=cards,
-            minimum_total_cards=args.minimum_total_cards,
+            minimum_total_cards=minimum_total_cards,
         )
     )
+    return cards
 
-    deck = _build_deck(args.lecture_id, cards)
-    output_dir = args.output_root / args.lecture_id
+
+def _write_deck_atomically(deck: PersonalStudyFlashcardDeck, output_dir: Path) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / "deck.json"
     # Atomic tmp+rename, matching the retired flashcards/personal_study_generator.py's
@@ -231,9 +261,7 @@ def _run(args: argparse.Namespace) -> int:
     tmp_path = output_path.with_suffix(output_path.suffix + ".tmp")
     tmp_path.write_text(deck.model_dump_json(indent=2), encoding="utf-8")
     tmp_path.replace(output_path)
-    print(f"gerado(s) {len(cards)} card(s) para a aula {args.lecture_id!r}")
-    print(f"escrito em {output_path}")
-    return 0
+    return output_path
 
 
 def _build_deck(
@@ -261,8 +289,7 @@ def _build_deck(
 
 def _generate_supplemental_cards(
     *,
-    codex_executable: str,
-    environment: dict[str, str],
+    gateway: LlmGateway,
     grounded_units: tuple[SemanticLedger, ...],
     drafts_by_sequence: dict[int, LearningUnitDraft],
     existing_cards: list[PersonalStudyFlashcard],
@@ -290,8 +317,7 @@ def _generate_supplemental_cards(
             remaining_capacity = True
             draft = drafts_by_sequence[ledger.pack_sequence]
             [extra_card] = _generate_supplemental_unit_card(
-                codex_executable=codex_executable,
-                environment=environment,
+                gateway=gateway,
                 unit_title=draft.title,
                 facts=ledger.facts,
                 existing_cards=unit_existing,
@@ -308,8 +334,7 @@ def _generate_supplemental_cards(
 
 def _generate_unit_cards(
     *,
-    codex_executable: str,
-    environment: dict[str, str],
+    gateway: LlmGateway,
     unit_title: str,
     facts: Sequence[SemanticFact],
     card_count: int,
@@ -320,18 +345,12 @@ def _generate_unit_cards(
         facts=_format_facts(facts),
         schema=_CARD_ARRAY_SCHEMA,
     )
-    return _run_codex_for_cards(
-        codex_executable=codex_executable,
-        environment=environment,
-        prompt=prompt,
-        expected_count=card_count,
-    )
+    return _request_cards(gateway=gateway, prompt=prompt, expected_count=card_count)
 
 
 def _generate_supplemental_unit_card(
     *,
-    codex_executable: str,
-    environment: dict[str, str],
+    gateway: LlmGateway,
     unit_title: str,
     facts: Sequence[SemanticFact],
     existing_cards: list[PersonalStudyFlashcard],
@@ -342,88 +361,37 @@ def _generate_supplemental_unit_card(
         existing_cards="\n".join(f"- {card.prompt}" for card in existing_cards),
         schema=_CARD_ARRAY_SCHEMA,
     )
-    return _run_codex_for_cards(
-        codex_executable=codex_executable,
-        environment=environment,
+    return _request_cards(gateway=gateway, prompt=prompt, expected_count=1)
+
+
+def _request_cards(
+    *, gateway: LlmGateway, prompt: str, expected_count: int
+) -> list[PersonalStudyFlashcard]:
+    """Request cards; the student guard and the count check run inside the
+    gateway's single bounded retry."""
+
+    return complete_json(
+        gateway,
+        stage=Stage.FLASHCARDS,
         prompt=prompt,
-        expected_count=1,
+        parse=_parse_card_array,
+        validate=lambda cards: _validate_cards(cards, expected_count),
     )
 
 
-def _run_codex_for_cards(
-    *,
-    codex_executable: str,
-    environment: dict[str, str],
-    prompt: str,
-    expected_count: int,
-) -> list[PersonalStudyFlashcard]:
-    try:
-        return _call_codex_for_cards(
-            codex_executable=codex_executable,
-            environment=environment,
-            prompt=prompt,
-            expected_count=expected_count,
-        )
-    except LlmResponseContractError as error:
-        retry_prompt = prompt + build_bounded_retry_prompt_section(
-            heading="Retry feedback:",
-            feedback=build_llm_retry_feedback(error),
-        )
-        return _call_codex_for_cards(
-            codex_executable=codex_executable,
-            environment=environment,
-            prompt=retry_prompt,
-            expected_count=expected_count,
-        )
-
-
-def _call_codex_for_cards(
-    *,
-    codex_executable: str,
-    environment: dict[str, str],
-    prompt: str,
-    expected_count: int,
-) -> list[PersonalStudyFlashcard]:
-    # Scratch cwd, never the repository checkout -- same least-privilege
-    # rationale as generate_codex_mock_exam.py's own _call_codex_for_questions.
-    with tempfile.TemporaryDirectory(prefix="codex-flashcards-") as raw_scratch_dir:
-        scratch_dir = Path(raw_scratch_dir)
-        output_path = scratch_dir / "response.txt"
-        run_bounded_process(
-            [
-                codex_executable,
-                "exec",
-                "--skip-git-repo-check",
-                "--sandbox",
-                "read-only",
-                "-C",
-                str(scratch_dir),
-                "-o",
-                str(output_path),
-                prompt,
-            ],
-            env=environment,
-            cwd=scratch_dir,
-            timeout_seconds=_SUBPROCESS_TIMEOUT_SECONDS,
-            maximum_stdout_bytes=_MAXIMUM_PROCESS_OUTPUT_BYTES,
-            maximum_stderr_bytes=_MAXIMUM_PROCESS_OUTPUT_BYTES,
-            check=True,
-        )
-        output_bytes = output_path.read_bytes()
-    cards = _parse_card_array(output_bytes)
+def _validate_cards(cards: list[PersonalStudyFlashcard], expected_count: int) -> None:
     _reject_cards_unfit_for_a_student(cards)
     if len(cards) != expected_count:
         raise LlmResponseContractError(
             f"expected {expected_count} card(s), got {len(cards)}",
             retry_category="contract",
         )
-    return cards
 
 
 def _reject_cards_unfit_for_a_student(
     cards: Sequence[PersonalStudyFlashcard],
 ) -> None:
-    """Fail the codex call when a card face is not pt-BR or names an
+    """Fail the completion when a card face is not pt-BR or names an
     internal pipeline abstraction. Same ADR 0027 rationale as the exam
     and podcast guards: prompt wording alone is not enforcement, the
     detector runs on the parsed output inside the bounded retry path."""
@@ -477,7 +445,7 @@ def _build_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
             "Gera o deck de flashcards de estudo pessoal de uma aula via "
-            "Codex CLI, com cards fundamentados por unidade de aprendizagem."
+            "gateway LLM, com cards fundamentados por unidade de aprendizagem."
         )
     )
     parser.add_argument("lecture_id")
@@ -501,7 +469,15 @@ def _build_argument_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
-    parser.add_argument("--codex-executable", default="codex")
+    parser.add_argument(
+        "--codex-executable",
+        default=None,
+        help=(
+            "sobrescreve `codex.executable` da configuração do gateway "
+            "(padrão: o valor da configuração)"
+        ),
+    )
+    parser.add_argument("--llm-runs-root", type=Path, default=LLM_RUNS_ROOT)
     parser.add_argument(
         "--cards-per-unit-cap",
         type=int,
