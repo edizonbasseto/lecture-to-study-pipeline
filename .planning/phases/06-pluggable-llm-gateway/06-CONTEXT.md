@@ -39,6 +39,16 @@ Out of this phase: chunking of oversized prompts, any change to artifact schemas
 - **D-15:** Operator override: a lecture with no flag is remote NOT allowed (fail closed). The demo catalog sets `remote_llm_allowed: true` explicitly. Consequence: the configured default adapter stays Codex (GW-04), but a Codex run on an unflagged lecture is refused, so every existing registry entry needs the flag added to keep using Codex. — **Reversibility:** costly — flipping the default later changes behavior for every registered lecture and every test that assumes Codex is reachable.
 - **D-16:** The new ADR amends ADR 0038 (local text-LLM route returns as a gateway adapter), closes ADR 0045 section 2 with the flag rule, amends baseline requirement GEN-07 (GW-05), and keeps the provider's retention and training terms as a procedural check.
 
+### Amendments from research (operator-confirmed 2026-10-14)
+- **D-17 (amends D-04):** At the pinned llama.cpp commit `llama-cli` embeds a loopback server and echoes the prompt, so it cannot satisfy D-04 (no listener) or D-09 and would break the JSON parser. `LlamaCppAdapter` uses `llama-completion` instead, one bounded process per call, with `--single-turn --no-display-prompt --no-escape --simple-io --offline -f <prompt file> -n <cap> -c <ctx>` and reasoning off. `--no-escape` is mandatory (the embedded schema text must not be rewritten). Fall back to `-no-cnv` plus an adapter-rendered family envelope only if the manual real run (D-07) shows chat-template trouble. The ADR 0020/0022/0034 contract is otherwise unchanged; `model_family` stays validated metadata.
+- **D-18 (amends D-13):** The sidecar run record lives at `workspace/data/llm_runs/<lecture_id>/<script_stage>.json`, not beside the stage output: stage output directories are counted by the progress dashboard and fingerprinted by `quality/delivery.py`.
+- **D-19 (amends D-14/D-15):** For lectures outside the local registry (portal catalog), the flag lives in the gateway YAML as `remote_llm_allowed_lecture_ids` (research option O2). Local-registry lectures carry `remote_llm_allowed` on `LocalLecture`. Unflagged in both places = remote refused.
+- **D-20:** `LECTURE_STUDY_LLM_ADAPTER` overrides per-stage entries too: a run that says local is entirely local.
+- **D-21:** Redrafts inside stage 7 use the `drafting` stage; both `critic` and `drafting` are preflighted.
+- **D-22:** The podcast script's retry-on-process-failure is replaced by uniform typed call errors without retry; recorded in the new ADR.
+- **D-23:** D-08 token counting uses exact `llama-tokenize` (with `PromptBudget`, as in the ADR 0020 erratum); the CI stub covers both binaries. The Codex adapter gets an argv-size guard that raises the typed prompt-too-large error before spawning (macOS `ARG_MAX` is 1048576; the podcast prompt can exceed it).
+- **D-24:** Example model for the ADR and provisioning: Qwen2.5-14B-Instruct Q4_K_M; provisioning is an opt-in script step (it needs network by design, unlike runtime) with a SHA-256 check; its license and source are verified at execution time.
+
 ### Claude's Discretion
 - Exact module names inside `llm/`, the env variable name, the YAML schema keys beyond adapter, per-stage overrides and model path.
 - Contract-test layout, and how the stub llama-cli binary is built for CI.
