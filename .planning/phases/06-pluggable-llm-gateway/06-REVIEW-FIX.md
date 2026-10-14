@@ -133,3 +133,53 @@ rerun, classified as the same environmental exec race noted in Round 1.
 
 _Fixer: Claude (gsd-code-fixer)_
 _Iteration: 2_
+
+---
+
+## Round 3 (iteration-3 review and security-audit residuals)
+
+**Source review:** `.planning/phases/06-pluggable-llm-gateway/06-REVIEW.md` (iteration 3)
+**Scope:** iteration-3 WR-02, security-audit residuals W-1 and W-2, and a
+documentation note for iteration-3 WR-01 (accepted limitation).
+**Summary:** findings in scope 3; fixed 3; skipped 0; 1 accepted limitation.
+Work was committed directly on the checked-out branch (no temporary worktree),
+as instructed by the invoking workflow.
+
+### Fixed
+
+| Finding | Commit | Applied fix |
+|---------|--------|-------------|
+| WR-02 | `c40a4aa` | `_signal_process_tree` now treats a `PermissionError` from `os.killpg` (macOS answers EPERM for a group whose leader just exited) by signalling the leader directly (`terminate`/`kill`); a `ProcessLookupError` from that direct signal means the leader is gone, and the existing wait/reap and remaining-group sweep run. A refusal from the leader itself still raises, so a live child is never silently left running. `_signal_process_group` (the post-reap sweep) ignores EPERM. Regression tests stub `os.killpg` to raise `PermissionError`: two in `tests/test_process_lifecycle.py` (output cap and timeout, asserting the real error type, termination, kill and reap) and one in `tests/llm_gateway/test_codex_adapter.py` (the adapter reports "output exceeded 1024 bytes", not "could not start"). All three fail without the fix. Logic-class finding: requires human verification of the cleanup semantics. |
+| W-1 | `caeab14` | `src/lecture_study/llm/config.py` maps `ValueError` and `RecursionError` from the YAML read to `GatewayConfigurationError`; `src/lecture_study/study_materials/local_lectures.py` maps them to `LocalLectureError` through the new `_parse_registry_yaml`. Messages carry the exception type name only. Tests for both loaders (calendar-invalid timestamp `2001-13-45`, 5000-level nesting) and for `RegistryRemoteEgressPolicy` refusing with `GatewayConfigurationError` through `is_remote_allowed` and `require_remote_egress_allowed`. Six new tests, all failing without the fix. |
+| W-2 | `f16df70` | `LlamaCppAdapter.complete` creates its scratch directory through a typed context manager (`ignore_cleanup_errors=True`, like the Codex adapter) and maps prompt-file write and work-directory `OSError` to `LlmCallError` with the exception type name only (`from None`, no prompt text). Two tests. |
+| WR-01 note | `63dad05` | One sentence added to ADR 0046 section 7: only the most recent displaced whole-stage success is preserved and per-pack provenance across several partial reruns is not reconstructed. No text deleted. |
+
+### Accepted limitation
+
+Iteration-3 WR-01: the run record keeps `<stage>.json` (latest attempt) and one
+`<stage>.superseded.json` (the most recent displaced whole-stage success).
+Several consecutive partial reruns therefore do not preserve per-pack
+provenance. Accepted and documented in ADR 0046 section 7; no code change.
+
+### Flake loop
+
+`uv run pytest -q tests/llm_gateway/test_codex_adapter.py -k output_cap` was run
+40 consecutive times after the fix: 40 passes, 0 failures. A direct loop of 400
+`run_bounded_process` calls against a child that exceeds a 1024-byte cap (the
+review reproduced 10 `PermissionError` escapes in 400 before the fix) produced 0
+unexpected exceptions.
+
+### Verification
+
+Run in the main checkout after the last fix (no worktree was created):
+
+- `uv run pytest -q -rs`: 2559 passed, 1 warning (pre-existing starlette
+  deprecation). Baseline before this round: 2548.
+- `uv run ruff check .`: passed.
+- `uv run ruff format --check .`: 235 files already formatted.
+- `uv run mypy src`: no issues in 126 source files.
+
+---
+
+_Fixer: Claude (gsd-code-fixer)_
+_Iteration: 3_
