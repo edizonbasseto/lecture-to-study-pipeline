@@ -6,6 +6,10 @@ Accepted. Revises ADR 0035 decision 4 (explicitly out of scope: "Wiring an
 automatic Codex-based repair loop is a separate decision, not bundled
 into this one") -- this is that separate decision.
 
+**Amended by ADR 0046:** the repair loop stays in
+`scripts/generate_codex_critic_review.py`; reviews use the critic-stage
+gateway and redrafts the drafting-stage gateway.
+
 ## Context
 
 ADR 0035 moved Phase 5 (semantic extraction) and Phase 7 (critic review)

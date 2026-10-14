@@ -5,6 +5,11 @@ and critic review (Phase 7)
 
 Accepted. **Superseded by ADR 0038** as to dual-route reachability: this ADR's "local route stays reachable" clause no longer holds -- the local workers are deleted and these Codex routes are the only ones, now orchestrated as child processes.
 
+**Amended by ADR 0046:** stages 5 and 7 reach Codex through the
+`CodexCliAdapter` of the LLM gateway (default adapter, same argv and sandbox);
+the adapter is selected by configuration and refused for lectures not flagged
+`remote_llm_allowed`.
+
 ## Context
 
 ADR 0030 already moved Phase 6 (learning-unit drafting) and the mock-exam

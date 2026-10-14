@@ -4,6 +4,12 @@
 
 Accepted. Decision 2 superseded by ADR 0045: the podcast is grounded on critic-approved units from `09_validated_units`, not on `08_drafts`.
 
+**Amended by ADR 0046:** the podcast script calls the gateway; a failed model
+process is a typed call error without retry (replacing the retry after a
+failed `codex exec`), an oversized whole-lecture prompt is refused before
+spawning, and `--call-timeout-seconds` (default 900) adjusts the per-call
+bound.
+
 ## Context
 
 ADR 0035 moved Phase 5 (semantic extraction) and Phase 7 (critic) from the
