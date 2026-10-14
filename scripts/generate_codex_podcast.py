@@ -347,7 +347,7 @@ def _validate_traceability(
     # about every failing line in one message, not just the first.
     if script.lecture_id != lecture_id:
         raise LlmResponseContractError(
-            "Codex echoed a lecture_id that does not match the source "
+            "The model echoed a lecture_id that does not match the source "
             f"drafts: got {script.lecture_id!r}, expected {lecture_id!r}",
             retry_category="contract",
         )

@@ -353,7 +353,7 @@ def _build_argument_parser() -> argparse.ArgumentParser:
         type=int,
         default=2,
         help=(
-            "máximo de tentativas de reparo (redraft via Codex com o "
+            "máximo de tentativas de reparo (redraft pelo gateway com o "
             "feedback do crítico) antes de aceitar o último resultado, "
             "aprovado ou não -- mesmo padrão do CriticOrchestrator local"
         ),
