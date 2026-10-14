@@ -255,6 +255,16 @@ def test_existing_rows_without_publish_field_load_unpublished(tmp_path) -> None:
     assert unpublished_lecture_ids(lectures) == {"925209"}
 
 
+def test_existing_rows_without_remote_llm_field_load_refused(tmp_path) -> None:
+    path = tmp_path / "local.yaml"
+    path.write_text(
+        "lectures:\n- lecture_id: '925209'\n  title: T\n  discipline: D\n"
+        "  section: S\n  scheduled_date: 2025-07-01\n  publish: true\n"
+    )
+
+    assert load_local_lectures(path)[0].remote_llm_allowed is False
+
+
 def test_default_scheduled_date_is_first_day_of_semester() -> None:
     assert default_scheduled_date("2025.1") == date(2025, 1, 1)
     assert default_scheduled_date("2025.2") == date(2025, 7, 1)
@@ -524,6 +534,29 @@ def test_cli_reregister_may_change_only_the_publish_flag(cli) -> None:
 
     rows = load_local_lectures(cli["metadata"])
     assert [row.publish for row in rows] == [True]
+    assert len(json.loads(cli["queue"].read_text())) == 1
+
+
+def test_cli_registers_without_remote_llm_flag_by_default(cli) -> None:
+    assert cli["run"]() == 0
+
+    assert load_local_lectures(cli["metadata"])[0].remote_llm_allowed is False
+
+
+def test_cli_remote_llm_allowed_flag_is_recorded(cli) -> None:
+    assert cli["run"]("--remote-llm-allowed") == 0
+
+    assert load_local_lectures(cli["metadata"])[0].remote_llm_allowed is True
+
+
+def test_cli_rerun_may_toggle_remote_llm_flag_in_both_directions(cli) -> None:
+    cli["run"]()
+
+    assert cli["run"]("--remote-llm-allowed") == 0
+    assert load_local_lectures(cli["metadata"])[0].remote_llm_allowed is True
+
+    assert cli["run"]() == 0
+    assert load_local_lectures(cli["metadata"])[0].remote_llm_allowed is False
     assert len(json.loads(cli["queue"].read_text())) == 1
 
 

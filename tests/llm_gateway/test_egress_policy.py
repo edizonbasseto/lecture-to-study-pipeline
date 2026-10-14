@@ -129,3 +129,48 @@ def test_require_raises_typed_error_with_lecture_and_stage(
 
     assert raised.value.lecture_id == UNFLAGGED_LOCAL_ID
     assert raised.value.stage is Stage.CRITIC
+
+
+def test_open2_id_in_registry_and_portal_list_is_a_configuration_error(
+    registry_path: Path,
+) -> None:
+    policy = _policy(registry_path, portal_ids=(UNFLAGGED_LOCAL_ID, PORTAL_ID))
+
+    with pytest.raises(GatewayConfigurationError) as raised:
+        policy.require_consistent_sources()
+
+    assert UNFLAGGED_LOCAL_ID in str(raised.value)
+    assert PORTAL_ID not in str(raised.value)
+    assert "must not be listed in remote_llm_allowed_lecture_ids" in str(raised.value)
+
+
+def test_open2_conflict_also_fails_a_local_lookup_never_granting_the_list(
+    registry_path: Path,
+) -> None:
+    policy = _policy(registry_path, portal_ids=(UNFLAGGED_LOCAL_ID,))
+
+    with pytest.raises(GatewayConfigurationError):
+        policy.is_remote_allowed(UNFLAGGED_LOCAL_ID)
+    with pytest.raises(GatewayConfigurationError):
+        policy.is_remote_allowed(FLAGGED_LOCAL_ID)
+
+
+def test_open2_conflict_names_every_conflicting_id_in_order(
+    registry_path: Path,
+) -> None:
+    policy = _policy(registry_path, portal_ids=(UNFLAGGED_LOCAL_ID, FLAGGED_LOCAL_ID))
+
+    with pytest.raises(GatewayConfigurationError) as raised:
+        policy.require_consistent_sources()
+
+    assert f"{FLAGGED_LOCAL_ID}, {UNFLAGGED_LOCAL_ID}" in str(raised.value)
+
+
+def test_disjoint_sources_are_consistent(registry_path: Path) -> None:
+    _policy(registry_path, portal_ids=(PORTAL_ID,)).require_consistent_sources()
+
+
+def test_consistency_check_on_a_missing_registry_passes(tmp_path: Path) -> None:
+    _policy(
+        tmp_path / "absent.yaml", portal_ids=(PORTAL_ID,)
+    ).require_consistent_sources()

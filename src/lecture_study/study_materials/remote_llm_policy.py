@@ -8,6 +8,8 @@ adapter, and each id has exactly one governing source:
 - any other id is a portal-catalog id and is allowed only when listed in
   ``remote_llm_allowed_lecture_ids`` of the gateway configuration.
 
+An id present in both sources is a configuration error (OPEN-2, option A).
+
 Everything else is refused. The policy contacts nothing and loads the registry
 lazily, so a llama-only run never reads it.
 """
@@ -20,6 +22,7 @@ from pathlib import Path
 from lecture_study.llm.gateway import GatewayConfigurationError
 from lecture_study.study_materials.local_lectures import (
     LOCAL_LECTURES_PATH,
+    LocalLecture,
     LocalLectureError,
     is_reserved_local_id,
     load_local_lectures,
@@ -37,26 +40,51 @@ class RegistryRemoteEgressPolicy:
     ) -> None:
         self._allowed_portal_lecture_ids = frozenset(allowed_portal_lecture_ids)
         self._local_lectures_path = local_lectures_path
-        self._remote_allowed_local_ids: frozenset[str] | None = None
+        self._local_lectures: tuple[LocalLecture, ...] | None = None
 
     def is_remote_allowed(self, lecture_id: str) -> bool:
         if is_reserved_local_id(lecture_id):
-            return lecture_id in self._local_remote_allowed_ids()
+            return lecture_id in self._remote_allowed_local_ids()
         return lecture_id in self._allowed_portal_lecture_ids
 
-    def _local_remote_allowed_ids(self) -> frozenset[str]:
-        if self._remote_allowed_local_ids is None:
-            self._remote_allowed_local_ids = self._load_remote_allowed_local_ids()
-        return self._remote_allowed_local_ids
+    def require_consistent_sources(self) -> None:
+        """Raise when an id is governed by both the registry and the portal list.
 
-    def _load_remote_allowed_local_ids(self) -> frozenset[str]:
+        OPEN-2, operator answer option A: a lecture id present in the local
+        registry and in ``remote_llm_allowed_lecture_ids`` is a configuration
+        error, never a warning and never "registry wins".
+        """
+
+        conflicting_ids = sorted(
+            {lecture.lecture_id for lecture in self._registered_lectures()}
+            & self._allowed_portal_lecture_ids
+        )
+        if conflicting_ids:
+            raise GatewayConfigurationError(
+                "lecture ids listed in remote_llm_allowed_lecture_ids are also "
+                f"registered as local lectures: {', '.join(conflicting_ids)}; "
+                "local lectures carry remote_llm_allowed in the local registry "
+                "and must not be listed in remote_llm_allowed_lecture_ids"
+            )
+
+    def _remote_allowed_local_ids(self) -> frozenset[str]:
+        self.require_consistent_sources()
+        return frozenset(
+            lecture.lecture_id
+            for lecture in self._registered_lectures()
+            if lecture.remote_llm_allowed
+        )
+
+    def _registered_lectures(self) -> tuple[LocalLecture, ...]:
+        if self._local_lectures is None:
+            self._local_lectures = self._load_registered_lectures()
+        return self._local_lectures
+
+    def _load_registered_lectures(self) -> tuple[LocalLecture, ...]:
         try:
-            lectures = load_local_lectures(self._local_lectures_path)
+            return tuple(load_local_lectures(self._local_lectures_path))
         except LocalLectureError as error:
             raise GatewayConfigurationError(
                 f"the local lecture registry at {self._local_lectures_path} is "
                 "unreadable; the codex adapter is refused for local lectures"
             ) from error
-        return frozenset(
-            lecture.lecture_id for lecture in lectures if lecture.remote_llm_allowed
-        )
