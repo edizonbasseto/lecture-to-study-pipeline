@@ -1,0 +1,22 @@
+{
+  "source_path": "docs/decisions/0031-per-lecture-figure-crop-rectangle.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "0031. Standardized figure crop rectangle, applied by default",
+  "summary": "Chose a fixed figure crop rectangle (1940x1080 at x=300) applied by default to every lecture's embedded figures; amended by ADR 0044 to default to no crop.",
+  "scope": [
+    "figure crop rectangle",
+    "FigureCropRect default DEFAULT_FIGURE_CROP_RECT",
+    "--figure-crop-rect CLI flag",
+    "scripts/generate_personal_study_guides.py",
+    "figure staging",
+    "lecture recording layout (2560x1080 canvas, webcam pillarbox)",
+    "ffmpeg crop filter",
+    "extraction/media_workers.py"
+  ],
+  "cross_refs": [],
+  "locked": true,
+  "precedence": null,
+  "notes": "Status reads Accepted, but the status line states it is amended by ADR 0044, which changes the default to no crop; the Decision section describes the superseded default. ADR 0044 is referenced by number only (no path) and is not among the classified inputs."
+}

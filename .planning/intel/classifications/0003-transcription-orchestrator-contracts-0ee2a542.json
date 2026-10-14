@@ -1,0 +1,25 @@
+{
+  "source_path": "docs/decisions/0003-transcription-orchestrator-contracts.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "0003. Transcription orchestrator contracts: handoff filename, output directory, orchestrator inputs, and single-flight concurrency",
+  "summary": "Fixes Phase 3 transcription contracts: canonical handoff input, transcribed output directory, orchestrator constructor inputs, single-flight concurrency, failure isolation, and whisper.cpp binary path.",
+  "scope": [
+    "TranscriptionOrchestrator",
+    "whisper.cpp",
+    "canonical handoff",
+    "data/05_transcribed",
+    "queue.json",
+    "concurrency_limit",
+    "SafeIdentifier",
+    "run_transcription",
+    "TranscriptionSegment"
+  ],
+  "cross_refs": [
+    ".prompts/fase3_whisper.md"
+  ],
+  "locked": true,
+  "precedence": null,
+  "notes": ""
+}

@@ -1,0 +1,22 @@
+{
+  "source_path": "docs/decisions/0040-dedicated-video-watch-page.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "0040. A dedicated full-page video viewer, coexisting with the embedded player",
+  "summary": "Adds a per-lecture full-page video viewer (assistir.html) that reuses the existing video streaming route, while keeping the embedded lecture player.",
+  "scope": [
+    "assistir.html",
+    "lecture video viewer",
+    "embedded video player",
+    "_render_video_section",
+    "_watch_bar",
+    "_write_lecture",
+    "/videos/{lecture}/{video} route",
+    "reader-bar header"
+  ],
+  "cross_refs": [],
+  "locked": true,
+  "precedence": null,
+  "notes": ""
+}

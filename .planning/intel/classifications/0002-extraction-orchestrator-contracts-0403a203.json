@@ -1,0 +1,31 @@
+{
+  "source_path": "docs/decisions/0002-extraction-orchestrator-contracts.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "0002. Extraction orchestrator contracts: raw video resolution, failure isolation, and the Phase 3 handoff shape",
+  "summary": "Fixes raw video resolution, per-lecture failure isolation, the Phase 3 handoff model, and lecture identifier validation for the extraction orchestrator.",
+  "scope": [
+    "ExtractionOrchestrator",
+    "queue.json",
+    "LectureDiscovery",
+    "data/01_raw",
+    "LectureExtractionResult",
+    "SafeIdentifier",
+    "CanonicalFrame",
+    "FFmpeg",
+    "OCR",
+    "Phase 3 transcription",
+    "EvidencePack",
+    "yt-dlp"
+  ],
+  "cross_refs": [
+    "src/lecture_study/extraction/pipeline.py",
+    "domain/models.py",
+    "data/01_raw/",
+    "data/04_canonical/{lecture_id}.json",
+    "DIRETRIZES_ARQUITETURA.txt"
+  ],
+  "locked": true,
+  "precedence": null
+}

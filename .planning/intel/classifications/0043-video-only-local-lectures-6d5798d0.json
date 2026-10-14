@@ -1,0 +1,22 @@
+{
+  "source_path": "docs/decisions/0043-video-only-local-lectures.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "0043. Video-only local lectures",
+  "summary": "Adds a video-only kind to local lectures that compiles a bundle holding only the video, with no study material, exam, or queue entry.",
+  "scope": [
+    "LocalLecture",
+    "video-only lecture kind",
+    "publication gate (ADR 0042)",
+    "generate_personal_study_guides.py",
+    "list_withheld_lecture_ids.py",
+    "catalog.read_catalog",
+    "renderer",
+    "queue.json",
+    "site-videos"
+  ],
+  "cross_refs": [],
+  "locked": true,
+  "precedence": null
+}

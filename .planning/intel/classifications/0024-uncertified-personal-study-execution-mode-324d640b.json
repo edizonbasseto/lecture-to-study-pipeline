@@ -1,0 +1,21 @@
+{
+  "source_path": "docs/decisions/0024-uncertified-personal-study-execution-mode.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "0024. Uncertified personal-study execution mode for Phases 13-15",
+  "summary": "Introduces an explicit, opt-in uncertified execution mode letting Phases 13-15 run from the Phase 8 canonical document for personal study, leaving the Phase 10 certification gate unchanged.",
+  "scope": [
+    "uncertified personal-study execution mode",
+    "Phase 10 quality certificate gate",
+    "Phases 13-15 mock exam, podcast, TTS",
+    "QualityCertificateIssuer",
+    "require_publication_ready",
+    "Phase 8 canonical document",
+    "GenerationReceipt"
+  ],
+  "cross_refs": [],
+  "locked": true,
+  "precedence": null,
+  "notes": ""
+}

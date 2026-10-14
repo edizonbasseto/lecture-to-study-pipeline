@@ -1,0 +1,25 @@
+{
+  "source_path": "docs/decisions/0015-local-tts-audio-generation.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "0015. Local TTS audio generation: argument-list subprocess invocation and hardcoded PT-BR voices",
+  "summary": "Chose argument-list subprocess invocation (shell=False) for macOS say and ffmpeg, and hardcoded PT-BR voices per speaker, for local TTS audio generation.",
+  "scope": [
+    "TTS audio generation",
+    "macOS say",
+    "ffmpeg",
+    "subprocess invocation",
+    "PodcastAudioGenerator",
+    "tts/generator.py",
+    "domain/errors.py",
+    "PT-BR voices Luciana and Felipe",
+    "PodcastScript"
+  ],
+  "cross_refs": [
+    ".prompts/fase15_podcast_audio.md",
+    "DIRETRIZES_ARQUITETURA.txt"
+  ],
+  "locked": true,
+  "precedence": null
+}

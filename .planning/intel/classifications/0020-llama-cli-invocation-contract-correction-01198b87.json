@@ -1,0 +1,23 @@
+{
+  "source_path": "docs/decisions/0020-llama-cli-invocation-contract-correction.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "0020. llama-cli invocation contract correction: `--json-schema-file` and a mandatory `-n` completion cap",
+  "summary": "Corrects the llama-cli invocation contract in ADRs 0005-0014: uses --json-schema-file and a mandatory -n completion cap per call site.",
+  "scope": [
+    "llama-cli",
+    "--json-schema-file",
+    "-n completion cap",
+    "_start_llama_process",
+    "semantic",
+    "drafting",
+    "critic",
+    "exams",
+    "podcast"
+  ],
+  "cross_refs": [],
+  "locked": true,
+  "precedence": null,
+  "notes": ""
+}

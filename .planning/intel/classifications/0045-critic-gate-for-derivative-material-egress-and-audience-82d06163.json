@@ -1,0 +1,24 @@
+{
+  "source_path": "docs/decisions/0045-critic-gate-for-derivative-material-egress-and-audience.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "0045. Critic gate for derivative study material, remote-model egress, and site audience",
+  "summary": "Requires derivative study material to be built only from critic-approved units, bounds remote Codex egress to verified non-identifying content, and widens the uncertified site audience.",
+  "scope": [
+    "derivative study material",
+    "critic gate",
+    "load_critic_approved_drafts",
+    "remote-model egress",
+    "Codex CLI",
+    "local-only mandate",
+    "uncertified notice",
+    "site audience",
+    "ADR 0023 sections 15 and 16",
+    "Phase 18 personal-study flashcards",
+    "ADR citation ordering"
+  ],
+  "cross_refs": [],
+  "locked": true,
+  "precedence": null
+}

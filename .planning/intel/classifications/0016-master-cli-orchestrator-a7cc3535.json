@@ -1,0 +1,32 @@
+{
+  "source_path": "docs/decisions/0016-master-cli-orchestrator.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "0016. Master CLI orchestrator: composition-root registry, filesystem-artifact resume, and RuntimeError/ValueError as the CLI's error boundary",
+  "summary": "Defines the master CLI orchestrator with a PhaseSpec registry, filesystem-artifact resume, lecture-scoped LLM phases, and a RuntimeError/ValueError error boundary.",
+  "scope": [
+    "master CLI orchestrator",
+    "cli/orchestrator.py",
+    "cli/main.py",
+    "PHASE_REGISTRY",
+    "PhaseSpec",
+    "run-all",
+    "run-phase",
+    "PipelineExecutionError",
+    "filesystem-artifact resume",
+    "lecture-scoped LLM phases",
+    "Phases 5-7 orchestrators",
+    "qwen2/qwen3 model family option"
+  ],
+  "cross_refs": [
+    ".prompts/fase16_master_cli.md",
+    ".prompts/fases10_e_11_publishing.md",
+    "DIRETRIZES_ARQUITETURA.txt",
+    "scripts/register_local_lecture.py",
+    "workspace/data/queue.json"
+  ],
+  "locked": true,
+  "precedence": null,
+  "notes": ""
+}

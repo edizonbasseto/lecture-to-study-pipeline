@@ -1,0 +1,25 @@
+{
+  "source_path": "docs/decisions/0004-evidence-pack-chunking-contracts.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "0004. Evidence pack chunking contracts: output directory, EvidencePack schema, and segment allocation rules",
+  "summary": "Records Phase 4 evidence pack contracts: output directory, EvidencePack schema restructure, window boundary and segment allocation rules, and orchestrator shape.",
+  "scope": [
+    "evidence packs",
+    "EvidencePack schema",
+    "Frame-Driven Chunking",
+    "window boundary algorithm",
+    "segment allocation",
+    "EvidencePackOrchestrator",
+    "data/06_evidence_packs",
+    "chunker.py",
+    "pipeline.py"
+  ],
+  "cross_refs": [
+    ".prompts/fase4_evidence_packs.md"
+  ],
+  "locked": true,
+  "precedence": null,
+  "notes": ""
+}

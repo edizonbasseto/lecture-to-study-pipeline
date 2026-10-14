@@ -1,0 +1,26 @@
+{
+  "source_path": "docs/decisions/0006-learning-unit-draft-synthesis-contracts.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "0006. Learning Unit draft synthesis contracts: LearningUnitDraft schema, two-artifact grounding, and the accepted residual hallucination risk",
+  "summary": "Accepted ADR defining the LearningUnitDraft schema, two-artifact grounding in Evidence Pack and Semantic Ledger, and the accepted residual hallucination risk for Phase 6 drafting.",
+  "scope": [
+    "LearningUnitDraft",
+    "Phase 6 draft synthesis",
+    "EvidencePack",
+    "SemanticLedger",
+    "generate_draft",
+    "DraftOrchestrator",
+    "grammar-constrained decoding",
+    "traceability guard",
+    "residual hallucination risk"
+  ],
+  "cross_refs": [
+    "DIRETRIZES_ARQUITETURA.txt",
+    ".prompts/fase6_drafting.md"
+  ],
+  "locked": true,
+  "precedence": null,
+  "notes": ""
+}

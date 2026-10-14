@@ -1,0 +1,28 @@
+{
+  "source_path": "docs/decisions/0038-orchestrator-codex-integration-and-local-llm-route-removal.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "0038. Orchestrator-Driven Codex Phases and Full Local LLM Route Removal",
+  "summary": "Decides that the orchestrator runs the Codex generation scripts for LLM-backed phases and that the local llama.cpp LLM route is removed.",
+  "scope": [
+    "cli/orchestrator.py",
+    "Codex generation scripts",
+    "run-all",
+    "run-phase",
+    "run-personal-study",
+    "local LLM route",
+    "qwen3-32b",
+    "llama.cpp",
+    "Whisper ASR",
+    "vision captioning",
+    "ops/process_lifecycle.py run_bounded_process",
+    "engines/ split"
+  ],
+  "cross_refs": [
+    "2026-09-16-critic-validated-podcast-shipped-qwen-removal-started.md"
+  ],
+  "locked": true,
+  "precedence": null,
+  "notes": ""
+}

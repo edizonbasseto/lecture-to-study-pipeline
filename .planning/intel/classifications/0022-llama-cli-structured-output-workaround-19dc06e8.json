@@ -1,0 +1,25 @@
+{
+  "source_path": "docs/decisions/0022-llama-cli-structured-output-workaround.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "0022. llama-cli structured-output workaround: drop `--json-schema-file`, add `--single-turn`, add a repair retry",
+  "summary": "Replaces llama-cli --json-schema-file with prompt-embedded schema, --single-turn, and one parse-repair retry, after upstream grammar-sampler failure.",
+  "scope": [
+    "llama-cli",
+    "--json-schema-file",
+    "--single-turn",
+    "grammar sampler",
+    "structured output",
+    "repair retry",
+    "semantic",
+    "critic",
+    "drafting",
+    "exams",
+    "podcast"
+  ],
+  "cross_refs": [],
+  "locked": true,
+  "precedence": null,
+  "notes": ""
+}

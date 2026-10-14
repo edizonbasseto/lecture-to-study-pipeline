@@ -1,0 +1,24 @@
+{
+  "source_path": "docs/decisions/0005-semantic-ledger-extraction-contracts.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "0005. Semantic ledger extraction contracts: SemanticLedger container schema, llama.cpp grammar contract, and orchestrator discovery model",
+  "summary": "Records the SemanticLedger container schema, llama.cpp grammar extraction contract, and orchestrator discovery model for Phase 5; local execution route superseded by ADR 0038.",
+  "scope": [
+    "SemanticLedger",
+    "SemanticFact",
+    "llama.cpp grammar-constrained decoding",
+    "extract_ledger",
+    "SemanticOrchestrator",
+    "EvidencePack",
+    "Phase 5 semantic extraction"
+  ],
+  "cross_refs": [
+    ".prompts/fase5_semantic_ledger.md",
+    ".prompts/fase5_schema_refactor.md"
+  ],
+  "locked": true,
+  "precedence": null,
+  "notes": ""
+}

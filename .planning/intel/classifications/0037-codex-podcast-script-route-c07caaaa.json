@@ -1,0 +1,30 @@
+{
+  "source_path": "docs/decisions/0037-codex-podcast-script-route.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "0037. Codex Route for Podcast Script Generation (Phase 14)",
+  "summary": "Adds a Codex CLI route for Phase 14 podcast script generation: one whole-lecture call grounded on 08_drafts, reusing the existing compiler.",
+  "scope": [
+    "Codex CLI podcast script generation",
+    "Phase 14 podcast script route",
+    "08_drafts grounding source",
+    "PodcastScriptCompiler reuse",
+    "ADR 0027 student-facing text guard",
+    "local qwen3-32b/llama.cpp route removal"
+  ],
+  "cross_refs": [
+    "scripts/generate_codex_podcast.py",
+    "scripts/generate_codex_personal_study_flashcards.py",
+    "podcast/generator.py",
+    "podcast/compiler.py",
+    "workspace/data/08_drafts",
+    "workspace/data/09_validated_units",
+    "workspace/data/10_canonical_documents",
+    "workspace/data/15_podcast_scripts/{lecture_id}/",
+    "2026-09-16-codex-migration-phase5-7-and-pack12-defect.md"
+  ],
+  "locked": true,
+  "precedence": null,
+  "notes": ""
+}

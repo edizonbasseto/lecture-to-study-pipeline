@@ -1,0 +1,27 @@
+{
+  "source_path": "docs/decisions/0029-study-site-scope-and-access.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "0029. Study site scope, video delivery and access control",
+  "summary": "Decides study site scope: videos published alongside lectures in a separate served tree, Phase 6 brought forward, and per-person email allowlist with passwords.",
+  "scope": [
+    "study site",
+    "lecture video delivery",
+    "site.generator",
+    "site.app",
+    "access control",
+    "email allowlist",
+    "credentials file",
+    "Phase 6",
+    "SITE-03",
+    "SITE-04",
+    "SITE-06",
+    "SITE-07",
+    "SITE-08"
+  ],
+  "cross_refs": [],
+  "locked": true,
+  "precedence": null,
+  "notes": ""
+}

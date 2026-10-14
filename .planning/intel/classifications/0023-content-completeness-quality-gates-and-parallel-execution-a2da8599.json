@@ -1,0 +1,24 @@
+{
+  "source_path": "docs/decisions/0023-content-completeness-quality-gates-and-parallel-execution.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "0023. Content completeness, quality gates, and parallel execution",
+  "summary": "Accepted architecture requiring fail-closed completeness evidence, bidirectional independent critics, atomic source ledgers, and resource-aware parallel execution for lecture study material.",
+  "scope": [
+    "content completeness",
+    "publication gate",
+    "Learning Units",
+    "atomic source content ledger",
+    "source universe",
+    "independent critics",
+    "parallel execution DAG",
+    "lecture-centric workspace",
+    "human review",
+    "numeric source binding",
+    "derivative products"
+  ],
+  "cross_refs": [],
+  "locked": true,
+  "precedence": null
+}

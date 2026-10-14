@@ -1,0 +1,36 @@
+{
+  "source_path": "docs/decisions/0011-markdown-compilation-and-publishing-pipeline.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "0011. Markdown Compilation and Publishing Pipeline",
+  "summary": "Adds deterministic Markdown and HTML compilation of canonical lecture documents and global indexes, with Phase 9 index persistence and two escaping layers for untrusted text.",
+  "scope": [
+    "Markdown compilation",
+    "publishing pipeline",
+    "MarkdownCompiler",
+    "PublishingOrchestrator",
+    "MetadataAggregator",
+    "LectureGlobalIndex",
+    "CanonicalLectureDocument",
+    "markdown-it-py",
+    "study_guide.md",
+    "study_guide.html",
+    "HTML escaping",
+    "Markdown escaping",
+    "Phase 8",
+    "Phase 9",
+    "Phase 10",
+    "Phase 11"
+  ],
+  "cross_refs": [
+    "docs/decisions/0006-learning-unit-draft-synthesis-contracts.md",
+    "docs/decisions/0007-...md",
+    "docs/decisions/0012-deterministic-flashcard-generation.md",
+    "DIRETRIZES_ARQUITETURA.txt",
+    ".prompts/fases10_e_11_publishing.md"
+  ],
+  "locked": true,
+  "precedence": null,
+  "notes": ""
+}

@@ -1,0 +1,26 @@
+{
+  "source_path": "docs/decisions/0039-phone-sessions-and-edge-cache-isolation.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "0039. Phone sessions, per-person revocation and edge-cache isolation",
+  "summary": "Accepted decision adding phone-friendly login sessions with per-person revocation, server-secret-keyed session signing, password-check rate limiting, and private no-store caching for authorized responses.",
+  "scope": [
+    "phone sessions",
+    "login form",
+    "session cookie",
+    "per-person revocation",
+    "allowlist",
+    "signing secret",
+    "password-check rate limiting",
+    "Cache-Control header",
+    "edge cache",
+    "CDN",
+    "Basic Auth",
+    "study site"
+  ],
+  "cross_refs": [],
+  "locked": true,
+  "precedence": null,
+  "notes": ""
+}

@@ -1,0 +1,35 @@
+{
+  "source_path": "docs/decisions/0007-workspace-migration-and-critic-repair-loop.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "0007. Workspace migration and the Critic & Repair Loop: workspace/data/ root, CriticReview/ValidatedLearningUnit contracts, and feedback-driven regeneration",
+  "summary": "Accepted decision moving execution data to workspace/data/, adding CriticReview and ValidatedLearningUnit contracts, and a bounded feedback-driven Repair Loop for drafts.",
+  "scope": [
+    "workspace/data/",
+    "CriticReview",
+    "ValidatedLearningUnit",
+    "evaluate_draft",
+    "critic/llm_worker.py",
+    "critic/pipeline.py",
+    "CriticOrchestrator",
+    "Repair Loop",
+    "generate_draft",
+    "LearningUnitDraft",
+    "EvidencePack",
+    "SemanticLedger",
+    "data/ directory tree",
+    "phase directory constants",
+    "llama-cli"
+  ],
+  "cross_refs": [
+    ".prompts/fase7_critic_and_workspace.md",
+    "README.md",
+    "DIRETRIZES_ARQUITETURA.txt",
+    "scripts/generate_codex_critic_review.py",
+    "tests/test_workspace_paths.py"
+  ],
+  "locked": true,
+  "precedence": null,
+  "notes": "Status line reads 'Accepted' but also records partial supersession by ADR 0038 for the local execution route (qwen3-32b/llama.cpp worker deleted; repair loop lives on in scripts/generate_codex_critic_review.py). Locked set true per the Accepted status; the supersession and the ADR 0020 and ADR 0022 errata are recorded for synthesizer conflict review."
+}

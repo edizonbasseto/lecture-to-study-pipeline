@@ -1,0 +1,28 @@
+{
+  "source_path": "docs/decisions/0008-document-assembly-and-domain-error-taxonomy.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "0008. Document Assembly: canonical document contract, and a domain-level error taxonomy",
+  "summary": "Accepted decision defining the CanonicalLectureDocument contract and a shared domain/errors.py module for three assembly-policy exceptions.",
+  "scope": [
+    "CanonicalLectureDocument",
+    "DocumentAssembler",
+    "assemble_lecture",
+    "domain/errors.py",
+    "LectureNotFoundError",
+    "MissingSequenceError",
+    "UnresolvedReviewError",
+    "ValidatedLearningUnit",
+    "Phase 8 document assembly"
+  ],
+  "cross_refs": [
+    ".prompts/fase8_document_assembly.md",
+    ".prompts/fase8_assembly_policies.md",
+    ".prompts/fase8_assembly_full.md",
+    "DIRETRIZES_ARQUITETURA.txt"
+  ],
+  "locked": true,
+  "precedence": null,
+  "notes": ""
+}

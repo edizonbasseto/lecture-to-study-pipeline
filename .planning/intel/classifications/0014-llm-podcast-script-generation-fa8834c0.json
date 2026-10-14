@@ -1,0 +1,27 @@
+{
+  "source_path": "docs/decisions/0014-llm-podcast-script-generation.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "0014. LLM Podcast Script Generation (Two-Speaker Deep Dive, Unit Traceability)",
+  "summary": "Adopts a two-speaker Deep Dive podcast script generator from one lecture's canonical document, with per-line source_unit_id traceability and a single critic/repair retry.",
+  "scope": [
+    "PodcastLine",
+    "PodcastScript",
+    "PodcastScriptGenerator",
+    "PodcastScriptCompiler",
+    "PodcastGenerationError",
+    "podcast/generator.py",
+    "podcast/compiler.py",
+    "domain/models.py",
+    "domain/errors.py",
+    "llama.cpp subprocess",
+    "CanonicalLectureDocument"
+  ],
+  "cross_refs": [
+    ".prompts/fase14_podcast_script.md"
+  ],
+  "locked": true,
+  "precedence": null,
+  "notes": "Status line reads 'Accepted' but also contains 'Superseded by ADR 0038' (generator deleted, replaced by scripts/generate_codex_podcast.py per ADR 0037) and errata referencing ADR 0020 and ADR 0022. locked set to true per the Accepted-status rule; ADR 0038 should take precedence where the two conflict. Related ADRs referenced by number only: 0006, 0008, 0013, 0020, 0022, 0037, 0038."
+}

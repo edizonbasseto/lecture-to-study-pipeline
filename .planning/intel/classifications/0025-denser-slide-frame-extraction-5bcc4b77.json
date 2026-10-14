@@ -1,0 +1,24 @@
+{
+  "source_path": "docs/decisions/0025-denser-slide-frame-extraction.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "0025. Denser slide-frame extraction for lecture 10002",
+  "summary": "Lowers the visual frame temporal safety gap from 150 to 37.5 seconds for all lectures, leaving the scene-change threshold unchanged; amends ADR 0021.",
+  "scope": [
+    "extraction/media_workers.py",
+    "visual-frame filter",
+    "_MAXIMUM_VISUAL_FRAME_GAP_SECONDS",
+    "FFmpeg scene score",
+    "scene-change threshold gt(scene,0.3)",
+    "lecture 10002",
+    "ADR 0021",
+    "extract_frames",
+    "frame filename convention",
+    "captioning worker"
+  ],
+  "cross_refs": [],
+  "locked": true,
+  "precedence": null,
+  "notes": ""
+}

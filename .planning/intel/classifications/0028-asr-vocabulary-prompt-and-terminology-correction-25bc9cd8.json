@@ -1,0 +1,24 @@
+{
+  "source_path": "docs/decisions/0028-asr-vocabulary-prompt-and-terminology-correction.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "0028. ASR vocabulary prompt and deterministic terminology correction",
+  "summary": "Adds a domain vocabulary prompt to the whisper.cpp ASR pass and a per-lecture deterministic terminology correction for fascia and histopathology terms.",
+  "scope": [
+    "ASR vocabulary prompt",
+    "whisper.cpp",
+    "DOMAIN_VOCABULARY_PROMPT",
+    "deterministic terminology correction",
+    "transcription pipeline",
+    "05_transcribed transcripts",
+    "terminology corrections audit record"
+  ],
+  "cross_refs": [
+    "transcription/whisper_worker.py",
+    "transcription/terminology.py",
+    "workspace/data/05_transcribed"
+  ],
+  "locked": true,
+  "precedence": null
+}

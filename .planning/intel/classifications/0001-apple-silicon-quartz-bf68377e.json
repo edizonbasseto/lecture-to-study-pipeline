@@ -1,0 +1,23 @@
+{
+  "source_path": "docs/decisions/0001-apple-silicon-quartz.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "0001. Use pyobjc-framework-Quartz, not pyobjc-framework-CoreImage, to feed the Apple Vision OCR pipeline",
+  "summary": "Chose pyobjc-framework-Quartz (CGImageSource to CGImage) over pyobjc-framework-CoreImage to feed slide PNGs into Apple Vision OCR; CoreImage remains optional for future compositing.",
+  "scope": [
+    "pyobjc-framework-Quartz",
+    "pyobjc-framework-CoreImage",
+    "Apple Vision OCR pipeline",
+    "CGImage",
+    "VNImageRequestHandler",
+    "Apple Silicon Metal GPU contention",
+    "slide frame extraction"
+  ],
+  "cross_refs": [
+    "DIRETRIZES_ARQUITETURA.txt"
+  ],
+  "locked": true,
+  "precedence": null,
+  "notes": ""
+}

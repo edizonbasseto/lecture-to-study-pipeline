@@ -1,0 +1,22 @@
+{
+  "source_path": "docs/decisions/0033-exam-question-figure-reuse.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "0033. Exam questions illustrate with the same figure already selected for their unit",
+  "summary": "Reuses the per-unit figure selection for exam questions by resolving the figure at render time from pack_sequence, instead of a second selection heuristic.",
+  "scope": [
+    "exam questions",
+    "figure selection",
+    "figures_by_pack_sequence",
+    "inference_mock_exam_document",
+    "MockQuestion",
+    "StudyDocumentSection",
+    "item_figures",
+    "study materials bundle",
+    "Questoes page"
+  ],
+  "cross_refs": [],
+  "locked": true,
+  "precedence": null
+}

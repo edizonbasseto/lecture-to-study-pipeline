@@ -1,0 +1,25 @@
+{
+  "source_path": "docs/decisions/0034-retry-repeat-penalty-for-llama-cli-workers.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "0034. Retry-only repeat-penalty for the shared llama-cli invocation contract",
+  "summary": "Retry-only repeat penalty (1.3, last-n 256) added to llama-cli feedback retries in semantic and critic workers; first attempt unchanged.",
+  "scope": [
+    "llama-cli",
+    "repeat penalty",
+    "semantic/llm_worker.py",
+    "critic/llm_worker.py",
+    "_start_llama_process",
+    "extract_ledger",
+    "evaluate_draft"
+  ],
+  "cross_refs": [
+    "ADR 0020",
+    "ADR 0022",
+    "ADR 0038"
+  ],
+  "locked": true,
+  "precedence": null,
+  "notes": ""
+}

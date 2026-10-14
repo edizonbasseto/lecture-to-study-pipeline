@@ -1,0 +1,23 @@
+{
+  "source_path": "docs/decisions/0010-local-pii-encryption-risk-acceptance.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "0010. Local PII At-Rest Encryption: Risk Acceptance via macOS FileVault",
+  "summary": "Accepts the missing application-level at-rest encryption of workspace/data/ and delegates protection to macOS FileVault, scoped to local storage.",
+  "scope": [
+    "workspace/data/",
+    "at-rest encryption",
+    "PII",
+    "macOS FileVault",
+    "local storage",
+    "Codex CLI",
+    "study site"
+  ],
+  "cross_refs": [
+    "docs/decisions/0009-...md",
+    "DIRETRIZES_ARQUITETURA.txt"
+  ],
+  "locked": true,
+  "precedence": null
+}

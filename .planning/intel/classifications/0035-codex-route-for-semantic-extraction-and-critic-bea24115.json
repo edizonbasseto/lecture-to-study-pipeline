@@ -1,0 +1,32 @@
+{
+  "source_path": "docs/decisions/0035-codex-route-for-semantic-extraction-and-critic.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "0035. Codex CLI replaces local qwen3-32b for semantic extraction (Phase 5) and critic review (Phase 7)",
+  "summary": "Moves semantic extraction (Phase 5) and critic review (Phase 7) from local qwen3-32b to Codex CLI scripts, after deterministic JSON defects in the local route.",
+  "scope": [
+    "Codex CLI",
+    "qwen3-32b",
+    "llama.cpp",
+    "semantic extraction",
+    "critic review",
+    "Phase 5",
+    "Phase 7",
+    "semantic/llm_worker.py",
+    "critic/llm_worker.py",
+    "scripts/generate_codex_semantic_ledgers.py",
+    "scripts/generate_codex_critic_review.py",
+    "ops/llm_response_contract.py"
+  ],
+  "cross_refs": [
+    "ADR 0022",
+    "ADR 0030",
+    "ADR 0034",
+    "ADR 0038",
+    "2026-09-quality-over-cost-preference.md"
+  ],
+  "locked": true,
+  "precedence": null,
+  "notes": "Status is Accepted but partially superseded by ADR 0038 (dual-route reachability clause no longer holds); locked is set from the Accepted status as written."
+}

@@ -1,0 +1,27 @@
+{
+  "source_path": "docs/decisions/0042-local-lectures-private-publication-gate.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "0042. Local lectures and the private publication gate",
+  "summary": "Records that local lectures stay unpublished by default, compile to a private tree, and reach the public site only through an explicit publish flag and recompile.",
+  "scope": [
+    "local lectures",
+    "publication gate",
+    "synthetic lecture ids 925100-925299",
+    "scripts/register_local_lecture.py",
+    "config/local-lectures.local.yaml",
+    "generate_personal_study_guides.py",
+    "generate_academic_catalog.py",
+    "site/catalog.py",
+    "site/quiz.py",
+    "scripts/list_withheld_lecture_ids.py",
+    "catalog_bridge.upsert_lecture_in_queue",
+    "workspace/study-guides",
+    "workspace/study-guides-local",
+    "deploy channels"
+  ],
+  "cross_refs": [],
+  "locked": true,
+  "precedence": null
+}

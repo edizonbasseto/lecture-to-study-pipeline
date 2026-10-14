@@ -1,0 +1,28 @@
+{
+  "source_path": "docs/decisions/0012-deterministic-flashcard-generation.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "0012. Deterministic Anki Flashcard Generation (CSV Export)",
+  "summary": "Generates Anki flashcards deterministically in Python from LectureGlobalIndex as CSV, with no LLM pass and with CSV formula-injection sanitization.",
+  "scope": [
+    "Anki flashcards",
+    "CSV export",
+    "Flashcard domain model",
+    "AnkiDeckGenerator",
+    "LectureGlobalIndex",
+    "GlobalIndexNotFoundError",
+    "CSV sanitization",
+    "domain/models.py",
+    "domain/errors.py",
+    "flashcards/generator.py"
+  ],
+  "cross_refs": [
+    ".prompts/fase12_anki_flashcards.md",
+    "ADR 0009",
+    "ADR 0011"
+  ],
+  "locked": true,
+  "precedence": null,
+  "notes": ""
+}

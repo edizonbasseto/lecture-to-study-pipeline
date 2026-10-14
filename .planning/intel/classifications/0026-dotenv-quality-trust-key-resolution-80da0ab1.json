@@ -1,0 +1,27 @@
+{
+  "source_path": "docs/decisions/0026-dotenv-quality-trust-key-resolution.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "0026. Dotenv resolution for the quality trust key",
+  "summary": "Resolves the quality trust HMAC key from the process environment, then the working-directory dotenv file, failing closed otherwise; amended by ADR 0044 to a single key from the current directory's .env only.",
+  "scope": [
+    "HmacQualityTrust.from_environment",
+    "LECTURE_STUDY_QUALITY_HMAC_KEY_B64",
+    "quality trust key",
+    "dotenv key resolution",
+    "sanitized_child_process_environment",
+    "ADR 0023 registry-root prohibition"
+  ],
+  "cross_refs": [
+    "ADR 0044",
+    "ADR 0023",
+    "src/lecture_study/ops/process_environment.py",
+    "tests/test_process_environment.py",
+    "quality/trust.py",
+    "pyproject.toml"
+  ],
+  "locked": true,
+  "precedence": null,
+  "notes": ""
+}

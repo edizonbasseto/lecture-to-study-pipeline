@@ -1,0 +1,25 @@
+{
+  "source_path": "docs/decisions/0013-llm-mock-exam-generation.md",
+  "type": "ADR",
+  "confidence": "medium",
+  "manifest_override": false,
+  "title": "0013. LLM Mock Exam Generation (Forced JSON Extraction + Retry)",
+  "summary": "Chose forced JSON extraction with one retry for LLM-generated Phase 13 mock exams via local llama.cpp; later errata and supersession by ADR 0038.",
+  "scope": [
+    "LLM mock exam generation",
+    "llama.cpp local inference",
+    "MockQuestion",
+    "MockExam",
+    "MockExamGenerator",
+    "ExamCompiler",
+    "MockExamGenerationError",
+    "JSON array schema contract",
+    "critic/repair retry"
+  ],
+  "cross_refs": [
+    ".prompts/fase13_mock_exams.md"
+  ],
+  "locked": true,
+  "precedence": null,
+  "notes": "Status line reads 'Accepted' (locked true by literal rule) but also states 'Superseded by ADR 0038' and carries errata from ADRs 0020, 0022, 0027; supersession status conflicts with Accepted, hence medium confidence. ADR references (0006, 0008, 0009, 0012, 0014, 0020, 0022, 0027, 0030, 0038) are cited by number, not as doc paths, so they are not listed in cross_refs."
+}

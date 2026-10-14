@@ -1,0 +1,23 @@
+{
+  "source_path": "docs/decisions/0041-server-graded-interactive-mock-exam.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "0041. Server-graded interactive mock exam",
+  "summary": "Grades the interactive mock exam server-side so correct answers never reach the client; reads exam.json directly from disk, with no signed token or attempt history and a per-lecture quiz throttle.",
+  "scope": [
+    "mock exam",
+    "server-side grading",
+    "site/quiz.py",
+    "exam.json",
+    "MOCK_EXAMS_DIR",
+    "_QuizGate throttle",
+    "_AccessGate.identify",
+    "simulado card",
+    "passive reading page"
+  ],
+  "cross_refs": [],
+  "locked": true,
+  "precedence": null,
+  "notes": ""
+}

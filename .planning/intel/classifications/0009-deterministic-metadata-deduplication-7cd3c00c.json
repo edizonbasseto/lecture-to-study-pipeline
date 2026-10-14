@@ -1,0 +1,35 @@
+{
+  "source_path": "docs/decisions/0009-deterministic-metadata-deduplication.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "0009. Global Metadata Aggregation: deterministic text-normalization deduplication",
+  "summary": "Decides Phase 9 aggregates per-lecture semantic ledgers into a LectureGlobalIndex using LLM-free, deterministic text-normalization deduplication.",
+  "scope": [
+    "LectureGlobalIndex",
+    "LectureMetadata",
+    "MetadataAggregator",
+    "aggregate_lecture",
+    "_normalize_text",
+    "SemanticLedger",
+    "SemanticFact",
+    "glossary_terms",
+    "dosages",
+    "red_flags",
+    "category routing",
+    "domain/models.py",
+    "domain/errors.py",
+    "Phase 9 metadata aggregation",
+    "Phase 8 canonical document",
+    "Phase 5 semantic ledgers"
+  ],
+  "cross_refs": [
+    "docs/decisions/0008-...md",
+    "docs/decisions/0011-markdown-compilation-and-publishing-pipeline.md",
+    "docs/decisions/0012-deterministic-flashcard-generation.md",
+    ".prompts/fase9_metadata_aggregation_v2.md"
+  ],
+  "locked": true,
+  "precedence": null,
+  "notes": ""
+}

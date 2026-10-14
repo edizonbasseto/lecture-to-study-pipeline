@@ -1,0 +1,21 @@
+{
+  "source_path": "docs/decisions/0036-codex-critic-repair-loop-and-instruction-calibration.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "0036. Codex critic repair loop and instruction calibration",
+  "summary": "Adds an automatic Codex-based redraft repair loop to critic review and recalibrates the critic instruction to separate wording from substance.",
+  "scope": [
+    "Codex CLI",
+    "critic review",
+    "repair loop",
+    "_CRITIC_INSTRUCTION",
+    "semantic extraction",
+    "instruction calibration",
+    "scripts/generate_codex_critic_review.py"
+  ],
+  "cross_refs": [],
+  "locked": true,
+  "precedence": null,
+  "notes": ""
+}

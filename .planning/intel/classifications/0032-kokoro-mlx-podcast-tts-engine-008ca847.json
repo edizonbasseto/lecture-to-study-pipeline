@@ -1,0 +1,25 @@
+{
+  "source_path": "docs/decisions/0032-kokoro-mlx-podcast-tts-engine.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "0032. Kokoro (mlx-audio) replaces macOS `say` as the podcast TTS engine",
+  "summary": "Replaces macOS say with Kokoro-82M via mlx-audio as the podcast TTS engine, invoked as a sandboxed subprocess.",
+  "scope": [
+    "macOS say",
+    "Kokoro-82M",
+    "mlx-audio",
+    "podcast TTS engine",
+    "tts/generator.py",
+    "ffmpeg",
+    "PodcastLine",
+    "kokoro-mlx",
+    "Piper TTS"
+  ],
+  "cross_refs": [
+    "DIRETRIZES_ARQUITETURA.txt"
+  ],
+  "locked": true,
+  "precedence": null,
+  "notes": ""
+}

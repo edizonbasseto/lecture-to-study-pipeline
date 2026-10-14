@@ -1,0 +1,28 @@
+{
+  "source_path": "docs/decisions/0030-critical-review-merge-and-codex-exam-route.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "0030. Critical-review document merge and Codex-based mock-exam route",
+  "summary": "Merges the critical summary and summary editions into one document, deletes the figure atlas, scales mock-exam question count per unit, and generates exams via the Codex CLI.",
+  "scope": [
+    "critical_review_document",
+    "resumo_critico",
+    "apostila_resumida",
+    "figure atlas",
+    "MockQuestion",
+    "pack_sequence",
+    "scripts/generate_codex_mock_exam.py",
+    "codex exec",
+    "mock exam generation",
+    "lecture_study.ops.llm_response_contract"
+  ],
+  "cross_refs": [
+    "ADR 0038",
+    "ADR 0045",
+    "ADR 0024"
+  ],
+  "locked": true,
+  "precedence": null,
+  "notes": "Status is Accepted but partially superseded: dual-route reachability superseded by ADR 0038; the mock-exam source amended by ADR 0045 (reads 09_validated_units instead of 08_drafts). Status field kept as Accepted, so locked is true."
+}

@@ -1,0 +1,23 @@
+{
+  "source_path": "docs/decisions/0021-scene-change-detection-threshold.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "0021. Scene-change detection with a temporal safety interval",
+  "summary": "Raised the FFmpeg scene-change threshold to 0.3 and added a 150-second temporal safety frame to Phase 2 slide-frame extraction.",
+  "scope": [
+    "scene-change detection",
+    "FFmpeg select filter",
+    "extraction/media_workers.py",
+    "Phase 2 slide-frame extraction",
+    "Evidence Packs",
+    "Learning Unit duration",
+    "clock-overlay noise"
+  ],
+  "cross_refs": [
+    ".prompts/fase2_workers.md"
+  ],
+  "locked": true,
+  "precedence": null,
+  "notes": ""
+}
