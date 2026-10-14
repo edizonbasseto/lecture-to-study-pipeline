@@ -93,7 +93,21 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. An unknown adapter name exits non-zero before any model call
   3. The contract tests pass for both adapters in CI
   4. The new ADR is Accepted, and ADR 0038 and ADR 0045 carry amendment notes pointing to it
-**Plans**: TBD
+**Plans**: 12 plans in 6 waves
+
+Plans:
+- [ ] 06-01-PLAN.md — `llm/` port, typed errors, `complete_json`, `CodexCliAdapter`, stub harness, contract suite (codex), layering test (wave 1)
+- [ ] 06-02-PLAN.md — `LlamaCppAdapter` on `llama-completion`/`llama-tokenize`, no-egress guards, contract suite over both adapters (wave 2)
+- [ ] 06-03-PLAN.md — Gateway configuration (YAML plus env override, per-stage) and metadata-only run record (wave 2)
+- [ ] 06-04-PLAN.md — `remote_llm_allowed` egress policy and registry flag; OPEN-2 checkpoint (wave 2)
+- [ ] 06-05-PLAN.md — Factory, composition wiring, stage 5 semantic pilot migration (wave 3)
+- [ ] 06-06-PLAN.md — Stages 6 and 7 (drafts, critic with two gateways), critic repair loop through both adapters (wave 4)
+- [ ] 06-07-PLAN.md — Stages 13 and 18 (mock exam, personal-study flashcards) (wave 4)
+- [ ] 06-08-PLAN.md — Stage 14 podcast, typed call errors without retry, timeout override (wave 4)
+- [ ] 06-09-PLAN.md — Orchestrator preflight and env forwarding; criteria 1 and 2 end to end (wave 5)
+- [ ] 06-10-PLAN.md — Provisioning: gateway binaries and opt-in example model with SHA-256 (wave 1)
+- [ ] 06-11-PLAN.md — ADR 0046, amendments to ADR 0038/0045, GEN-07 and GW-03; OPEN-1 checkpoint; D-07 manual run record (wave 6)
+- [ ] 06-12-PLAN.md — Forward notes on ADRs 0020, 0022, 0034, 0035, 0036, 0037 and PROJECT.md decisions (wave 6)
 
 ### Phase 7: Synthetic demo lecture and measured results
 **Goal**: A lecture authored for this repository runs end to end to a served page, and the pipeline's quality is reported with real numbers
@@ -140,7 +154,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 3. Assembly, study material and the uncertified boundary | 0/0 | Complete (baseline) | Pre-GSD |
 | 4. Study site | 0/0 | Complete (baseline) | Pre-GSD |
 | 5. Publication boundary and public repository | 0/0 | Complete (baseline) | Pre-GSD |
-| 6. Pluggable LLM gateway | 0/TBD | Not started | - |
+| 6. Pluggable LLM gateway | 0/12 | Not started | - |
 | 7. Synthetic demo lecture and measured results | 0/TBD | Not started | - |
 | 8. Portfolio README and documentation | 0/TBD | Not started | - |
 | 9. Pre-public gate and release | 0/TBD | Not started | - |
