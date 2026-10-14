@@ -20,6 +20,7 @@ ALLOWED_LLM_IMPORT_PREFIXES = (
     "lecture_study.ops.process_lifecycle",
     "lecture_study.ops.process_environment",
     "lecture_study.ops.llm_response_contract",
+    "lecture_study.ops.strict_yaml",
     LLM_PACKAGE,
 )
 INNER_MODULE_FILE_NAMES = (

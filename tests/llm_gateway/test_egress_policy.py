@@ -91,6 +91,40 @@ def test_unreadable_registry_raises_instead_of_passing(tmp_path: Path) -> None:
     assert raised.value.__cause__ is not None
 
 
+_REGISTRY_ROW = (
+    "- lecture_id: '925101'\n  title: T\n  discipline: D\n  section: S\n"
+    "  scheduled_date: 2025-07-01\n"
+)
+
+
+@pytest.mark.parametrize(
+    "registry_text",
+    [
+        "lectures:\n"
+        + _REGISTRY_ROW
+        + "  remote_llm_allowed: false\n  remote_llm_allowed: true\n",
+        "lectures:\n"
+        + _REGISTRY_ROW
+        + "  remote_llm_allowed: true\n  remote_llm_allowed: false\n",
+        "lectures: []\nlectures:\n" + _REGISTRY_ROW + "  remote_llm_allowed: true\n",
+    ],
+    ids=["false-then-true", "true-then-false", "two-top-level-blocks"],
+)
+def test_registry_with_repeated_keys_refuses_remote_clearance(
+    tmp_path: Path, registry_text: str
+) -> None:
+    path = tmp_path / "repeated.yaml"
+    path.write_text(registry_text, encoding="utf-8")
+
+    with pytest.raises(GatewayConfigurationError, match="unreadable"):
+        _policy(path).is_remote_allowed(FLAGGED_LOCAL_ID)
+
+    with pytest.raises(GatewayConfigurationError):
+        require_remote_egress_allowed(
+            _policy(path), lecture_id=FLAGGED_LOCAL_ID, stage=Stage.DRAFTING
+        )
+
+
 def test_portal_lecture_is_allowed_only_when_listed(registry_path: Path) -> None:
     policy = _policy(registry_path, portal_ids=(PORTAL_ID,))
 

@@ -260,6 +260,51 @@ def test_duplicate_lecture_ids_are_rejected_by_the_loader(
         load_local_lectures(paths["metadata"])
 
 
+_ROW_PREFIX = (
+    "lectures:\n- lecture_id: '925101'\n  title: T\n  discipline: D\n"
+    "  section: S\n  scheduled_date: 2025-07-01\n"
+)
+_ROW_BODY = _ROW_PREFIX.split("lectures:\n", 1)[1]
+
+
+@pytest.mark.parametrize(
+    ("text", "repeated_path"),
+    [
+        (
+            _ROW_PREFIX + "  remote_llm_allowed: false\n  remote_llm_allowed: true\n",
+            "lectures.0.remote_llm_allowed",
+        ),
+        (
+            _ROW_PREFIX + "  remote_llm_allowed: true\n  remote_llm_allowed: false\n",
+            "lectures.0.remote_llm_allowed",
+        ),
+        (_ROW_PREFIX + "  publish: false\n  publish: true\n", "lectures.0.publish"),
+        (_ROW_PREFIX + "lectures:\n" + _ROW_BODY, "lectures"),
+    ],
+)
+def test_repeated_registry_keys_are_rejected_naming_only_the_key_path(
+    tmp_path: Path, text: str, repeated_path: str
+) -> None:
+    path = tmp_path / "local.yaml"
+    path.write_text(text)
+
+    with pytest.raises(LocalLectureError, match="chaves repetidas") as raised:
+        load_local_lectures(path)
+
+    assert repeated_path in str(raised.value)
+    assert "925101" not in str(raised.value)
+
+
+def test_unreadable_registry_is_a_typed_error_not_an_empty_registry(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "local.yaml"
+    path.mkdir()
+
+    with pytest.raises(LocalLectureError, match="ilegível.*IsADirectoryError"):
+        load_local_lectures(path)
+
+
 def test_load_returns_empty_when_file_absent(tmp_path: Path) -> None:
     assert load_local_lectures(tmp_path / "missing.yaml") == []
 

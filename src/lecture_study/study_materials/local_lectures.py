@@ -39,6 +39,7 @@ from lecture_study.ops.process_environment import (
     resolve_trusted_executable,
     sanitized_child_process_environment,
 )
+from lecture_study.ops.strict_yaml import duplicated_key_paths
 from lecture_study.study_materials.academic_catalog import (
     AcademicCatalog,
     AcademicDiscipline,
@@ -131,23 +132,51 @@ def default_scheduled_date(semester: str) -> date:
 
 
 def load_local_lectures(path: Path = LOCAL_LECTURES_PATH) -> list[LocalLecture]:
-    """Return the registered local lectures; empty when the file is absent."""
+    """Return the registered local lectures; empty when the file is absent.
 
-    if not path.is_file():
-        return []
+    A registry that cannot be read, repeats a mapping key, or lists an id twice
+    raises ``LocalLectureError``: its egress and publication flags would
+    otherwise resolve to whichever contradictory value was parsed last.
+    """
+
     try:
-        payload = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-        if not isinstance(payload, dict):
-            raise LocalLectureError("raiz do arquivo deve ser um mapa")
-        lectures = _LOCAL_LECTURES_ADAPTER.validate_python(
-            payload.get("lectures", []), strict=False
-        )
-        _require_unique_lecture_ids(lectures)
-        return lectures
+        return _parse_registry(path)
     except (yaml.YAMLError, ValidationError, UnicodeDecodeError) as error:
         raise LocalLectureError(f"aulas locais inválidas em {path}: {error}") from error
     except LocalLectureError as error:
         raise LocalLectureError(f"aulas locais inválidas em {path}: {error}") from error
+
+
+def _parse_registry(path: Path) -> list[LocalLecture]:
+    text = _read_registry_text(path)
+    if text is None:
+        return []
+    _require_no_repeated_keys(text)
+    payload = yaml.safe_load(text) or {}
+    if not isinstance(payload, dict):
+        raise LocalLectureError("raiz do arquivo deve ser um mapa")
+    lectures = _LOCAL_LECTURES_ADAPTER.validate_python(
+        payload.get("lectures", []), strict=False
+    )
+    _require_unique_lecture_ids(lectures)
+    return lectures
+
+
+def _read_registry_text(path: Path) -> str | None:
+    """The registry text, or None only when the file is absent."""
+
+    try:
+        return path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return None
+    except OSError as error:
+        raise LocalLectureError(f"arquivo ilegível ({type(error).__name__})") from error
+
+
+def _require_no_repeated_keys(text: str) -> None:
+    repeated = duplicated_key_paths(text)
+    if repeated:
+        raise LocalLectureError("chaves repetidas: " + ", ".join(repeated))
 
 
 def _require_unique_lecture_ids(lectures: list[LocalLecture]) -> None:
