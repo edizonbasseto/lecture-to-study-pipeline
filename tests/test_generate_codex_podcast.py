@@ -1,31 +1,36 @@
-"""Unit tests for the Codex-based personal-study podcast-script
-generator.
+"""Unit tests for the personal-study podcast-script generator on the LLM
+gateway (ADR 0046).
 
-The `codex` subprocess itself is never invoked here -- these tests stub
-`run_bounded_process` and exercise the pure logic: evidence-pack
-construction, the lecture_id/unit-id traceability check (collect-every-
-offender shape, mirroring podcast/generator.py's own), the ADR 0027
-student-facing-text guard, and the subprocess-failure-to-
-LlmResponseContractError wrapping."""
+No model is ever called: a scripted gateway double replays canned responses.
+The tests exercise evidence-pack construction, the lecture_id/unit-id
+traceability check (collect-every-offender shape, mirroring
+podcast/generator.py's own), the ADR 0027 student-facing-text guard, the
+single retry boundary around parsing and validation, the typed call errors
+that are never retried (D-22), the oversized-prompt refusal (D-08, D-23), the
+per-call timeout override (D-03), the run record and the import boundary that
+keeps process code out of the script."""
 
 from __future__ import annotations
 
+import ast
 import importlib.util
 import json
-import subprocess
 import sys
 from pathlib import Path
 from types import ModuleType
-from unittest.mock import patch
 
 import pytest
 
 from lecture_study.domain.models import (
+    ArtifactExecutionMode,
     CriticReview,
     LearningUnitDraft,
     PodcastLine,
     PodcastScript,
     ValidatedLearningUnit,
+)
+from lecture_study.llm import (
+    Stage,
 )
 
 
@@ -154,100 +159,6 @@ def test_reject_text_unfit_for_a_listener_accepts_clean_text() -> None:
     _MODULE._reject_text_unfit_for_a_listener(_script())
 
 
-def test_call_codex_for_script_wraps_a_nonzero_exit_as_a_contract_error() -> None:
-    def fake_run_bounded_process(args, **_kwargs):
-        raise subprocess.CalledProcessError(returncode=1, cmd=args)
-
-    with (
-        patch.object(
-            _MODULE, "run_bounded_process", side_effect=fake_run_bounded_process
-        ),
-        pytest.raises(_MODULE.LlmResponseContractError, match="codex exec failed"),
-    ):
-        _MODULE._call_codex_for_script(
-            codex_executable="codex",
-            environment={},
-            prompt="prompt",
-            lecture_id="lecture-001",
-            unit_ids=("unit-001",),
-        )
-
-
-def test_call_codex_for_script_wraps_a_timeout_as_a_contract_error() -> None:
-    def fake_run_bounded_process(args, **kwargs):
-        raise subprocess.TimeoutExpired(
-            cmd=args, timeout=kwargs.get("timeout_seconds", 1)
-        )
-
-    with (
-        patch.object(
-            _MODULE, "run_bounded_process", side_effect=fake_run_bounded_process
-        ),
-        pytest.raises(_MODULE.LlmResponseContractError, match="codex exec failed"),
-    ):
-        _MODULE._call_codex_for_script(
-            codex_executable="codex",
-            environment={},
-            prompt="prompt",
-            lecture_id="lecture-001",
-            unit_ids=("unit-001",),
-        )
-
-
-def test_call_codex_for_script_wraps_an_output_limit_breach_as_a_contract_error() -> (
-    None
-):
-    def fake_run_bounded_process(args, **_kwargs):
-        raise _MODULE.ProcessOutputLimitExceeded("stdout", 16 * 1024 * 1024)
-
-    with (
-        patch.object(
-            _MODULE, "run_bounded_process", side_effect=fake_run_bounded_process
-        ),
-        pytest.raises(_MODULE.LlmResponseContractError, match="codex exec failed"),
-    ):
-        _MODULE._call_codex_for_script(
-            codex_executable="codex",
-            environment={},
-            prompt="prompt",
-            lecture_id="lecture-001",
-            unit_ids=("unit-001",),
-        )
-
-
-def test_call_codex_for_script_runs_with_a_scratch_cwd_not_the_repo_root() -> None:
-    """Same security posture as generate_codex_mock_exam.py's own
-    equivalent test: the subprocess must never run with the repository
-    checkout (which holds .env) as its cwd/-C working root."""
-
-    captured: dict[str, object] = {}
-
-    def fake_run_bounded_process(args, *, cwd, **kwargs):
-        captured["cwd"] = cwd
-        captured["dash_c"] = args[args.index("-C") + 1]
-        output_index = args.index("-o") + 1
-        Path(args[output_index]).write_bytes(
-            b'{"lecture_id":"lecture-001","title":"Ep","dialogue":'
-            b'[{"speaker":"Host","text":"Fala.","source_unit_id":"unit-001"}]}'
-        )
-
-    with patch.object(
-        _MODULE, "run_bounded_process", side_effect=fake_run_bounded_process
-    ):
-        script = _MODULE._call_codex_for_script(
-            codex_executable="codex",
-            environment={},
-            prompt="prompt",
-            lecture_id="lecture-001",
-            unit_ids=("unit-001",),
-        )
-
-    repo_root = Path(__file__).parents[1].resolve()
-    assert script.lecture_id == "lecture-001"
-    assert Path(captured["cwd"]).resolve() != repo_root
-    assert str(captured["cwd"]) == captured["dash_c"]
-
-
 def test_an_echoed_execution_mode_member_is_stripped_before_validation() -> None:
     # Regression (lecture 10006, 2026-09-17): the schema embedded in the
     # prompt exposes the enum's existence, Codex echoed a member with an
@@ -314,68 +225,135 @@ def test_unparseable_output_passes_through_for_its_own_diagnostic() -> None:
     assert _MODULE._strip_execution_mode_echo(b"{not valid json") == b"{not valid json"
 
 
-def test_call_codex_for_script_normalizes_bracket_echoed_ids_end_to_end() -> None:
-    """Wiring guard: the _normalize_echoed_unit_ids call inside
-    _call_codex_for_script is load-bearing. A bracketed "[unit-001]" in
-    the raw codex response must come back as the bare id, or the exact
-    lecture-10004 failure mode returns while the unit tests (which call
-    the normalizer directly) stay green."""
+_VALID_SCRIPT_BYTES = (
+    b'{"lecture_id":"lecture-001","title":"Ep","dialogue":'
+    b'[{"speaker":"Host","text":"Fala.","source_unit_id":"unit-001"}]}'
+)
+_UNIT_IDS = ("unit-001",)
 
-    def fake_run_bounded_process(args, **_kwargs):
-        output_index = args.index("-o") + 1
-        Path(args[output_index]).write_bytes(
+
+def _generate(gateway: object, *, timeout_seconds: float = 900.0) -> PodcastScript:
+    return _MODULE._generate_script(
+        gateway=gateway,
+        lecture_id="lecture-001",
+        evidence_pack="[unit-001] corpo",
+        unit_ids=_UNIT_IDS,
+        timeout_seconds=timeout_seconds,
+    )
+
+
+def test_generate_script_normalizes_bracket_echoed_ids_end_to_end(
+    make_scripted_gateway,
+) -> None:
+    """Wiring guard: the unit-id normalization inside _validate_script is
+    load-bearing. A bracketed "[unit-001]" in the raw response must come
+    back as the bare id, or the exact lecture-10004 failure mode returns
+    while the unit tests (which call the normalizer directly) stay green."""
+    gateway = make_scripted_gateway(
+        [
             b'{"lecture_id":"lecture-001","title":"Ep","dialogue":'
             b'[{"speaker":"Host","text":"Fala.","source_unit_id":"[unit-001]"}]}'
-        )
+        ]
+    )
 
-    with patch.object(
-        _MODULE, "run_bounded_process", side_effect=fake_run_bounded_process
-    ):
-        script = _MODULE._call_codex_for_script(
-            codex_executable="codex",
-            environment={},
-            prompt="prompt",
-            lecture_id="lecture-001",
-            unit_ids=("unit-001",),
-        )
+    script = _generate(gateway)
 
     assert [line.source_unit_id for line in script.dialogue] == ["unit-001"]
+    assert len(gateway.requests) == 1
 
 
-def test_generate_script_retries_once_then_raises_the_second_failure() -> None:
-    calls: list[str] = []
+def test_generate_script_strips_an_echoed_execution_mode_inside_the_parse(
+    make_scripted_gateway,
+) -> None:
+    gateway = make_scripted_gateway(
+        [
+            b'{"lecture_id":"lecture-001","title":"Ep","execution_mode":"x",'
+            b'"dialogue":[{"speaker":"Host","text":"Fala.",'
+            b'"source_unit_id":"unit-001"}]}'
+        ]
+    )
 
-    def fake_call(*, prompt, **_kwargs):
-        calls.append(prompt)
-        raise _MODULE.LlmResponseContractError(
-            "still broken", retry_category="contract"
-        )
+    script = _generate(gateway)
 
-    with (
-        patch.object(_MODULE, "_call_codex_for_script", side_effect=fake_call),
-        pytest.raises(_MODULE.LlmResponseContractError, match="still broken"),
-    ):
-        _MODULE._generate_script(
-            codex_executable="codex",
-            environment={},
-            lecture_id="lecture-001",
-            evidence_pack="[unit-001] corpo",
-            unit_ids=("unit-001",),
-        )
+    assert script.lecture_id == "lecture-001"
+    assert len(gateway.requests) == 1
 
-    assert len(calls) == 2
-    assert "Retry feedback:" in calls[1]
+
+def test_generate_script_retries_once_then_raises_the_second_failure(
+    make_scripted_gateway,
+) -> None:
+    wrong_lecture = _VALID_SCRIPT_BYTES.replace(b"lecture-001", b"lecture-002")
+    gateway = make_scripted_gateway([wrong_lecture, wrong_lecture])
+
+    with pytest.raises(_MODULE.LlmResponseContractError, match="lecture_id"):
+        _generate(gateway)
+
+    assert [request.is_retry for request in gateway.requests] == [False, True]
+    assert "Retry feedback:" in gateway.requests[1].prompt
+    assert "Retry feedback:" not in gateway.requests[0].prompt
+
+
+def test_generate_script_recovers_when_the_retry_is_valid(
+    make_scripted_gateway,
+) -> None:
+    unfit = _VALID_SCRIPT_BYTES.replace(b"Fala.", b"Segundo o material, sim.")
+    gateway = make_scripted_gateway([unfit, _VALID_SCRIPT_BYTES])
+
+    script = _generate(gateway)
+
+    assert script.dialogue[0].text == "Fala."
+    assert len(gateway.requests) == 2
+
+
+def test_the_call_timeout_reaches_every_request(make_scripted_gateway) -> None:
+    unfit = _VALID_SCRIPT_BYTES.replace(b"Fala.", b"Segundo o material, sim.")
+    gateway = make_scripted_gateway([unfit, _VALID_SCRIPT_BYTES])
+
+    _generate(gateway, timeout_seconds=2700.0)
+
+    assert [request.timeout_seconds for request in gateway.requests] == [2700.0] * 2
+
+
+def test_the_podcast_stage_is_the_one_requested(make_scripted_gateway) -> None:
+    gateway = make_scripted_gateway([_VALID_SCRIPT_BYTES])
+
+    _generate(gateway)
+
+    assert gateway.requests[0].stage is Stage.PODCAST
+
+
+def test_the_call_timeout_defaults_to_nine_hundred_seconds() -> None:
+    args = _MODULE._build_argument_parser().parse_args(["lecture-001"])
+
+    assert args.call_timeout_seconds == 900.0
+    assert args.codex_executable is None
+
+
+def _open_scripted_gateway(
+    monkeypatch: pytest.MonkeyPatch, gateway: object
+) -> list[Stage]:
+    """Replace the module's gateway opener; return the stages it was asked for."""
+    opened_stages: list[Stage] = []
+
+    def open_stage_gateway(stage: Stage, **_kwargs: object) -> object:
+        opened_stages.append(stage)
+        return gateway
+
+    monkeypatch.setattr(_MODULE, "open_stage_gateway", open_stage_gateway)
+    return opened_stages
 
 
 def test_main_reports_an_invalid_lecture_id_cleanly_not_as_a_traceback(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    opened_stages = _open_scripted_gateway(monkeypatch, object())
     monkeypatch.setattr(sys, "argv", ["generate_codex_podcast.py", "../../etc/passwd"])
 
     exit_code = _MODULE.main()
 
     captured = capsys.readouterr()
     assert exit_code == 1
+    assert opened_stages == []
     assert captured.out == ""
     assert captured.err.startswith("error: ")
     assert "Traceback" not in captured.err
@@ -405,13 +383,37 @@ def _write_validated_unit(
     unit_path.write_text(unit.model_dump_json())
 
 
-def _run_main_with_codex_stubbed(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> tuple[int, list[str], list[PodcastScript]]:
-    """Runs main() on lecture-001 under tmp_path's roots, with every Codex
-    and output side effect replaced; returns the exit code, the evidence
-    packs Codex would have received, and the scripts handed to the
-    compiler."""
+def _write_approved_unit(tmp_path: Path, body: str = "corpo") -> None:
+    _write_draft(tmp_path / "08_drafts", _draft(1, body))
+    _write_validated_unit(tmp_path / "09_validated_units", _draft(1, body), passed=True)
+
+
+def _command_line(tmp_path: Path, *extra: str) -> list[str]:
+    return [
+        "generate_codex_podcast.py",
+        "lecture-001",
+        "--validated-units-root",
+        str(tmp_path / "09_validated_units"),
+        "--drafts-root",
+        str(tmp_path / "08_drafts"),
+        "--llm-runs-root",
+        str(tmp_path / "llm_runs"),
+        *extra,
+    ]
+
+
+def _run_record(tmp_path: Path) -> dict[str, object]:
+    record_path = tmp_path / "llm_runs" / "lecture-001" / "podcast.json"
+    return json.loads(record_path.read_text(encoding="utf-8"))
+
+
+def _run_main_with_a_stubbed_generator(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, gateway: object
+) -> tuple[int, list[str], list[PodcastScript], list[Stage]]:
+    """Runs main() on lecture-001 under tmp_path's roots, with the model
+    call and the output write replaced; returns the exit code, the evidence
+    packs the model would have received, the scripts handed to the compiler
+    and the stages the gateway opener was asked for."""
     evidence_packs: list[str] = []
     compiled_scripts: list[PodcastScript] = []
 
@@ -423,26 +425,15 @@ def _run_main_with_codex_stubbed(
         compiled_scripts.append(script)
         return tmp_path / "output"
 
-    monkeypatch.setattr(
-        sys,
-        "argv",
-        [
-            "generate_codex_podcast.py",
-            "lecture-001",
-            "--validated-units-root",
-            str(tmp_path / "09_validated_units"),
-            "--drafts-root",
-            str(tmp_path / "08_drafts"),
-        ],
-    )
-    monkeypatch.setattr(_MODULE, "resolve_trusted_executable", lambda _name: "codex")
+    opened_stages = _open_scripted_gateway(monkeypatch, gateway)
+    monkeypatch.setattr(sys, "argv", _command_line(tmp_path))
     monkeypatch.setattr(_MODULE, "_generate_script", fake_generate_script)
     monkeypatch.setattr(_MODULE.PodcastScriptCompiler, "compile", fake_compile)
-    return _MODULE.main(), evidence_packs, compiled_scripts
+    return _MODULE.main(), evidence_packs, compiled_scripts, opened_stages
 
 
 def test_main_grounds_the_podcast_on_the_critic_approved_unit_content(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    make_scripted_gateway, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     # ADR 0045: the repaired unit content is what the critic approved; the
     # Phase 6 first draft it replaced must never reach the prompt.
@@ -453,16 +444,20 @@ def test_main_grounds_the_podcast_on_the_critic_approved_unit_content(
         passed=True,
     )
 
-    exit_code, evidence_packs, compiled_scripts = _run_main_with_codex_stubbed(
-        monkeypatch, tmp_path
+    exit_code, evidence_packs, compiled_scripts, opened_stages = (
+        _run_main_with_a_stubbed_generator(
+            monkeypatch, tmp_path, make_scripted_gateway([])
+        )
     )
 
     assert exit_code == 0
     assert evidence_packs == ["[unit-001] texto reparado e aprovado"]
     assert len(compiled_scripts) == 1
+    assert opened_stages == [Stage.PODCAST]
 
 
 def test_main_blocks_a_lecture_with_a_unit_the_critic_rejected(
+    make_scripted_gateway,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
@@ -473,15 +468,73 @@ def test_main_blocks_a_lecture_with_a_unit_the_critic_rejected(
             tmp_path / "09_validated_units", _draft(pack_sequence), passed=passed
         )
 
-    exit_code, evidence_packs, compiled_scripts = _run_main_with_codex_stubbed(
-        monkeypatch, tmp_path
+    exit_code, evidence_packs, compiled_scripts, opened_stages = (
+        _run_main_with_a_stubbed_generator(
+            monkeypatch, tmp_path, make_scripted_gateway([])
+        )
     )
 
     captured = capsys.readouterr()
     assert exit_code == 1
     assert evidence_packs == []
     assert compiled_scripts == []
+    assert opened_stages == []
+    assert not (tmp_path / "llm_runs").exists()
     assert captured.out == ""
     assert captured.err.startswith("error: aula bloqueada")
     assert "pack_sequence 2" in captured.err
     assert "Traceback" not in captured.err
+
+
+def test_main_produces_the_uncertified_script_and_a_run_record(
+    make_scripted_gateway,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # Tracer: critic gate, gateway, parse with echo strip, validation chain,
+    # compiler and run record, end to end with only the model scripted.
+    _write_approved_unit(tmp_path)
+    gateway = make_scripted_gateway(
+        [
+            b'{"lecture_id":"lecture-001","title":"Episodio clinico",'
+            b'"execution_mode":"uncertified personal study","dialogue":'
+            b'[{"speaker":"Host","text":"Qual a conduta inicial?",'
+            b'"source_unit_id":"[unit-001]"},'
+            b'{"speaker":"Expert","text":"Estabilizar o paciente primeiro.",'
+            b'"source_unit_id":"unit-001"}]}'
+        ]
+    )
+    opened_stages = _open_scripted_gateway(monkeypatch, gateway)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, "argv", _command_line(tmp_path))
+
+    exit_code = _MODULE.main()
+
+    assert exit_code == 0, capsys.readouterr().err
+    assert opened_stages == [Stage.PODCAST]
+    assert [request.timeout_seconds for request in gateway.requests] == [900.0]
+    output_dir = tmp_path / "workspace" / "data" / "15_podcast_scripts" / "lecture-001"
+    compiled = json.loads((output_dir / "script.json").read_text(encoding="utf-8"))
+    assert compiled["execution_mode"] == (
+        ArtifactExecutionMode.UNCERTIFIED_PERSONAL_STUDY.value
+    )
+    assert [line["source_unit_id"] for line in compiled["dialogue"]] == [
+        "unit-001",
+        "unit-001",
+    ]
+    assert (output_dir / "script_legivel.md").exists()
+    record = _run_record(tmp_path)
+    assert record["status"] == "succeeded"
+    assert record["script_stage"] == "podcast"
+    assert record["gateways"][0]["calls"] == 1
+
+
+def _imported_module_names(source_text: str) -> set[str]:
+    names: set[str] = set()
+    for node in ast.walk(ast.parse(source_text)):
+        if isinstance(node, ast.Import):
+            names.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module is not None:
+            names.add(node.module)
+    return names

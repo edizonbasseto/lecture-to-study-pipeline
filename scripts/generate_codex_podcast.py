@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Generate one lecture's personal-study podcast script (ADR 0024's
-uncertified personal-study route) with the Codex CLI (`codex exec`),
+uncertified personal-study route) through the LLM gateway (ADR 0046),
 mirroring `scripts/generate_codex_mock_exam.py`/`generate_codex_personal_
-study_flashcards.py` in family and invocation shape, but unlike those two
+study_flashcards.py` in family and gateway shape, but unlike those two
 this is a single whole-lecture generation, not a per-unit loop: a podcast
 dialogue needs a coherent Host/Expert conversation across the whole
 lecture, not independent per-unit calls, matching
@@ -11,6 +11,15 @@ replaces for the Codex migration.
 
 Execution is lecture-scoped: this script takes exactly one lecture
 identifier, has no batch mode.
+
+The adapter selected by the gateway configuration (ADR 0046) owns the child
+process, its environment and its scratch directory; this script holds no
+process code. A failed model call is a typed `LlmCallError` that is never
+retried (D-22): only a response that fails parsing or validation is retried,
+once, with trusted feedback. The per-call time limit defaults to 900 seconds
+and is raised with `--call-timeout-seconds` for a very large lecture. Each
+run writes a metadata-only run record under
+`workspace/data/llm_runs/<lecture_id>/podcast.json`.
 
 Grounding input is the critic-approved, post-repair content of every
 unit in `workspace/data/09_validated_units` (Phase 7
@@ -21,7 +30,7 @@ derivative study material is only ever built from units the critic
 approved, and a single failing unit, a gap in the pack sequence, or a
 Phase 6 draft the critic never reviewed blocks the whole lecture before
 Codex is invoked. Phase 8's `workspace/data/10_canonical_documents` is
-still not read: the Codex route bypasses Phase 8's document write, but
+still not read: this route bypasses Phase 8's document write, but
 applies the same completeness gate. Each unit is tagged with the same
 `unit-{pack_sequence:03d}` synthetic id the retired `podcast/generator.py`
 used (`_UNIT_ID_TEMPLATE`), so the LLM can cite a specific unit in
@@ -46,11 +55,13 @@ is obsolete -- the local `podcast/generator.py` was deleted under ADR
 KNOWN, ACCEPTED GAP (not yet closed): unlike the local route's
 per-attempt context/output-token escalation
 (`_QWEN2_INFERENCE_WINDOWS`/`_QWEN3_INFERENCE_WINDOWS`,
-`podcast/generator.py`), this script's single whole-lecture prompt has no
-size check and its retry resends the same size evidence pack unchanged
--- a lecture dense enough to truncate Codex's JSON response will likely
-fail identically on the retry. Not yet observed against a real lecture;
-revisit (chunking or a lecture-density guard) if it does. See
+`podcast/generator.py`), this script's retry resends the same size
+evidence pack unchanged -- a lecture dense enough to truncate the model's
+JSON response will likely fail identically on the retry. The adapters now
+refuse a whole-lecture prompt above their limit with `PromptTooLargeError`
+before any model call (D-08, D-23), and the script exits 1 without
+truncating. Not yet observed against a real lecture; revisit (chunking or a
+lecture-density guard) if it does. See
 `docs/decisions/0037-codex-podcast-script-route.md` for this and the two
 sourcing/shape decisions this script makes relative to ADR 0014.
 """
@@ -59,16 +70,15 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
-import subprocess
+import math
 import sys
-import tempfile
 from collections.abc import Sequence
 from pathlib import Path
 
 from pydantic import TypeAdapter, ValidationError
 
 from lecture_study.assembly.assembler import load_critic_approved_drafts
+from lecture_study.cli.llm_gateway_wiring import open_stage_gateway
 from lecture_study.domain.errors import (
     LectureNotFoundError,
     MissingSequenceError,
@@ -80,19 +90,11 @@ from lecture_study.domain.models import (
     PodcastScript,
     SafeIdentifier,
 )
+from lecture_study.llm import LlmGateway, LlmGatewayError, Stage, complete_json
+from lecture_study.llm.run_record import LLM_RUNS_ROOT, record_llm_run
 from lecture_study.ops.llm_response_contract import (
     LlmResponseContractError,
-    build_bounded_retry_prompt_section,
-    build_llm_retry_feedback,
     parse_llm_json_response,
-)
-from lecture_study.ops.process_environment import (
-    resolve_trusted_executable,
-    sanitized_child_process_environment,
-)
-from lecture_study.ops.process_lifecycle import (
-    ProcessOutputLimitExceeded,
-    run_bounded_process,
 )
 from lecture_study.podcast.compiler import PodcastScriptCompiler
 from lecture_study.quality.student_facing_text import (
@@ -102,8 +104,7 @@ from lecture_study.quality.student_facing_text import (
 
 DEFAULT_DRAFTS_ROOT = Path("workspace/data/08_drafts")
 DEFAULT_VALIDATED_UNITS_ROOT = Path("workspace/data/09_validated_units")
-_SUBPROCESS_TIMEOUT_SECONDS = 900.0
-_MAXIMUM_PROCESS_OUTPUT_BYTES = 16 * 1024 * 1024
+DEFAULT_CALL_TIMEOUT_SECONDS = 900.0
 _UNIT_ID_TEMPLATE = "unit-{:03d}"
 _SCRIPT_ADAPTER: TypeAdapter[PodcastScript] = TypeAdapter(PodcastScript)
 _SCRIPT_SCHEMA = json.dumps(_SCRIPT_ADAPTER.json_schema())
@@ -165,39 +166,44 @@ def main() -> int:
             file=sys.stderr,
         )
         return 1
-    except (LlmResponseContractError, FileNotFoundError, ValidationError) as error:
+    except (
+        LlmGatewayError,
+        LlmResponseContractError,
+        FileNotFoundError,
+        ValidationError,
+    ) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
 
 
 def _run(args: argparse.Namespace) -> int:
     lecture_id = str(_LECTURE_ID_ADAPTER.validate_python(args.lecture_id))
-    # The critic-approval gate runs before anything Codex-related, so a
-    # blocked lecture never resolves, let alone invokes, the codex CLI.
+    # The critic-approval gate runs before any gateway is built, so a
+    # blocked lecture never resolves, let alone invokes, a model adapter.
     drafts = load_critic_approved_drafts(
         args.validated_units_root, args.drafts_root, lecture_id
     )
-    codex_executable = resolve_trusted_executable(args.codex_executable)
-    environment = dict(sanitized_child_process_environment())
-    # HOME is not on sanitized_child_process_environment()'s inherited
-    # whitelist, but the codex CLI needs it to locate its
-    # ChatGPT-subscription auth session under ~/.codex -- restoring it
-    # here (a plain path, not a credential itself) is scoped to this one
-    # call, matching generate_codex_mock_exam.py's own rationale verbatim.
-    home_directory = os.environ.get("HOME")
-    if home_directory is not None:
-        environment["HOME"] = home_directory
-
+    gateway = open_stage_gateway(
+        Stage.PODCAST,
+        lecture_id=lecture_id,
+        codex_executable_override=args.codex_executable,
+    )
     unit_ids = tuple(_unit_id(draft.pack_sequence) for draft in drafts)
     evidence_pack = _build_evidence_pack(drafts, unit_ids)
 
-    script = _generate_script(
-        codex_executable=codex_executable,
-        environment=environment,
+    with record_llm_run(
         lecture_id=lecture_id,
-        evidence_pack=evidence_pack,
-        unit_ids=unit_ids,
-    )
+        script_stage=Stage.PODCAST,
+        schema_name="PodcastScript",
+        root=args.llm_runs_root,
+    ) as recorder:
+        script = _generate_script(
+            gateway=recorder.track(gateway, stage=Stage.PODCAST),
+            lecture_id=lecture_id,
+            evidence_pack=evidence_pack,
+            unit_ids=unit_ids,
+            timeout_seconds=args.call_timeout_seconds,
+        )
     script = script.model_copy(
         update={"execution_mode": ArtifactExecutionMode.UNCERTIFIED_PERSONAL_STUDY}
     )
@@ -222,111 +228,32 @@ def _build_evidence_pack(
 
 def _generate_script(
     *,
-    codex_executable: str,
-    environment: dict[str, str],
+    gateway: LlmGateway,
     lecture_id: str,
     evidence_pack: str,
     unit_ids: Sequence[str],
+    timeout_seconds: float,
 ) -> PodcastScript:
-    prompt = _PODCAST_INSTRUCTION.format(
-        lecture_id=lecture_id,
-        evidence_pack=evidence_pack,
-        schema=_SCRIPT_SCHEMA,
+    return complete_json(
+        gateway,
+        stage=Stage.PODCAST,
+        prompt=_PODCAST_INSTRUCTION.format(
+            lecture_id=lecture_id,
+            evidence_pack=evidence_pack,
+            schema=_SCRIPT_SCHEMA,
+        ),
+        parse=_parse_script,
+        validate=lambda script: _validate_script(script, lecture_id, unit_ids),
+        timeout_seconds=timeout_seconds,
     )
-    try:
-        return _call_codex_for_script(
-            codex_executable=codex_executable,
-            environment=environment,
-            prompt=prompt,
-            lecture_id=lecture_id,
-            unit_ids=unit_ids,
-        )
-    except LlmResponseContractError as error:
-        retry_prompt = prompt + build_bounded_retry_prompt_section(
-            heading="Retry feedback:",
-            feedback=build_llm_retry_feedback(error),
-        )
-        return _call_codex_for_script(
-            codex_executable=codex_executable,
-            environment=environment,
-            prompt=retry_prompt,
-            lecture_id=lecture_id,
-            unit_ids=unit_ids,
-        )
 
 
-def _call_codex_for_script(
-    *,
-    codex_executable: str,
-    environment: dict[str, str],
-    prompt: str,
-    lecture_id: str,
-    unit_ids: Sequence[str],
-) -> PodcastScript:
-    # Scratch cwd, never the repository checkout -- same least-privilege
-    # rationale as generate_codex_mock_exam.py's own
-    # _call_codex_for_questions.
-    with tempfile.TemporaryDirectory(prefix="codex-podcast-") as raw_scratch_dir:
-        scratch_dir = Path(raw_scratch_dir)
-        output_path = scratch_dir / "response.txt"
-        try:
-            run_bounded_process(
-                [
-                    codex_executable,
-                    "exec",
-                    "--skip-git-repo-check",
-                    "--sandbox",
-                    "read-only",
-                    "-C",
-                    str(scratch_dir),
-                    "-o",
-                    str(output_path),
-                    prompt,
-                ],
-                env=environment,
-                cwd=scratch_dir,
-                timeout_seconds=_SUBPROCESS_TIMEOUT_SECONDS,
-                maximum_stdout_bytes=_MAXIMUM_PROCESS_OUTPUT_BYTES,
-                maximum_stderr_bytes=_MAXIMUM_PROCESS_OUTPUT_BYTES,
-                check=True,
-            )
-        except (
-            subprocess.CalledProcessError,
-            subprocess.TimeoutExpired,
-            ProcessOutputLimitExceeded,
-        ) as error:
-            # Never interpolate `error` itself: CalledProcessError/
-            # TimeoutExpired's default __str__ renders the full `cmd`
-            # list, which includes the whole-lecture prompt (unbounded,
-            # since this route has no evidence-pack size cap -- see the
-            # module docstring's known gap) -- matching
-            # llm_response_contract.py's own llm_output_diagnostic
-            # convention of never echoing model-adjacent bytes verbatim
-            # into a diagnostic message.
-            raise LlmResponseContractError(
-                f"codex exec failed: {_describe_subprocess_failure(error)}",
-                retry_category="contract",
-            ) from error
-        output_bytes = output_path.read_bytes()
-    script = _parse_script(output_bytes)
+def _validate_script(
+    script: PodcastScript, lecture_id: str, unit_ids: Sequence[str]
+) -> None:
     _normalize_echoed_unit_ids(script)
     _validate_traceability(script, lecture_id, unit_ids)
     _reject_text_unfit_for_a_listener(script)
-    return script
-
-
-def _describe_subprocess_failure(
-    error: subprocess.CalledProcessError
-    | subprocess.TimeoutExpired
-    | ProcessOutputLimitExceeded,
-) -> str:
-    """Diagnostic text for a subprocess failure that never echoes `cmd`
-    (which embeds the full, unbounded prompt for this route)."""
-    if isinstance(error, subprocess.CalledProcessError):
-        return f"non-zero exit code {error.returncode}"
-    if isinstance(error, subprocess.TimeoutExpired):
-        return f"timed out after {error.timeout}s"
-    return str(error)
 
 
 def _reject_text_unfit_for_a_listener(script: PodcastScript) -> None:
@@ -467,8 +394,38 @@ def _build_argument_parser() -> argparse.ArgumentParser:
             "cada um foi revisado pelo crítico na versão atual."
         ),
     )
-    parser.add_argument("--codex-executable", default="codex")
+    parser.add_argument(
+        "--codex-executable",
+        default=None,
+        help=(
+            "sobrescreve `codex.executable` da configuração do gateway "
+            "(padrão: o valor da configuração)"
+        ),
+    )
+    parser.add_argument("--llm-runs-root", type=Path, default=LLM_RUNS_ROOT)
+    parser.add_argument(
+        "--call-timeout-seconds",
+        type=_positive_seconds,
+        default=DEFAULT_CALL_TIMEOUT_SECONDS,
+        help=(
+            "limite de tempo por chamada ao modelo, em segundos; o prompt do "
+            "podcast cobre a aula inteira "
+            f"(padrão: {DEFAULT_CALL_TIMEOUT_SECONDS:g})"
+        ),
+    )
     return parser
+
+
+def _positive_seconds(raw_value: str) -> float:
+    try:
+        seconds = float(raw_value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"não é um número: {raw_value!r}") from None
+    if not math.isfinite(seconds) or seconds <= 0:
+        raise argparse.ArgumentTypeError(
+            f"deve ser um número positivo e finito: {raw_value!r}"
+        )
+    return seconds
 
 
 if __name__ == "__main__":
