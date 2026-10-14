@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 6
 current_phase_name: Pluggable LLM gateway
 status: executing
-stopped_at: Completed 06-09-PLAN.md
-last_updated: "2026-10-14T22:42:57.458Z"
+stopped_at: Completed 06-11-PLAN.md
+last_updated: "2026-10-14T22:48:20.198Z"
 last_activity: 2026-10-14
 last_activity_desc: Phase 6 execution started
-state_head: 3439dda9686c27a8a88588b7ea9fdb9f0df0efc1
+state_head: "0bf1f1592e62e8c33cc77c66906166600aeb6b61"
 progress:
   total_phases: 9
   completed_phases: 5
   total_plans: 12
-  completed_plans: 10
+  completed_plans: 11
 ---
 
 # Project State
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-10-14)
 ## Current Position
 
 Phase: 6 (Pluggable LLM gateway) — EXECUTING
-Plan: 11 of 12
+Plan: 12 of 12
 Status: Ready to execute
 Last activity: 2026-10-14 — Phase 6 execution started
 Next action: `/gsd-plan-phase 6`
@@ -66,6 +66,7 @@ Progress: [██████░░░░] 56% (phases, 5 of 9; Phases 1-5 are c
 | Phase 6 P07 | 6min | 2 tasks | 4 files |
 | Phase 06 P08 | 12min | 2 tasks | 2 files |
 | Phase 06 P09 | 14min | 2 tasks | 6 files |
+| Phase 06 P11 | 12min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -94,6 +95,8 @@ Recent decisions affecting current work:
 - [Phase 6]: 06-07: semantic ledgers load before the gateway opens in stages 13 and 18; stage 18 relies on open_stage_gateway as its whole D-12 validation
 - [Phase 06]: 06-08: podcast process failure is a typed LlmCallError, never retried (D-22); --call-timeout-seconds validated at the parser, default 900
 - [Phase 06]: 06-09: PhaseSpec.llm_stages is an explicit per-row field; orchestrator preflights the declared gateway stages in all three entry points and forwards exactly LECTURE_STUDY_LLM_ADAPTER and LECTURE_STUDY_LLM_CONFIG to children
+- [Phase 06]: OPEN-1 (D-25): no per-model-family reasoning mechanism; generic --reasoning off suffices, adequacy for thinking-style models validated in the operator's D-07 manual run (recorded in ADR 0046)
+- [Phase 06]: OPEN-2 (D-26, option A): an id in both the local registry and remote_llm_allowed_lecture_ids is a preflight configuration error (recorded in ADR 0046 decision 6)
 
 ### Pending Todos
 
@@ -120,6 +123,6 @@ Items acknowledged and deferred at roadmap creation (detail in REQUIREMENTS.md v
 
 ## Session Continuity
 
-Last session: 2026-10-14T22:42:57.441Z
-Stopped at: Completed 06-09-PLAN.md
+Last session: 2026-10-14T22:48:20.180Z
+Stopped at: Completed 06-11-PLAN.md
 Resume file: None
