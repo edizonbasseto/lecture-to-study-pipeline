@@ -207,8 +207,8 @@ def _run(args: argparse.Namespace) -> int:
             minimum_total_cards=args.minimum_total_cards,
         )
         deck = _build_deck(args.lecture_id, cards)
-
-    output_path = _write_deck_atomically(deck, args.output_root / args.lecture_id)
+        # The record closes as succeeded only after the deck is written.
+        output_path = _write_deck_atomically(deck, args.output_root / args.lecture_id)
     print(f"gerado(s) {len(cards)} card(s) para a aula {args.lecture_id!r}")
     print(f"escrito em {output_path}")
     return 0

@@ -204,10 +204,11 @@ def _run(args: argparse.Namespace) -> int:
             unit_ids=unit_ids,
             timeout_seconds=args.call_timeout_seconds,
         )
-    script = script.model_copy(
-        update={"execution_mode": ArtifactExecutionMode.UNCERTIFIED_PERSONAL_STUDY}
-    )
-    output_dir = PodcastScriptCompiler().compile(script)
+        script = script.model_copy(
+            update={"execution_mode": ArtifactExecutionMode.UNCERTIFIED_PERSONAL_STUDY}
+        )
+        # The record closes as succeeded only after the script is compiled.
+        output_dir = PodcastScriptCompiler().compile(script)
     print(f"gerado(s) {len(script.dialogue)} linha(s) para a aula {lecture_id!r}")
     print(f"escrito em {output_dir}")
     return 0

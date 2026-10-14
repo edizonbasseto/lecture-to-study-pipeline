@@ -190,27 +190,35 @@ def _run(args: argparse.Namespace) -> int:
             questions_per_unit_cap=args.questions_per_unit_cap,
             minimum_total_questions=args.minimum_total_questions,
         )
+        # The record closes as succeeded only after the exam is built and
+        # written, so a failure below never leaves a succeeded record next to
+        # a missing or stale exam.
+        output_path = _write_exam(args.lecture_id, args.output_root, questions)
+    print(f"gerado(s) {len(questions)} pergunta(s) para a aula {args.lecture_id!r}")
+    print(f"escrito em {output_path}")
+    return 0
 
+
+def _write_exam(
+    lecture_id: str, output_root: Path, questions: list[MockQuestion]
+) -> Path:
     # The model habitually drafts the correct option first (audited
     # 2026-09-18: 61% at letter "A", 5% at "D", across 2172 questions) --
     # reassigning each question's option letters uniformly at random,
     # after generation, is the one place this is fixed for every exam
     # regardless of which machine ran this script.
     random_source = random.Random()
-    questions = [
-        shuffle_question_options(question, random_source) for question in questions
-    ]
     exam = MockExam(
-        lecture_id=args.lecture_id,
-        questions=questions,
+        lecture_id=lecture_id,
+        questions=[
+            shuffle_question_options(question, random_source) for question in questions
+        ],
         execution_mode=ArtifactExecutionMode.UNCERTIFIED_PERSONAL_STUDY,
     )
-    output_path = args.output_root / args.lecture_id / "exam.json"
+    output_path = output_root / lecture_id / "exam.json"
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(exam.model_dump_json(indent=2), encoding="utf-8")
-    print(f"gerado(s) {len(questions)} pergunta(s) para a aula {args.lecture_id!r}")
-    print(f"escrito em {output_path}")
-    return 0
+    return output_path
 
 
 def _generate_all_questions(

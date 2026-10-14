@@ -560,6 +560,25 @@ def test_main_produces_the_uncertified_script_and_a_run_record(
     assert record["gateways"][0]["calls"] == 1
 
 
+def test_a_compile_failure_leaves_a_failed_run_record(
+    make_scripted_gateway, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _write_approved_unit(tmp_path)
+
+    def failing_compile(_compiler: object, _script: PodcastScript) -> Path:
+        raise FileNotFoundError("output tree unavailable")
+
+    _open_scripted_gateway(monkeypatch, make_scripted_gateway([]))
+    monkeypatch.setattr(sys, "argv", _command_line(tmp_path))
+    monkeypatch.setattr(_MODULE, "_generate_script", lambda **_kwargs: _script())
+    monkeypatch.setattr(_MODULE.PodcastScriptCompiler, "compile", failing_compile)
+
+    exit_code = _MODULE.main()
+
+    assert exit_code == 1
+    assert _run_record(tmp_path)["status"] == "failed"
+
+
 def test_main_exits_one_on_a_call_error_without_echoing_the_prompt(
     make_scripted_gateway,
     monkeypatch: pytest.MonkeyPatch,

@@ -441,6 +441,34 @@ def test_main_writes_an_uncertified_deck_and_a_flashcards_run_record(
     assert record["gateways"][0]["calls"] == len(gateway.requests) == 1
 
 
+def test_a_deck_write_failure_leaves_a_failed_run_record(
+    tmp_path: Path, make_scripted_gateway, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_lecture_inputs(
+        tmp_path,
+        draft_titles={1: "Unidade 1"},
+        units=[_validated_unit(1, "Unidade 1")],
+    )
+    _open_scripted_gateway(
+        monkeypatch, make_scripted_gateway([_card_array_json(_card())])
+    )
+
+    def failing_write(_deck: object, _output_dir: Path) -> Path:
+        raise FileNotFoundError("output tree unavailable")
+
+    monkeypatch.setattr(_MODULE, "_write_deck_atomically", failing_write)
+
+    exit_code = _run_script(tmp_path)
+
+    record = json.loads(
+        (tmp_path / "llm_runs" / _LECTURE_ID / "flashcards.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert exit_code == 1
+    assert record["status"] == "failed"
+
+
 def test_main_with_an_unknown_adapter_exits_1_before_any_call_or_deck(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],

@@ -463,6 +463,32 @@ class TestRunThroughTheGateway:
         assert "expected 1 question" in capsys.readouterr().err
 
 
+class TestRunRecordClosesAfterTheExamIsWritten:
+    def test_an_exam_write_failure_leaves_a_failed_run_record(
+        self, tmp_path: Path, make_scripted_gateway, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        args = _write_lecture_inputs(tmp_path, "lecture-write", unit_count=1)
+        _open_scripted_gateway(
+            monkeypatch, make_scripted_gateway([_question_array_json(_question())])
+        )
+
+        def failing_write(*_arguments: object) -> Path:
+            raise FileNotFoundError("output tree unavailable")
+
+        monkeypatch.setattr(_MODULE, "_write_exam", failing_write)
+        monkeypatch.setattr(sys, "argv", _command_line(args))
+
+        exit_code = _MODULE.main()
+
+        record = json.loads(
+            (args.llm_runs_root / args.lecture_id / "exams.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        assert exit_code == 1
+        assert record["status"] == "failed"
+
+
 class TestRunShufflesOptionsBeforeWriting:
     def test_written_exam_json_is_not_still_clustered_on_the_drafted_letter(
         self, tmp_path: Path, make_scripted_gateway, monkeypatch: pytest.MonkeyPatch
