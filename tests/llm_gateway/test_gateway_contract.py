@@ -1,7 +1,9 @@
 """Adapter-parametrized contract suite for the LlmGateway port.
 
-Plan 06-02 adds the ``llama_cpp`` param; every case below must pass for every
-registered adapter without per-adapter branching in the test bodies.
+Every case below runs for every registered adapter (``codex`` and
+``llama_cpp``) through real stub processes, without per-adapter branching in
+the test bodies. Only the llama-specific retry case at the end addresses one
+adapter, and it says so.
 """
 
 from __future__ import annotations
@@ -12,8 +14,18 @@ import pytest
 from pydantic import BaseModel, ConfigDict, TypeAdapter
 
 from lecture_study.llm.codex_adapter import CodexCliAdapter
-from lecture_study.llm.gateway import LlmCallError, LlmGateway, LlmRequest, Stage
+from lecture_study.llm.gateway import (
+    LlmCallError,
+    LlmGateway,
+    LlmRequest,
+    PromptTooLargeError,
+    Stage,
+)
 from lecture_study.llm.json_completion import complete_json
+from lecture_study.llm.llama_cpp_adapter import (
+    DEFAULT_STAGE_BUDGETS,
+    LlamaCppAdapter,
+)
 from lecture_study.ops.llm_response_contract import (
     LlmResponseContractError,
     parse_llm_json_response,
@@ -22,6 +34,8 @@ from lecture_study.ops.llm_response_contract import (
 PROMPT_MARKER = "CONTRACT-MARKER-7"
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 OUTPUT_CAP_BYTES = 1024
+CODEX_SMALL_ARGV_BUDGET_BYTES = 4096
+LLAMA_SCRIPTED_TOKEN_COUNT = 100
 
 
 class _Item(BaseModel):
@@ -77,6 +91,13 @@ class CodexHarness:
     def script_flood(self, byte_count: int) -> None:
         self._stub.control.script("codex", [{"stdout": "x" * byte_count}])
 
+    def prepare_oversized_prompt(self) -> str:
+        self.gateway = CodexCliAdapter(
+            str(self._stub.executable),
+            argv_budget_bytes=CODEX_SMALL_ARGV_BUDGET_BYTES,
+        )
+        return PROMPT_MARKER + "a" * (2 * CODEX_SMALL_ARGV_BUDGET_BYTES)
+
     def model_calls(self) -> list[dict[str, object]]:
         return self._stub.control.calls("codex")
 
@@ -84,10 +105,65 @@ class CodexHarness:
         return [call["argv"][-1] for call in self.model_calls()]
 
 
-@pytest.fixture(params=["codex"])
-def gateway_harness(request: pytest.FixtureRequest, codex_stub) -> CodexHarness:
+class LlamaCppHarness:
+    """Scripts the llama stubs behind the adapter-neutral harness surface."""
+
+    def __init__(self, llama_stubs) -> None:
+        self._stubs = llama_stubs
+        self.gateway: LlmGateway = LlamaCppAdapter(
+            str(llama_stubs.completion_executable),
+            str(llama_stubs.tokenize_executable),
+            llama_stubs.model_path,
+            "contract-family",
+            maximum_output_bytes=OUTPUT_CAP_BYTES,
+        )
+
+    def script_responses(self, responses: list[bytes]) -> None:
+        self._script_completion(
+            [{"stdout": response.decode()} for response in responses]
+        )
+
+    def script_failure(self, exit_code: int) -> None:
+        self._script_completion([{"exit_code": exit_code}])
+
+    def script_sleep(self, seconds: float) -> None:
+        self._script_completion([{"sleep_seconds": seconds}])
+
+    def script_flood(self, byte_count: int) -> None:
+        self._script_completion([{"stdout": "x" * byte_count}])
+
+    def prepare_oversized_prompt(self) -> str:
+        context_tokens = DEFAULT_STAGE_BUDGETS[Stage.SEMANTIC].context_tokens
+        self._stubs.control.script(
+            "llama-tokenize", [{"token_count": context_tokens + 1}]
+        )
+        return PROMPT_MARKER
+
+    def model_calls(self) -> list[dict[str, object]]:
+        return self._stubs.control.calls("llama-completion")
+
+    def prompts(self) -> list[str]:
+        return [call["prompt_file_text"] for call in self.model_calls()]
+
+    def _script_completion(self, steps: list[dict[str, object]]) -> None:
+        self._stubs.control.script(
+            "llama-tokenize",
+            [{"token_count": LLAMA_SCRIPTED_TOKEN_COUNT} for _ in steps],
+        )
+        self._stubs.control.script("llama-completion", steps)
+
+
+GatewayHarness = CodexHarness | LlamaCppHarness
+
+
+@pytest.fixture(params=["codex", "llama_cpp"])
+def gateway_harness(
+    request: pytest.FixtureRequest, codex_stub, llama_stubs
+) -> GatewayHarness:
     if request.param == "codex":
         return CodexHarness(codex_stub)
+    if request.param == "llama_cpp":
+        return LlamaCppHarness(llama_stubs)
     raise AssertionError(f"unregistered adapter param: {request.param}")
 
 
@@ -206,3 +282,36 @@ def test_child_starts_in_a_fresh_empty_directory(gateway_harness) -> None:
     assert call["cwd_entries"] == []
     assert child_cwd != REPOSITORY_ROOT
     assert child_cwd != Path.cwd().resolve()
+
+
+def test_oversized_prompt_raises_before_any_model_call(gateway_harness) -> None:
+    oversized_prompt = gateway_harness.prepare_oversized_prompt()
+
+    with pytest.raises(PromptTooLargeError) as raised:
+        gateway_harness.gateway.complete(LlmRequest(Stage.SEMANTIC, oversized_prompt))
+
+    assert raised.value.stage is Stage.SEMANTIC
+    assert PROMPT_MARKER not in str(raised.value)
+    assert gateway_harness.model_calls() == []
+
+
+def test_llama_cpp_retry_reaches_the_completion_binary_with_repeat_penalty(
+    llama_stubs,
+) -> None:
+    """Llama-only: the retry flags are an engine concern of this one adapter."""
+    harness = LlamaCppHarness(llama_stubs)
+    harness.script_responses([b"not json", b'{"name": "alpha", "count": 1}'])
+
+    complete_json(
+        harness.gateway,
+        stage=Stage.CRITIC,
+        prompt=PROMPT_MARKER,
+        parse=_parse_item,
+    )
+
+    first_call, retry_call = harness.model_calls()
+    assert "--repeat-penalty" not in first_call["argv"]
+    assert "--repeat-last-n" not in first_call["argv"]
+    retry_argv = retry_call["argv"]
+    assert retry_argv[retry_argv.index("--repeat-penalty") + 1] == "1.3"
+    assert retry_argv[retry_argv.index("--repeat-last-n") + 1] == "256"
