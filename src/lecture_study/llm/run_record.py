@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
+import tempfile
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -246,11 +248,33 @@ def _file_sha256(path: Path) -> str | None:
 
 
 def _write_atomically(path: Path, record: LlmRunRecord) -> None:
+    """Publish ``record`` durably: unique temp file, fsync, replace, fsync dir."""
+
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary_path = path.with_name(f"{path.name}.tmp")
+    descriptor, temporary_name = tempfile.mkstemp(
+        dir=path.parent, prefix=f".{path.name}.", suffix=".tmp"
+    )
+    temporary_path = Path(temporary_name)
     try:
-        temporary_path.write_text(record.model_dump_json(indent=2), encoding="utf-8")
-        temporary_path.replace(path)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            stream.write(record.model_dump_json(indent=2))
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary_path, path)
     except BaseException:
         temporary_path.unlink(missing_ok=True)
         raise
+    _fsync_directory(path.parent)
+
+
+def _fsync_directory(directory: Path) -> None:
+    try:
+        descriptor = os.open(directory, os.O_RDONLY)
+    except OSError:
+        return
+    try:
+        os.fsync(descriptor)
+    except OSError:
+        _logger.warning("run record directory not synced: %s", directory)
+    finally:
+        os.close(descriptor)

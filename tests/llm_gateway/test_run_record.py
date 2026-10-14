@@ -265,6 +265,61 @@ def test_no_temporary_file_remains_and_a_second_run_replaces_the_first(
     assert _load_record(runs_root, "lec-1", Stage.PODCAST)["status"] == "succeeded"
 
 
+def test_concurrent_writes_use_distinct_temporary_files(
+    runs_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    temporary_names: list[str] = []
+    original_replace = run_record.os.replace
+
+    def recording_replace(source: Path, destination: Path) -> None:
+        temporary_names.append(Path(source).name)
+        original_replace(source, destination)
+
+    monkeypatch.setattr(run_record.os, "replace", recording_replace)
+    for _ in range(2):
+        with record_llm_run(
+            lecture_id="lec-1",
+            script_stage=Stage.PODCAST,
+            schema_name="Script",
+            root=runs_root,
+        ):
+            pass
+
+    assert len(set(temporary_names)) == 2
+    assert sorted(item.name for item in (runs_root / "lec-1").iterdir()) == [
+        "podcast.json"
+    ]
+
+
+def test_record_is_fsynced_before_it_replaces_the_previous_one(
+    runs_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    events: list[str] = []
+    original_fsync = run_record.os.fsync
+    original_replace = run_record.os.replace
+    monkeypatch.setattr(
+        run_record.os, "fsync", lambda fd: (events.append("fsync"), original_fsync(fd))
+    )
+    monkeypatch.setattr(
+        run_record.os,
+        "replace",
+        lambda source, destination: (
+            events.append("replace"),
+            original_replace(source, destination),
+        ),
+    )
+
+    with record_llm_run(
+        lecture_id="lec-1",
+        script_stage=Stage.PODCAST,
+        schema_name="Script",
+        root=runs_root,
+    ):
+        pass
+
+    assert events[:2] == ["fsync", "replace"]
+
+
 def test_two_tracked_gateways_produce_two_usages(
     runs_root: Path, model_file: Path
 ) -> None:
