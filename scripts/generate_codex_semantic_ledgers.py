@@ -90,6 +90,7 @@ def _run(args: argparse.Namespace) -> int:
         script_stage=Stage.SEMANTIC,
         schema_name="SemanticLedger",
         root=args.llm_runs_root,
+        scope=_run_scope(args.pack_sequence),
     ) as recorder:
         tracked_gateway = recorder.track(gateway, stage=Stage.SEMANTIC)
         for pack in _selected_packs(packs, args.pack_sequence):
@@ -101,6 +102,12 @@ def _run(args: argparse.Namespace) -> int:
                 f"escrito em {output_path}"
             )
     return 0
+
+
+def _run_scope(only_pack_sequence: int | None) -> str | None:
+    if only_pack_sequence is None:
+        return None
+    return f"pack_sequence={only_pack_sequence}"
 
 
 def _selected_packs(

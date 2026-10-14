@@ -23,7 +23,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
@@ -44,6 +44,8 @@ _LECTURE_ID_ADAPTER = TypeAdapter(SafeIdentifier)
 _logger = logging.getLogger(__name__)
 
 RunStatus = Literal["succeeded", "failed"]
+RunScope = Annotated[str, Field(pattern=r"^[A-Za-z0-9_.=-]{1,64}$")]
+_SCOPE_ADAPTER: TypeAdapter[RunScope | None] = TypeAdapter(RunScope | None)
 
 
 class GatewayUsage(BaseModel):
@@ -81,6 +83,13 @@ class LlmRunRecord(BaseModel):
     script_stage: Stage
     schema_name: str
     status: RunStatus
+    scope: RunScope | None = Field(
+        default=None,
+        description=(
+            "Which part of the stage outputs this run covered, for example "
+            "pack_sequence=3; null means the whole stage."
+        ),
+    )
     started_at: datetime
     finished_at: datetime
     wall_seconds: float = Field(ge=0)
@@ -158,6 +167,7 @@ def record_llm_run(
     script_stage: Stage,
     schema_name: str,
     root: Path = LLM_RUNS_ROOT,
+    scope: str | None = None,
 ) -> Iterator[LlmRunRecorder]:
     """Write the run record when the block ends, whether or not it failed.
 
@@ -171,6 +181,7 @@ def record_llm_run(
         script_stage=script_stage,
         schema_name=schema_name,
         path=run_record_path(root, safe_lecture_id, script_stage),
+        scope=_SCOPE_ADAPTER.validate_python(scope),
     )
     recorder = LlmRunRecorder()
     try:
@@ -189,6 +200,7 @@ class _RunClock:
     script_stage: Stage
     schema_name: str
     path: Path
+    scope: str | None = None
     started_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     started: float = field(default_factory=time.monotonic)
 
@@ -200,6 +212,7 @@ class _RunClock:
             script_stage=self.script_stage,
             schema_name=self.schema_name,
             status=status,
+            scope=self.scope,
             started_at=self.started_at,
             finished_at=datetime.now(UTC),
             wall_seconds=time.monotonic() - self.started,
@@ -212,16 +225,34 @@ def _write_failed_record_without_masking(
 ) -> None:
     """Record a failed run; a sidecar problem is logged, never raised.
 
-    The model digest is skipped (``model_sha256`` stays null): hashing a
+    An earlier succeeded record stays in place: its outputs are still on disk
+    and a failed rerun must not misattribute them (WR-05). The model digest is skipped (``model_sha256`` stays null): hashing a
     multi-GB model must not delay an interrupt or a refusal that never touched
     the model, and the failure being propagated stays the one the operator sees.
     """
 
     try:
+        if _holds_successful_record(run.path):
+            _logger.warning(
+                "failed run kept the earlier successful record: %s", run.path
+            )
+            return
         record = run.record("failed", recorder.usages(hash_models=False))
         _write_atomically(run.path, record)
     except Exception:
         _logger.warning("failed run record not written: %s", run.path)
+
+
+def _holds_successful_record(path: Path) -> bool:
+    """True when ``path`` already holds a succeeded record a failure must not erase."""
+
+    try:
+        existing = LlmRunRecord.model_validate_json(
+            path.read_text(encoding="utf-8"), strict=False
+        )
+    except (OSError, ValueError):
+        return False
+    return existing.status == "succeeded"
 
 
 def _digest_once(

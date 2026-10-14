@@ -41,6 +41,7 @@ TOP_LEVEL_KEYS = {
     "script_stage",
     "schema_name",
     "status",
+    "scope",
     "started_at",
     "finished_at",
     "wall_seconds",
@@ -318,6 +319,56 @@ def test_record_is_fsynced_before_it_replaces_the_previous_one(
         pass
 
     assert events[:2] == ["fsync", "replace"]
+
+
+def test_failed_rerun_keeps_the_earlier_successful_record(runs_root: Path) -> None:
+    with record_llm_run(
+        lecture_id="lec-1",
+        script_stage=Stage.SEMANTIC,
+        schema_name="SemanticLedger",
+        root=runs_root,
+    ):
+        pass
+    with pytest.raises(RuntimeError):
+        with record_llm_run(
+            lecture_id="lec-1",
+            script_stage=Stage.SEMANTIC,
+            schema_name="SemanticLedger",
+            root=runs_root,
+            scope="pack_sequence=2",
+        ):
+            raise RuntimeError("rerun failed")
+
+    record = _load_record(runs_root, "lec-1", Stage.SEMANTIC)
+    assert record["status"] == "succeeded"
+    assert record["scope"] is None
+
+
+def test_partial_run_records_its_scope(runs_root: Path) -> None:
+    with record_llm_run(
+        lecture_id="lec-1",
+        script_stage=Stage.SEMANTIC,
+        schema_name="SemanticLedger",
+        root=runs_root,
+        scope="pack_sequence=3",
+    ):
+        pass
+
+    assert (
+        _load_record(runs_root, "lec-1", Stage.SEMANTIC)["scope"] == "pack_sequence=3"
+    )
+
+
+def test_malformed_scope_is_rejected(runs_root: Path) -> None:
+    with pytest.raises(ValidationError):
+        with record_llm_run(
+            lecture_id="lec-1",
+            script_stage=Stage.SEMANTIC,
+            schema_name="SemanticLedger",
+            root=runs_root,
+            scope="has spaces\nand newline",
+        ):
+            pass
 
 
 def test_two_tracked_gateways_produce_two_usages(
