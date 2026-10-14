@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 6
 current_phase_name: Pluggable LLM gateway
 status: executing
-stopped_at: Completed 06-03-PLAN.md
-last_updated: "2026-10-14T22:09:23.764Z"
+stopped_at: Completed 06-04-PLAN.md
+last_updated: "2026-10-14T22:12:28.312Z"
 last_activity: 2026-10-14
 last_activity_desc: Phase 6 execution started
-state_head: 2d8aa7f1b9eebc945dc3018a928eda3d72c04dc2
+state_head: 2f9fddb4dac52bb49527dbe07ff3895d897edafe
 progress:
   total_phases: 9
   completed_phases: 5
   total_plans: 12
-  completed_plans: 4
+  completed_plans: 5
 ---
 
 # Project State
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-10-14)
 ## Current Position
 
 Phase: 6 (Pluggable LLM gateway) — EXECUTING
-Plan: 5 of 12
+Plan: 6 of 12
 Status: Ready to execute
 Last activity: 2026-10-14 — Phase 6 execution started
 Next action: `/gsd-plan-phase 6`
@@ -60,6 +60,7 @@ Progress: [██████░░░░] 56% (phases, 5 of 9; Phases 1-5 are c
 | Phase 06 P10 | 2 min | 2 tasks | 2 files |
 | Phase 06 P02 | 5 min | 3 tasks | 6 files |
 | Phase 06 P03 | 10min | 2 tasks | 5 files |
+| Phase 06 P04 | 12min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -80,6 +81,7 @@ Recent decisions affecting current work:
 - [Phase 06]: Example LLM model download pinned to Hugging Face revision b466e1f8c07172155743e8e1307507d8a4f91fbd (Apache-2.0), HTTPS-only, per-shard SHA-256, opt-in via --with-example-llm-model
 - [Phase 06]: 06-02: reasoning off is generic --reasoning off on every stage and attempt (OPEN-1); child cwd is a dedicated empty work subdirectory; llama adapter model path accepted as Path or str so URL rejection is meaningful
 - [Phase 06]: 06-03: model_sha256 covers the configured model_path file only (first shard of the split model); env adapter override re-validates a cleared per-stage map
+- [Phase 06]: OPEN-2 option A: an id in both the local registry and remote_llm_allowed_lecture_ids is a GatewayConfigurationError at preflight; egress stays fail-closed (D-15)
 
 ### Pending Todos
 
@@ -106,6 +108,6 @@ Items acknowledged and deferred at roadmap creation (detail in REQUIREMENTS.md v
 
 ## Session Continuity
 
-Last session: 2026-10-14T22:09:23.746Z
-Stopped at: Completed 06-03-PLAN.md
+Last session: 2026-10-14T22:12:28.296Z
+Stopped at: Completed 06-04-PLAN.md
 Resume file: None
