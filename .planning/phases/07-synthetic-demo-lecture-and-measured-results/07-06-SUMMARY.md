@@ -2,7 +2,7 @@
 phase: 07-synthetic-demo-lecture-and-measured-results
 plan: 06
 subsystem: demo
-tags: [local-adapter, run-driver, harvest, asr-ablation, llama-cpp, stage-18, blocked]
+tags: [local-adapter, run-driver, harvest, asr-ablation, llama-cpp, stage-18]
 requires:
   - phase: 07-02
     provides: "workspace/demo/aula-demo.mp4 and build-summary.json"
@@ -31,32 +31,34 @@ key-files:
   modified:
     - Makefile
 key-decisions:
-  - "The plan stops at the stage 18 flashcards step: it failed twice with the local model (model contract failure, research A7), so the run is not complete and the real harvest was deferred"
+  - "Operator decision (option 2): stage 18 was rerun with --minimum-total-cards 5 after two failed attempts at the default floor of 12; the deviation is disclosed in the harvest notes and the report"
   - "demo-preflight passes --confirm-remote-egress only when CONFIRM_REMOTE_EGRESS=yes, so the policy refusal of the unflagged id is observable (exit 1) apart from the driver's confirmation refusal (exit 2)"
   - "--from-step plus log archiving were added so a failed step can be rerun without overwriting the measured wall times of earlier steps"
-requirements-completed: []
-duration: 75 min
+requirements-completed: [DEMO-02]
+duration: 100 min
 completed: 2026-10-15
-status: blocked
-commits: 2
+status: complete
+commits: 4
 plan_head_before: ee65803eb8de2186d7ea71e04eb9c1ad80083044
-plan_head_after: f56b81eced56af684a6d2429a1a6c2dc7cfb52df
+plan_head_after: 440e560e0a1d8b9fcddd83812b966a6525312052
 actuals:
-  tokens: 11700
+  tokens: 12500
   tasks: 2
-  commits: 2
+  commits: 4
 ---
 
 # Phase 7 Plan 06: Local-adapter run and harvest Summary
 
-The code of both tasks is committed and tested, and the local run reached the signed-in page view, but the stage 18 flashcards step failed twice with the local model, so the plan is blocked at that step: `workspace/data/18_personal_study_flashcards/925100` does not exist and the real harvest into `workspace/demo/runs/llama-cpp/` was deliberately not made.
+The local-adapter lecture 925100 ran through every stage to a signed-in page view on the locally served HTTPS site, and its measurements are harvested under `workspace/demo/runs/llama-cpp/`. Stage 18 needed an operator-approved deviation: two attempts at the default deck floor failed with the local model, and a rerun with floor 5 succeeded. The listening and browser check remains an open human check.
 
 ## Tasks
 
 | Task | Name | Commit | State |
 | ---- | ---- | ------ | ----- |
-| 1 | Tracer: local-adapter run of lecture 925100 to a signed-in page view | 139bf80 | code done; run blocked at the flashcards step |
-| 2 | Harvest the local run's measurements with the unprompted ASR ablation | f56b81e | code done and verified on the real run in a scratch directory; real harvest pending |
+| 1 | Tracer: local-adapter run of lecture 925100 to a signed-in page view | 139bf80, 440e560 | complete |
+| 2 | Harvest the local run's measurements with the unprompted ASR ablation | f56b81e, 440e560 | complete |
+
+`commits: 4` counts `plan_head_before..plan_head_after` and includes the interim blocked-state SUMMARY commit 7b24a07; the SUMMARY completion commit follows `plan_head_after`.
 
 ## Preflight outcomes (T-07-21)
 
@@ -74,12 +76,13 @@ Recorded in `workspace/demo/logs/925100/preflight.txt`:
 
 - `run-all.log`: phases 2-9 ran, phase 10 refused by design (`require_stopped_at_certification` passed); step exit 1 accepted.
 - `personal-study.log`: phases 8, 9 skipped (done by run-all), 13, 14, 15 ran. Attempt 1 failed at phase 13 (kept as `personal-study.attempt-1.log`); the single rerun succeeded.
-- `flashcards.log` and `flashcards.attempt-1.log`: both attempts failed, see the blocker below.
-- `guide.log`: the study-guide script exited 0 (run out of order, after the flashcards failure, to see how far the page view goes).
-- `signed-in-check.txt`: `lecture=925100 anonymous_status=401 login_status=303 page_status=200 notice_present=True`, against `make demo-serve` on https://127.0.0.1:8443 (server stopped afterwards). The page used the deterministic flashcards template, not a stage 18 deck.
+- `flashcards.attempt-1.log`, `flashcards.attempt-2.log`: failed at the default floor; `flashcards.log`: succeeded with floor 5 (1 request, 0 retries, 21.9 s; deck of 5 cards at `workspace/data/18_personal_study_flashcards/925100/deck.json`).
+- `guide.attempt-1.log`: the guide run out of order before the deck existed; `guide.log`: the final guide run with the deck.
+- `signed-in-check.txt`: `lecture=925100 anonymous_status=401 login_status=303 page_status=200 notice_present=True`, against `make demo-serve` on https://127.0.0.1:8443 after the final guide and site generation (server stopped afterwards). The earlier check, before the deck existed, is kept as `attempt-1/signed-in-check-before-deck.txt`.
 - `attempt-1/`: the failed run records (`exams-run-record.json`, `flashcards-run-record.json`, `flashcards-run-record-rerun.json`) and the phase 13 failure log, copied before the reruns overwrote them.
+- `notes.txt`: two disclosure lines (exams attempt 1, flashcards floor) that the harvest turns into report notes.
 
-## Blocker: stage 18 flashcards (model contract failure)
+## Stage 18 flashcards: failed attempts and the operator-approved floor of 5
 
 | Attempt | Record status | Calls | Retry calls | Wall seconds | Error |
 | ------- | ------------- | ----- | ----------- | ------------ | ----- |
@@ -88,24 +91,24 @@ Recorded in `workspace/demo/logs/925100/preflight.txt`:
 
 Unit 1 produced its 5 cards both times. The deck floor (`_DEFAULT_MINIMUM_TOTAL_CARDS` 12, cap 5 per unit, one grounded unit) then needs 7 single-card supplemental requests, and one of them fails both its first attempt and its single retry, which aborts the whole deck. The same pattern appeared once in phase 13 (exams attempt 1: 5 calls, 1 retry, 68.7 s, failed; the rerun succeeded with 16 requests, 2 retries). A diagnostic call (scratch script, not committed) with a supplemental-style prompt returned a JSON array holding a JSON-encoded string instead of an object in 4 of 4 samples, so single-card requests are a weak point of the 14B Q4_K_M model; the exact failing outputs are unrecoverable because the gateway keeps only a hash. Per the plan (research A7) no prompt or script was edited and the step was rerun once.
 
-Options for the orchestrator or operator (none was taken here):
+Options that were put to the operator:
 
 1. Accept the failed flashcards record as the measured local result (the report renders `failed` with no percentage) and relax the stage 18 acceptance for the local adapter.
 2. Rerun the step with `--minimum-total-cards 5` (no supplemental requests); this needs a plan amendment because the argv is fixed by the plan.
 3. A third attempt of the same command (possible only as a deliberate exception to the rerun-once rule).
 
-After the decision: `make demo-run ADAPTER=llama-cpp LECTURE=925100 FROM_STEP=flashcards` (or `study_guide`), then `make demo-harvest ADAPTER=llama-cpp LECTURE=925100`. The harvest refuses an existing destination, so it must run once, after the run is final.
+**Operator decision: option 2.** Stage 18 was rerun with `--minimum-total-cards 5` through the new `--flashcards-minimum-total-cards` driver option (`make demo-run ... FROM_STEP=flashcards FLASHCARDS_MINIMUM_TOTAL_CARDS=5`), no prompt or script edit. The run succeeded: one request, no retry, 21.9 s, 5 cards, no supplemental requests. The study guide, site and signed-in check were rerun afterwards. This deviation (attempts 1 and 2 failed at floor 12, success at floor 5) is recorded in this SUMMARY, in `workspace/demo/logs/925100/notes.txt` and, through it, in the notes of the harvested report preview.
 
-## Preview of the harvested numbers (scratch harvest, not the final one)
+## Harvested numbers (`workspace/demo/runs/llama-cpp/preview.md`)
 
-`workspace/demo/runs/` was not written. A dry harvest into the session scratch directory with the real data and a real unprompted ASR ablation (whisper accepted the empty prompt) produced:
+`make demo-harvest ADAPTER=llama-cpp LECTURE=925100` ran once after the run was final. The harvest holds `harvest.json`, `llm_runs/` (all records), `transcription.json`, `terminology_corrections.json`, `units/`, `logs/` (including `attempt-1/` and `notes.txt`), `preview.md` and `ablation/segments.json` (whisper accepted the empty prompt):
 
 - ASR WER, pipeline condition (prompt on): before the dictionary 2.3% (14 of 620 words), after 0.5% (3 of 620 words), 11 corrections.
 - ASR WER, ablation (prompt off): before 3.1% (19 of 620 words), after 0.0% (0 of 620 words), 19 corrections.
-- First-attempt schema pass rate: semantic 100.0% (1 of 1 requests), drafting 100.0% (1 of 1), critic 100.0% (1 of 1), exams 87.5% (14 of 16, 2 retries), podcast 100.0% (1 of 1), flashcards failed.
+- First-attempt schema pass rate: semantic 100.0% (1 of 1 requests), drafting 100.0% (1 of 1), critic 100.0% (1 of 1), exams 87.5% (14 of 16, 2 retries), podcast 100.0% (1 of 1), flashcards 100.0% (1 of 1 requests, floor 5).
 - Critic rejection rate: 0.0% (0 of 1 reviews), 1 unit, 0 redrafts.
-- Per-phase wall time (s): extraction 4.9, transcription 6.6, evidence 0.0, semantic 53.7, drafting 23.2, critic 9.7, assembly 0.0, metadata 0.0, exams 232.3, podcast 25.2, tts 8.1; certification refused by design. Video 243.6 s, 620 reference words, 1 evidence pack.
-- The exams figures describe the successful rerun; the failed first attempt is only in `attempt-1/`. The final report must disclose it.
+- Per-phase wall time (s): extraction 4.9, transcription 6.6, evidence 0.0, semantic 53.7, drafting 23.2, critic 9.7, assembly 0.0, metadata 0.0, exams 232.3, podcast 25.2, tts 8.1, flashcards 21.9; certification refused by design. Video 243.6 s, 620 reference words, 1 evidence pack.
+- The exams figures describe the successful rerun; the failed first attempt is in `attempt-1/`. The flashcards figures describe the floor-5 run. Both are disclosed as notes in the preview; the final report must carry them.
 
 ## What was built
 
@@ -128,7 +131,9 @@ After the decision: `make demo-run ADAPTER=llama-cpp LECTURE=925100 FROM_STEP=fl
 **3. [Rule 3 - Sequencing] `DEMO_LOGS_ROOT` moved to the harvest module**
 - The driver defined the constant in the Task 1 commit and imports it from `harvest.py` after Task 2, so no commit is broken. **Commit:** f56b81e
 
-**4. Plan stop (not a code deviation):** the plan stopped after the second flashcards failure as instructed; the guide, site generation and signed-in check were still run out of plan order to show the page view works without the stage 18 deck. The real harvest, the `runs/llama-cpp` acceptance paths and the `18_personal_study_flashcards` check remain unmet.
+**4. [Operator decision] Flashcards floor 5.** Option 2 above. Added `--flashcards-minimum-total-cards` to the driver (passed to the flashcards script only when given), the `FLASHCARDS_MINIMUM_TOTAL_CARDS` make variable and operator notes in the harvest (`logs/notes.txt` becomes `AdapterResults.notes`), with tests. **Commit:** 440e560
+
+**5. Out-of-order steps:** after the first two flashcards failures the guide, site and check were run once without the deck to see how far the page view goes; they were rerun with the deck.
 
 ## First-run defects
 
@@ -140,9 +145,8 @@ Listening to and watching the lecture page and the narrated video in a browser (
 
 ## Verification
 
-- `uv run pytest -q`: 2889 passed, 1 skipped. `ruff check`, `ruff format --check`, `mypy src` clean.
-- `uv run pytest tests/demo/test_demo_run.py tests/demo/test_demo_harvest.py -q`: 14 and 16 passed.
-- Not met: `test -d workspace/data/18_personal_study_flashcards/925100`; `workspace/demo/runs/llama-cpp/` (harvest deferred); the `run-all.log` phase 9 grep and the signed-in check grep pass.
+- `uv run pytest -q`: 2891 passed, 1 skipped. `ruff check`, `ruff format --check`, `mypy src` clean.
+- Plan checks pass: the signed-in check line, the phase 9 line of `run-all.log`, `workspace/data/14_mock_exams/925100/exam.json`, `workspace/data/18_personal_study_flashcards/925100`, `workspace/demo/runs/llama-cpp/harvest.json`, the harvested `llm_runs/critic.json`, and the preview sections `## Critic rejection rate` and the WER table.
 
 ## Known Stubs
 
@@ -150,8 +154,8 @@ None.
 
 ## Threat Flags
 
-None. T-07-21 holds (unflagged local id refused for codex, adapter variable forced, preflight before any process). T-07-22: only the supported registration script touched `config/local-lectures.local.yaml`. T-07-23: logs, records and the demo site stay under gitignored `workspace/` and `tmp/`. T-07-24: finite timeouts and output caps on every step. T-07-25: the server bound 127.0.0.1 with the 07-04 certificate and was stopped.
+None. T-07-21 holds (unflagged local id refused for codex, adapter variable forced, preflight before any process). T-07-22: only the supported registration script touched `config/local-lectures.local.yaml`. T-07-23: logs, records, the harvest and the demo site stay under gitignored `workspace/` and `tmp/`. T-07-24: finite timeouts and output caps on every step. T-07-25: the server bound 127.0.0.1 with the 07-04 certificate and was stopped.
 
 ## Self-Check: PASSED
 
-Commits 139bf80 and f56b81e are ancestors of HEAD; the five created files and the modified Makefile exist.
+Commits 139bf80, f56b81e and 440e560 are ancestors of HEAD; the five created files, the modified Makefile and `workspace/demo/runs/llama-cpp/harvest.json` exist.
