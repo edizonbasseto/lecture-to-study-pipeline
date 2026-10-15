@@ -131,3 +131,11 @@ Items acknowledged and deferred at roadmap creation (detail in REQUIREMENTS.md v
 Last session: 2026-10-15T20:10:46.278Z
 Stopped at: Completed 07-01-PLAN.md
 Resume file: None
+
+## Deferred Verification
+
+| Phase | State | Resume |
+|-------|-------|--------|
+| 7 | verification_deferred_gaps | /gsd-plan-phase 7 --gaps |
+
+Operator accepted DEMO-04 as partial on 2026-10-15 (mock exam recovered in 1 of 10 scenario runs on the local model; Codex adapter not measured because the external Codex configuration rejects its model). Open human checks: listen to the demo video and view the lecture page in a browser. Work lives on branch `gsd/phase-07-synthetic-demo` (not merged into main, not pushed).
