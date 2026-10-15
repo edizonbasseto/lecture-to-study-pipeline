@@ -1,4 +1,4 @@
-.PHONY: test lint run site clean hooks
+.PHONY: test lint run site clean hooks demo-video
 
 WHISPER_MODEL_PATH ?= engines/whisper.cpp/models/ggml-large-v3-turbo.bin
 
@@ -16,6 +16,9 @@ run:
 
 site:
 	uv run uvicorn lecture_study.site.app:app --reload --port 8000
+
+demo-video:
+	uv run python scripts/build_demo_lecture.py
 
 clean:
 	find . -type d -name '__pycache__' -not -path './.venv/*' -exec rm -rf {} +
