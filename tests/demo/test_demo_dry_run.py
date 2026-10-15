@@ -13,7 +13,6 @@ never a skip.
 
 from __future__ import annotations
 
-import importlib.util
 import json
 import os
 import secrets
@@ -61,7 +60,6 @@ TOOLS_ENVIRONMENT_VARIABLE = "LECTURE_STUDY_DEMO_TOOLS"
 REQUIRED_TOOLS = ("typst", "say", "ffmpeg", "ffprobe")
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 GUIDE_SCRIPT = REPOSITORY_ROOT / "scripts" / "generate_personal_study_guides.py"
-DEMO_SITE_SCRIPT = REPOSITORY_ROOT / "scripts" / "demo_site.py"
 TARGETS_EXAMPLE = REPOSITORY_ROOT / "config" / "targets.example.yaml"
 DEMO_SCHEDULE = REPOSITORY_ROOT / "demo" / "site" / "academic-calendar.yaml"
 
@@ -172,7 +170,7 @@ class DryRunWorkspace:
 
 
 def test_fixtures_reach_a_signed_in_page_view(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, demo_site: ModuleType
 ) -> None:
     require_tools()
     workspace = DryRunWorkspace(tmp_path)
@@ -186,7 +184,6 @@ def test_fixtures_reach_a_signed_in_page_view(
 
     password = secrets.token_urlsafe(16)
     write_site_access(workspace, password)
-    demo_site = load_demo_site_script()
     # HTTPS base URL so the Secure, __Host- prefixed cookies flow back.
     client = TestClient(signed_in_app(workspace), base_url="https://testserver")
 
@@ -493,12 +490,3 @@ def signed_in_app(workspace: DryRunWorkspace) -> ASGIApp:
         workspace.session_key,
         workspace.mock_exams,
     )
-
-
-def load_demo_site_script() -> ModuleType:
-    spec = importlib.util.spec_from_file_location("demo_site", DEMO_SITE_SCRIPT)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
-    return module
