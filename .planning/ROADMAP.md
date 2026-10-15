@@ -132,7 +132,17 @@ Plans:
   3. A results report gives the ASR word error rate against the known script before and after the terminology dictionary, the schema pass rate per LLM stage, the critic rejection rate and the per-stage wall time, for each adapter that was run
   4. With a rejected or stale unit, the exam, podcast, personal-study flashcard and study-guide scripts write nothing for the demo lecture; after the ADR 0045 recovery they produce the exam, podcast, flashcards and study guide
 
-**Plans**: TBD
+**Plans**: 8 plans in 5 waves
+
+Plans:
+- [ ] 07-01-PLAN.md — Shared Kokoro helper, `lecture_study.demo` package, DemoScript model and lint, authored pt-BR lecture script with planted terms (wave 1)
+- [ ] 07-02-PLAN.md — Typst slides, build driver, `make demo-video`, build accepted by the pipeline's own extraction and OCR (wave 2)
+- [ ] 07-03-PLAN.md — Measurement logic: WER, ASR before/after the dictionary, run-record stage metrics, critic rejection rate, per-stage wall time, report renderer (wave 2)
+- [ ] 07-04-PLAN.md — Dry run of stages 8 and 9, the guide and the site on fixtures to a signed-in view; demo site access material and live check (wave 2)
+- [ ] 07-05-PLAN.md — Blocked-lecture recovery tooling: inductions, filesystem snapshot, scenario driver with harvest guard (wave 2)
+- [ ] 07-06-PLAN.md — Registration of both ids, local-adapter run to a signed-in page on the served site, harvest of local measurements (wave 3)
+- [ ] 07-07-PLAN.md — Codex run behind a no-egress preflight and a blocking operator egress checkpoint, harvest or not-run record (wave 4)
+- [ ] 07-08-PLAN.md — Live ADR 0045 recovery demonstration, committed results report, ADR 0047 (wave 5)
 
 ### Phase 8: Portfolio README and documentation
 
