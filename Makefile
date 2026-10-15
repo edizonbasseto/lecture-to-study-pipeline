@@ -8,6 +8,7 @@ ADAPTER ?= llama-cpp
 LECTURE ?= $(DEMO_LOCAL_ID)
 CONFIRM_REMOTE_EGRESS ?=
 FROM_STEP ?= run_all
+FLASHCARDS_MINIMUM_TOTAL_CARDS ?=
 DEMO_VIDEO := workspace/demo/aula-demo.mp4
 DEMO_SITE_ACCESS := workspace/demo/site-access
 DEMO_REGISTRATION_ARGUMENTS := --discipline "Cirurgia veterinária (demonstração)" \
@@ -51,6 +52,7 @@ demo-preflight:
 demo-run:
 	uv run python scripts/demo_run.py --adapter $(ADAPTER) --lecture-id $(LECTURE) \
 		--whisper-model-path $(WHISPER_MODEL_PATH) --from-step $(FROM_STEP) \
+		$(if $(FLASHCARDS_MINIMUM_TOTAL_CARDS),--flashcards-minimum-total-cards $(FLASHCARDS_MINIMUM_TOTAL_CARDS)) \
 		$(if $(filter yes,$(CONFIRM_REMOTE_EGRESS)),--confirm-remote-egress)
 
 demo-site-access:

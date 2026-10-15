@@ -378,3 +378,17 @@ def test_an_empty_not_run_marker_is_refused(tmp_path: Path) -> None:
 def test_loading_a_directory_without_a_manifest_is_refused(tmp_path: Path) -> None:
     with pytest.raises(HarvestError, match="harvest.json"):
         load_adapter_results(tmp_path, REFERENCE)
+
+
+def test_operator_notes_in_the_logs_become_report_notes(
+    sources: HarvestSources, tmp_path: Path
+) -> None:
+    write(
+        sources.logs / "notes.txt",
+        "flashcards floor lowered to 5\n\nexams attempt 1 failed\n",
+    )
+    destination, _ = harvest(sources, tmp_path)
+
+    results = load_adapter_results(destination, REFERENCE)
+
+    assert results.notes == ("flashcards floor lowered to 5", "exams attempt 1 failed")

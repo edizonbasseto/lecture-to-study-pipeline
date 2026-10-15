@@ -69,7 +69,9 @@ class DemoRunStep:
 
 
 def pipeline_steps(
-    lecture_id: str, whisper_model_path: Path
+    lecture_id: str,
+    whisper_model_path: Path,
+    flashcards_minimum_total_cards: int | None = None,
 ) -> tuple[DemoRunStep, ...]:
     """The four steps of the demo run, in execution order."""
 
@@ -94,7 +96,9 @@ def pipeline_steps(
         DemoRunStep(
             name="flashcards",
             argv=_script_argv(
-                "generate_codex_personal_study_flashcards.py", lecture_id
+                "generate_codex_personal_study_flashcards.py",
+                lecture_id,
+                *_minimum_total_cards_arguments(flashcards_minimum_total_cards),
             ),
             log_name="flashcards.log",
             acceptance="exit_zero",
@@ -135,6 +139,12 @@ def rejection_reason(
     if step.required_phases:
         return _phases_rejection(step.required_phases, log_text, lecture_id)
     return None
+
+
+def _minimum_total_cards_arguments(minimum_total_cards: int | None) -> tuple[str, ...]:
+    if minimum_total_cards is None:
+        return ()
+    return ("--minimum-total-cards", str(minimum_total_cards))
 
 
 def _script_argv(script_name: str, *arguments: str) -> tuple[str, ...]:
@@ -259,7 +269,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     if arguments.preflight_only:
         return 0
     steps = steps_from(
-        pipeline_steps(arguments.lecture_id, arguments.whisper_model_path),
+        pipeline_steps(
+            arguments.lecture_id,
+            arguments.whisper_model_path,
+            arguments.flashcards_minimum_total_cards,
+        ),
         arguments.from_step,
     )
     return run_pipeline(steps, environment=environment, lecture_id=arguments.lecture_id)
@@ -275,6 +289,12 @@ def _argument_parser() -> argparse.ArgumentParser:
         "--whisper-model-path", type=Path, default=DEFAULT_WHISPER_MODEL_PATH
     )
     parser.add_argument("--preflight-only", action="store_true")
+    parser.add_argument(
+        "--flashcards-minimum-total-cards",
+        type=int,
+        default=None,
+        help="deck floor of the flashcards script; omit to keep the script default",
+    )
     parser.add_argument(
         "--from-step",
         choices=[step.name for step in pipeline_steps("0", Path("."))],

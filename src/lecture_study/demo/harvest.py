@@ -68,6 +68,7 @@ _SUPERSEDED_SUFFIX = ".superseded.json"
 _CRITIC_RECORD_NAME = f"{Stage.CRITIC.value}.json"
 _HASH_CHUNK_BYTES = 1024 * 1024
 _STAGING_SUFFIX = ".partial"
+_OPERATOR_NOTES_NAME = "notes.txt"
 
 
 class HarvestError(RuntimeError):
@@ -320,9 +321,18 @@ def _unit_review_flags(harvest_dir: Path) -> list[bool]:
 
 
 def _notes(harvest_dir: Path) -> tuple[str, ...]:
+    """Operator notes of the logs directory, one per line, plus the ablation status."""
+    notes = _operator_notes(harvest_dir / "logs" / _OPERATOR_NOTES_NAME)
     if (harvest_dir / "ablation" / "unavailable.txt").is_file():
-        return ("the ASR ablation without the vocabulary prompt was not available",)
-    return ()
+        notes += ("the ASR ablation without the vocabulary prompt was not available",)
+    return notes
+
+
+def _operator_notes(notes_path: Path) -> tuple[str, ...]:
+    if not notes_path.is_file():
+        return ()
+    lines = (line.strip() for line in notes_path.read_text().splitlines())
+    return tuple(line for line in lines if line)
 
 
 def segments_json(segments: list[TranscriptionSegment]) -> str:

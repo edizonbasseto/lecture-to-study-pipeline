@@ -256,3 +256,11 @@ def test_a_rerun_keeps_the_log_of_the_earlier_attempt(
     assert final_path.read_text() == "third"
     assert (log_directory / "run-all.attempt-1.log").read_text() == "first"
     assert (log_directory / "run-all.attempt-2.log").read_text() == "second"
+
+
+def test_flashcards_floor_is_passed_only_when_given(demo_run: ModuleType) -> None:
+    default = demo_run.pipeline_steps(LECTURE_ID, MODEL_PATH)[2]
+    lowered = demo_run.pipeline_steps(LECTURE_ID, MODEL_PATH, 5)[2]
+
+    assert "--minimum-total-cards" not in default.argv
+    assert lowered.argv[-2:] == ("--minimum-total-cards", "5")
