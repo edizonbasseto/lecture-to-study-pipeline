@@ -306,9 +306,39 @@ remote egress for such an identifier whatever the flags say (fail closed).
 The same holds for a registry that repeats a mapping key, inside a row (a
 `remote_llm_allowed` set to `false` and later to `true`) or at the top level
 (two `lectures` blocks): the loader rejects it with a typed error that names
-only the dotted key paths, using the duplicate-key scan shared with the gateway
-configuration (`src/lecture_study/ops/strict_yaml.py`), and a registry file
-that cannot be read is a typed error, never an empty registry. The configuration
+only the dotted key paths (keys are compared as written). Both files are parsed by one strict loader
+(`src/lecture_study/ops/strict_yaml.py`), and a registry file that cannot be
+read is a typed error, never an empty registry. The strict loader refuses a
+document over one million characters or 50,000 nodes (counted while the node
+tree is built, so composition stops at the cap); numbers longer than 30
+characters or written in the YAML 1.1 base-60 form, which PyYAML builds in
+quadratic time; any double-quoted escape except one that decodes to a
+printable non-ASCII character (so `"\x74rue"`, an escaped quote or backslash,
+a line-joining backslash, a C1 control or a lone surrogate are refused), since
+a search for the literal text would miss them, while the escaped accented
+letters written by `yaml.safe_dump` stay accepted (text holding a backslash,
+such as a Windows path, is single-quoted; titles, disciplines and sections
+must be printable, so the registry writer never emits an escape); merge keys (`<<: *anchor`), through
+which a row could inherit a flag it never states; every alias, through which a
+flag or a cleared identifier could appear where it was never written and a
+small file could multiply the work of validation (the registry writer dumps
+with aliases disabled, and an alias is reported by the line it is written
+on); any boolean not written `true` or `false` (YAML 1.1 reads `yes`, `on`
+and their variants as booleans); and any tag outside null, boolean, integer,
+float, string, timestamp, sequence and mapping, so `!!binary` cannot hide an
+identifier behind an encoding. It parses the text
+once, refuses aliases while the node tree is built, walks the resulting tree
+iteratively with linear memory, and maps every parser failure to one typed error that
+names only the exception type. The registry accepts no top-level key other
+than `lectures`, and its `publish` and `remote_llm_allowed` flags also reject
+non-boolean values such as the string `'yes'` or the number `1` rather than
+coerce them. Error messages name masked, shortened key paths (at most five,
+with a count of the rest; a deep path keeps only its first and last segments)
+and error types, never row values other than a repeated lecture identifier,
+and keep no underlying parser or validation error as their cause or context.
+The loaders' own stack frames still hold the document while the error
+propagates; a printed traceback shows no frame locals, and no reporter that
+captures them is configured. The configuration
 file probe distinguishes absence (`FileNotFoundError`) from an uninspectable
 path, which fails closed instead of selecting the built-in default.
 

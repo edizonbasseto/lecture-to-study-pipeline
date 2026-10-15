@@ -310,7 +310,7 @@ def test_duplicate_yaml_keys_fail_closed_naming_only_the_key_path(
 ) -> None:
     path = _write_configuration(tmp_path, text)
 
-    with pytest.raises(GatewayConfigurationError, match="repeats keys") as raised:
+    with pytest.raises(GatewayConfigurationError, match="repeated keys") as raised:
         load_gateway_configuration(_environ_for(path))
 
     assert repeated_path in str(raised.value)
@@ -321,14 +321,18 @@ def test_duplicate_yaml_keys_fail_closed_naming_only_the_key_path(
     [
         ("released: 2001-13-45\n", "ValueError"),
         ("a: " + "[" * 5000 + "]" * 5000 + "\n", "RecursionError"),
-        ("x: !!bool .nan\n", "KeyError"),
         ("x: !!timestamp 0x\n", "AttributeError"),
+        ('x: !!int ""\n', "IndexError"),
+        ("x: !!int _\n", "IndexError"),
+        ('x: !!float ""\n', "IndexError"),
     ],
     ids=[
         "calendar-invalid-timestamp",
         "deep-nesting",
-        "invalid-bool-tag",
         "invalid-timestamp-tag",
+        "empty-int-tag",
+        "underscore-int-tag",
+        "empty-float-tag",
     ],
 )
 def test_unparseable_yaml_scalars_fail_closed_without_content(
@@ -339,4 +343,96 @@ def test_unparseable_yaml_scalars_fail_closed_without_content(
     with pytest.raises(GatewayConfigurationError, match=type_name) as raised:
         load_gateway_configuration(_environ_for(path))
 
-    assert "2001-13-45" not in str(raised.value)
+    assert str(raised.value).endswith(f"unparseable YAML ({type_name})")
+
+
+def test_alias_chain_fails_closed_as_a_typed_error(tmp_path: Path) -> None:
+    links = 1200
+    chain = "".join(
+        f"? &a{index} [*a{index - 1}]\n: v\n" for index in range(1, links + 1)
+    )
+    path = _write_configuration(
+        tmp_path, "? &a0 [x]\n: v\n" + chain + f"stages: *a{links}\n"
+    )
+
+    with pytest.raises(GatewayConfigurationError, match="aliases are not allowed"):
+        load_gateway_configuration(_environ_for(path))
+
+
+def test_invalid_configuration_does_not_chain_the_validation_error(
+    tmp_path: Path,
+) -> None:
+    path = _write_configuration(tmp_path, "unexpected: MARKER-VALUE-42\n")
+
+    with pytest.raises(GatewayConfigurationError) as raised:
+        load_gateway_configuration(_environ_for(path))
+
+    assert "MARKER-VALUE-42" not in str(raised.value)
+    assert raised.value.__cause__ is None
+    assert raised.value.__context__ is None
+
+
+def test_invalid_key_location_masks_control_characters(tmp_path: Path) -> None:
+    path = _write_configuration(tmp_path, 'codex:\n  "\\e]0;x\\a": 1\n')
+
+    with pytest.raises(GatewayConfigurationError, match="escape sequences") as raised:
+        load_gateway_configuration(_environ_for(path))
+
+    assert "\x1b" not in str(raised.value)
+    assert "\x07" not in str(raised.value)
+
+
+def test_portal_clearance_through_an_alias_is_rejected(tmp_path: Path) -> None:
+    path = _write_configuration(
+        tmp_path,
+        "codex:\n  executable: &x '777'\nremote_llm_allowed_lecture_ids: [*x]\n",
+    )
+
+    with pytest.raises(GatewayConfigurationError, match="aliases are not allowed"):
+        load_gateway_configuration(_environ_for(path))
+
+
+def test_binary_encoded_executable_is_rejected(tmp_path: Path) -> None:
+    path = _write_configuration(
+        tmp_path, "codex:\n  executable: !!binary L2Jpbi9zaA==\n"
+    )
+
+    with pytest.raises(GatewayConfigurationError, match="unsupported tags"):
+        load_gateway_configuration(_environ_for(path))
+
+
+@pytest.mark.parametrize("text", ["x: !!bool .nan\n", "x: yes\n", "x: on\n"])
+def test_non_canonical_boolean_fails_closed_naming_only_the_key_path(
+    tmp_path: Path, text: str
+) -> None:
+    path = _write_configuration(tmp_path, text)
+
+    with pytest.raises(
+        GatewayConfigurationError, match="booleans must be written"
+    ) as raised:
+        load_gateway_configuration(_environ_for(path))
+
+    assert str(raised.value).endswith(": x")
+
+
+def test_merge_key_fails_closed_naming_only_the_key_path(tmp_path: Path) -> None:
+    path = _write_configuration(
+        tmp_path,
+        "listing:\n  <<: {remote_llm_allowed_lecture_ids: ['1']}\n",
+    )
+
+    with pytest.raises(GatewayConfigurationError, match="merge keys") as raised:
+        load_gateway_configuration(_environ_for(path))
+
+    assert "listing.<<" in str(raised.value)
+
+
+def test_invalid_adapter_override_keeps_no_raw_value_in_its_context() -> None:
+    with pytest.raises(GatewayConfigurationError, match=ADAPTER_OVERRIDE_ENV) as raised:
+        load_gateway_configuration(
+            {ADAPTER_OVERRIDE_ENV: "\x1b[2J" + "x" * 500, CONFIG_PATH_ENV: ""}
+        )
+
+    assert raised.value.__context__ is None
+    assert "\x1b" not in str(raised.value)
+    assert len(str(raised.value)) < 200

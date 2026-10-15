@@ -107,10 +107,40 @@ _REGISTRY_ROW = (
         + _REGISTRY_ROW
         + "  remote_llm_allowed: true\n  remote_llm_allowed: false\n",
         "lectures: []\nlectures:\n" + _REGISTRY_ROW + "  remote_llm_allowed: true\n",
+        "flags: &cleared {remote_llm_allowed: true}\nlectures:\n"
+        + _REGISTRY_ROW
+        + "  <<: *cleared\n",
+        "lectures:\n" + _REGISTRY_ROW + "  remote_llm_allowed: 'yes'\n",
+        "lectures:\n" + _REGISTRY_ROW + "  remote_llm_allowed: 1\n",
+        "lectures:\n" + _REGISTRY_ROW + "  remote_llm_allowed: on\n",
+        "lectures:\n" + _REGISTRY_ROW + "  remote_llm_allowed: yes\n",
+        "lectures:\n"
+        + _REGISTRY_ROW.replace("'925101'", "'925103'")
+        + "  remote_llm_allowed: &granted true\n"
+        + _REGISTRY_ROW
+        + "  remote_llm_allowed: *granted\n",
+        "spare: &row\n  lecture_id: '925101'\n  title: T\n  discipline: D\n"
+        "  section: S\n  scheduled_date: 2025-07-01\n  remote_llm_allowed: true\n"
+        "lectures: [*row]\n",
+        "lectures:\n"
+        + _REGISTRY_ROW.replace("'925101'", "!!binary OTI1MTAx")
+        + "  remote_llm_allowed: true\n",
     ],
-    ids=["false-then-true", "true-then-false", "two-top-level-blocks"],
+    ids=[
+        "false-then-true",
+        "true-then-false",
+        "two-top-level-blocks",
+        "flag-inherited-through-merge-key",
+        "flag-as-yes-string",
+        "flag-as-integer",
+        "flag-as-yaml-1-1-on",
+        "flag-as-yaml-1-1-yes",
+        "flag-aliased-from-another-row",
+        "row-kept-outside-lectures",
+        "binary-encoded-lecture-id",
+    ],
 )
-def test_registry_with_repeated_keys_refuses_remote_clearance(
+def test_registry_with_repeated_inherited_or_ambiguous_flags_refuses_remote_clearance(
     tmp_path: Path, registry_text: str
 ) -> None:
     path = tmp_path / "repeated.yaml"
@@ -132,12 +162,18 @@ def test_registry_with_repeated_keys_refuses_remote_clearance(
         "lectures: " + "[" * 5000 + "]" * 5000 + "\n",
         "x: !!bool .nan\n",
         "x: !!timestamp 0x\n",
+        'x: !!int ""\n',
+        "x: !!int _\n",
+        'x: !!float ""\n',
     ],
     ids=[
         "calendar-invalid-timestamp",
         "deep-nesting",
         "invalid-bool-tag",
         "invalid-timestamp-tag",
+        "empty-int-tag",
+        "underscore-int-tag",
+        "empty-float-tag",
     ],
 )
 def test_registry_with_unparseable_yaml_refuses_remote_clearance(

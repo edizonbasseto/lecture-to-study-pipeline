@@ -17,7 +17,6 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Annotated, Any, Self
 
-import yaml
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -29,13 +28,17 @@ from pydantic_core import PydanticCustomError
 
 from lecture_study.domain.models import SafeIdentifier
 from lecture_study.llm.gateway import AdapterName, GatewayConfigurationError, Stage
-from lecture_study.ops.strict_yaml import duplicated_key_paths
+from lecture_study.ops.strict_yaml import (
+    StrictYamlError,
+    bounded_listing,
+    load_strict_yaml,
+    masked_location,
+)
 
 DEFAULT_GATEWAY_CONFIG_PATH = Path("config/llm-gateway.local.yaml")
 ADAPTER_OVERRIDE_ENV = "LECTURE_STUDY_LLM_ADAPTER"
 CONFIG_PATH_ENV = "LECTURE_STUDY_LLM_CONFIG"
 
-_UNLOCATED_ERROR = "<configuration>"
 _OVERRIDE_SOURCE = f"{ADAPTER_OVERRIDE_ENV} override"
 
 NonEmptyText = Annotated[str, Field(min_length=1)]
@@ -127,30 +130,19 @@ def _configuration_file_present(path: Path) -> bool:
 
 
 def _parse_configuration_file(path: Path) -> GatewayConfiguration:
+    text = _read_configuration_text(path)
     try:
-        text = path.read_text(encoding="utf-8")
-        duplicated_keys = duplicated_key_paths(text)
-        payload = yaml.safe_load(text)
-    except (
-        yaml.YAMLError,
-        ValueError,
-        RecursionError,
-        KeyError,
-        AttributeError,
-        OSError,
-    ) as error:
-        # ValueError covers UnicodeDecodeError and calendar-invalid timestamp
-        # scalars; RecursionError covers deeply nested documents; KeyError and
-        # AttributeError cover explicit invalid tags such as ``!!bool .nan``
-        # and ``!!timestamp 0x``.
-        raise GatewayConfigurationError(
-            f"gateway configuration unreadable at {path}: {type(error).__name__}"
-        ) from error
-    if duplicated_keys:
-        raise GatewayConfigurationError(
-            f"gateway configuration repeats keys in {path}: "
-            + ", ".join(duplicated_keys)
-        )
+        payload = load_strict_yaml(text)
+    except StrictYamlError as error:
+        problem = str(error)
+    else:
+        return _validated_payload(payload, path)
+    raise GatewayConfigurationError(
+        f"gateway configuration rejected at {path}: {problem}"
+    )
+
+
+def _validated_payload(payload: object, path: Path) -> GatewayConfiguration:
     if payload is None:
         payload = {}
     if not isinstance(payload, dict):
@@ -158,6 +150,16 @@ def _parse_configuration_file(path: Path) -> GatewayConfiguration:
             f"gateway configuration root must be a mapping: {path}"
         )
     return _validate(payload, source=str(path))
+
+
+def _read_configuration_text(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as error:
+        failure = type(error).__name__
+    raise GatewayConfigurationError(
+        f"gateway configuration unreadable at {path}: {failure}"
+    )
 
 
 def _override_every_stage(
@@ -170,33 +172,35 @@ def _override_every_stage(
 
 
 def _parse_adapter_name(requested_adapter: str) -> AdapterName:
+    # Raised after the handler so that the error keeps no ValueError, whose
+    # message holds the raw environment value, as its context.
     try:
         return AdapterName(requested_adapter)
     except ValueError:
-        valid_names = ", ".join(f'"{name.value}"' for name in AdapterName)
-        raise GatewayConfigurationError(
-            f"{ADAPTER_OVERRIDE_ENV} must be one of {valid_names}; "
-            f"got {requested_adapter!r}"
-        ) from None
+        pass
+    valid_names = ", ".join(f'"{name.value}"' for name in AdapterName)
+    raise GatewayConfigurationError(
+        f"{ADAPTER_OVERRIDE_ENV} must be one of {valid_names}; "
+        f"got {masked_location([requested_adapter])!r}"
+    )
 
 
 def _validate(payload: Mapping[str, Any], *, source: str) -> GatewayConfiguration:
+    # The typed error is raised after the handler so that it keeps no
+    # ValidationError, which holds document values, as its context.
     try:
         return GatewayConfiguration.model_validate(payload, strict=False)
     except ValidationError as error:
-        raise GatewayConfigurationError(
-            f"invalid gateway configuration ({source}): {_summarize(error)}"
-        ) from error
+        summary = _summarize(error)
+    raise GatewayConfigurationError(
+        f"invalid gateway configuration ({source}): {summary}"
+    )
 
 
 def _summarize(error: ValidationError) -> str:
     details = error.errors(
         include_url=False, include_context=False, include_input=False
     )
-    return "; ".join(
-        f"{_format_location(item['loc'])}: {item['type']}" for item in details
+    return bounded_listing(
+        details, lambda item: f"{masked_location(item['loc'])}: {item['type']}"
     )
-
-
-def _format_location(location: tuple[int | str, ...]) -> str:
-    return ".".join(str(part) for part in location) or _UNLOCATED_ERROR

@@ -39,7 +39,12 @@ from lecture_study.ops.process_environment import (
     resolve_trusted_executable,
     sanitized_child_process_environment,
 )
-from lecture_study.ops.strict_yaml import duplicated_key_paths
+from lecture_study.ops.strict_yaml import (
+    StrictYamlError,
+    bounded_listing,
+    load_strict_yaml,
+    masked_location,
+)
 from lecture_study.study_materials.academic_catalog import (
     AcademicCatalog,
     AcademicDiscipline,
@@ -60,6 +65,7 @@ VIDEO_EXTENSIONS = frozenset({".mp4", ".m4v", ".mov", ".mkv", ".webm"})
 LOCAL_URL_PREFIX = "local://"
 _LOCAL_URL_TEMPLATE = LOCAL_URL_PREFIX + "mod/supervideo/{lecture_id}"
 _DIGITS_ONLY = re.compile(r"[0-9]+")
+_RESERVED_ID_DIGITS = 6
 _SEMESTER = re.compile(r"(?P<year>\d{4})\.(?P<half>[12])")
 _CONTROL_CHARACTERS = re.compile(r"[\x00-\x1f\x7f]")
 _DISCOVERY_TIMESTAMP = "local"
@@ -72,7 +78,9 @@ VIDEO_ONLY_KIND: LectureKind = "video-only"
 def is_reserved_local_id(value: str) -> bool:
     """True only for canonical digits (str(int(v)) == v) inside a reserved range."""
 
-    if not _DIGITS_ONLY.fullmatch(value) or value != str(int(value)):
+    if len(value) > _RESERVED_ID_DIGITS or not _DIGITS_ONLY.fullmatch(value):
+        return False
+    if value != str(int(value)):
         return False
     return any(int(value) in id_range for id_range in RESERVED_ID_RANGES)
 
@@ -115,8 +123,22 @@ class LocalLecture(BaseModel):
         if _CONTROL_CHARACTERS.search(value):
             raise ValueError("texto não pode conter quebras de linha ou controle")
         collapsed = " ".join(value.split())
+        # Non-printable text is refused: invisible format and bidi characters
+        # hide what a reader sees, and some (U+FEFF, C1 controls, surrogates)
+        # would make the registry writer emit escapes the strict loader refuses.
+        if not collapsed.isprintable():
+            raise ValueError("texto deve conter apenas caracteres imprimíveis")
         slugify_path_segment(collapsed)
         return collapsed
+
+    @field_validator("publish", "remote_llm_allowed", mode="before")
+    @classmethod
+    def require_literal_boolean(cls, value: object) -> object:
+        # The registry is validated in lax mode for its dates, which would
+        # otherwise turn "yes", 1 or 1.0 into a granted egress or publication.
+        if not isinstance(value, bool):
+            raise ValueError("flag deve ser true ou false literal")
+        return value
 
 
 _LOCAL_LECTURES_ADAPTER = TypeAdapter(list[LocalLecture])
@@ -134,29 +156,38 @@ def default_scheduled_date(semester: str) -> date:
 def load_local_lectures(path: Path = LOCAL_LECTURES_PATH) -> list[LocalLecture]:
     """Return the registered local lectures; empty when the file is absent.
 
-    A registry that cannot be read, repeats a mapping key, or lists an id twice
-    raises ``LocalLectureError``: its egress and publication flags would
-    otherwise resolve to whichever contradictory value was parsed last.
+    A registry that cannot be read, holds any construct ``load_strict_yaml``
+    refuses, has a top-level key other than ``lectures``, gives a flag a
+    non-boolean value, or lists an id twice raises ``LocalLectureError``: its
+    egress and publication flags would otherwise resolve to a value the
+    operator never wrote. The message names locations, error types and, for
+    a repeated id, the id itself, never other row values, and the error keeps
+    no underlying exception as its context.
     """
 
     try:
         return _parse_registry(path)
-    except (yaml.YAMLError, ValidationError, UnicodeDecodeError) as error:
-        raise LocalLectureError(f"aulas locais inválidas em {path}: {error}") from error
     except LocalLectureError as error:
-        raise LocalLectureError(f"aulas locais inválidas em {path}: {error}") from error
+        problem = str(error)
+    raise LocalLectureError(f"aulas locais inválidas em {path}: {problem}")
 
 
 def _parse_registry(path: Path) -> list[LocalLecture]:
     text = _read_registry_text(path)
     if text is None:
         return []
-    payload = _parse_registry_yaml(text) or {}
+    payload = _parse_registry_yaml(text)
+    if payload is None:
+        return []
     if not isinstance(payload, dict):
         raise LocalLectureError("raiz do arquivo deve ser um mapa")
-    lectures = _LOCAL_LECTURES_ADAPTER.validate_python(
-        payload.get("lectures", []), strict=False
-    )
+    unexpected_keys = [key for key in payload if key != "lectures"]
+    if unexpected_keys:
+        raise LocalLectureError(
+            "chaves de topo não permitidas: "
+            + bounded_listing(unexpected_keys, lambda key: masked_location([key]))
+        )
+    lectures = _validated_lectures(payload.get("lectures", []))
     _require_unique_lecture_ids(lectures)
     return lectures
 
@@ -168,30 +199,49 @@ def _read_registry_text(path: Path) -> str | None:
         return path.read_text(encoding="utf-8")
     except FileNotFoundError:
         return None
-    except OSError as error:
-        raise LocalLectureError(f"arquivo ilegível ({type(error).__name__})") from error
+    except (OSError, UnicodeDecodeError) as error:
+        failure = type(error).__name__
+    raise LocalLectureError(f"arquivo ilegível ({failure})")
 
 
 def _parse_registry_yaml(text: str) -> object:
-    """Parse the registry text, refusing repeated keys and unparseable scalars.
-
-    ``ValueError`` (a calendar-invalid timestamp such as ``2001-13-45``),
-    ``RecursionError`` (deep nesting), ``KeyError`` and ``AttributeError``
-    (explicit invalid tags such as ``!!bool .nan`` and ``!!timestamp 0x``) are
-    mapped to a typed error that names only the exception type, never the
-    document content.
-    """
+    """Parse the registry text through ``load_strict_yaml`` with a typed error
+    that never echoes document content."""
 
     try:
-        repeated = duplicated_key_paths(text)
-        payload = yaml.safe_load(text)
-    except (ValueError, RecursionError, KeyError, AttributeError) as error:
-        raise LocalLectureError(
-            f"conteúdo YAML não interpretável ({type(error).__name__})"
-        ) from None
-    if repeated:
-        raise LocalLectureError("chaves repetidas: " + ", ".join(repeated))
-    return payload
+        return load_strict_yaml(text)
+    except StrictYamlError as error:
+        problem = str(error)
+    raise LocalLectureError(f"YAML recusado: {problem}")
+
+
+def _validated_lectures(rows: object) -> list[LocalLecture]:
+    # The handler only records a content-free summary; the typed error is
+    # raised after it so that it keeps no ValidationError, which holds row
+    # values, as its context.
+    try:
+        return _LOCAL_LECTURES_ADAPTER.validate_python(rows, strict=False)
+    except ValidationError as error:
+        summary = _describe_validation_error(error)
+    raise LocalLectureError(summary)
+
+
+def _describe_validation_error(error: ValidationError) -> str:
+    details = error.errors(
+        include_url=False, include_context=False, include_input=False
+    )
+    return bounded_listing(
+        details,
+        lambda item: masked_location(["lectures", *item["loc"]]) + f": {item['type']}",
+    )
+
+
+class _AliasFreeDumper(yaml.SafeDumper):
+    """Never writes anchors: the strict loader refuses every alias, and rows
+    that share one ``date`` object would otherwise be dumped as one."""
+
+    def ignore_aliases(self, data: object) -> bool:
+        return True
 
 
 def _require_unique_lecture_ids(lectures: list[LocalLecture]) -> None:
@@ -201,7 +251,8 @@ def _require_unique_lecture_ids(lectures: list[LocalLecture]) -> None:
     duplicated = sorted(lecture_id for lecture_id, n in counts.items() if n > 1)
     if duplicated:
         raise LocalLectureError(
-            "ids de aula local repetidos no arquivo: " + ", ".join(duplicated)
+            "ids de aula local repetidos no arquivo: "
+            + bounded_listing(duplicated, str)
         )
 
 
@@ -478,7 +529,10 @@ def _upsert_local_lecture(lecture: LocalLecture, path: Path) -> None:
     payload = {"lectures": [item.model_dump() for item in [*kept, lecture]]}
     path.parent.mkdir(parents=True, exist_ok=True)
     _atomic_write_text(
-        path, yaml.safe_dump(payload, allow_unicode=True, sort_keys=False)
+        path,
+        yaml.dump(
+            payload, Dumper=_AliasFreeDumper, allow_unicode=True, sort_keys=False
+        ),
     )
 
 

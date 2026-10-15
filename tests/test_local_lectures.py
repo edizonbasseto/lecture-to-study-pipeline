@@ -288,7 +288,7 @@ def test_repeated_registry_keys_are_rejected_naming_only_the_key_path(
     path = tmp_path / "local.yaml"
     path.write_text(text)
 
-    with pytest.raises(LocalLectureError, match="chaves repetidas") as raised:
+    with pytest.raises(LocalLectureError, match="repeated keys") as raised:
         load_local_lectures(path)
 
     assert repeated_path in str(raised.value)
@@ -300,14 +300,18 @@ def test_repeated_registry_keys_are_rejected_naming_only_the_key_path(
     [
         (_ROW_PREFIX + "  note: 2001-13-45\n", "ValueError"),
         ("lectures: " + "[" * 5000 + "]" * 5000 + "\n", "RecursionError"),
-        (_ROW_PREFIX + "  note: !!bool .nan\n", "KeyError"),
         (_ROW_PREFIX + "  note: !!timestamp 0x\n", "AttributeError"),
+        (_ROW_PREFIX + '  note: !!int ""\n', "IndexError"),
+        (_ROW_PREFIX + "  note: !!int _\n", "IndexError"),
+        (_ROW_PREFIX + '  note: !!float ""\n', "IndexError"),
     ],
     ids=[
         "calendar-invalid-timestamp",
         "deep-nesting",
-        "invalid-bool-tag",
         "invalid-timestamp-tag",
+        "empty-int-tag",
+        "underscore-int-tag",
+        "empty-float-tag",
     ],
 )
 def test_unparseable_registry_yaml_is_a_typed_error_without_content(
@@ -319,8 +323,126 @@ def test_unparseable_registry_yaml_is_a_typed_error_without_content(
     with pytest.raises(LocalLectureError, match=type_name) as raised:
         load_local_lectures(path)
 
-    assert "2001-13-45" not in str(raised.value)
+    assert str(raised.value).endswith(f"unparseable YAML ({type_name})")
     assert "925101" not in str(raised.value)
+
+
+def test_registry_merge_key_is_rejected_naming_only_the_key_path(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "local.yaml"
+    path.write_text(_ROW_PREFIX + "  <<: {remote_llm_allowed: true}\n")
+
+    with pytest.raises(LocalLectureError, match="merge keys") as raised:
+        load_local_lectures(path)
+
+    assert "lectures.0.<<" in str(raised.value)
+    assert "925101" not in str(raised.value)
+
+
+@pytest.mark.parametrize("flag", ["publish", "remote_llm_allowed"])
+@pytest.mark.parametrize("value", ["'yes'", "1", "1.0", "'true'"])
+def test_registry_flags_accept_only_a_literal_boolean(
+    tmp_path: Path, flag: str, value: str
+) -> None:
+    path = tmp_path / "local.yaml"
+    path.write_text(_ROW_PREFIX + f"  {flag}: {value}\n")
+
+    with pytest.raises(LocalLectureError) as raised:
+        load_local_lectures(path)
+
+    assert f"0.{flag}: value_error" in str(raised.value)
+    assert value.strip("'") not in str(raised.value).split(": ", 1)[1]
+
+
+@pytest.mark.parametrize("flag", ["publish", "remote_llm_allowed"])
+@pytest.mark.parametrize(
+    "word", ["yes", "on", "True", "ON", "!!bool yes", "!!bool .nan"]
+)
+def test_registry_flags_refuse_yaml_1_1_boolean_words(
+    tmp_path: Path, flag: str, word: str
+) -> None:
+    path = tmp_path / "local.yaml"
+    path.write_text(_ROW_PREFIX + f"  {flag}: {word}\n")
+
+    with pytest.raises(LocalLectureError, match="booleans must be written") as raised:
+        load_local_lectures(path)
+
+    assert f"lectures.0.{flag}" in str(raised.value)
+
+
+def test_registry_alias_chain_is_a_typed_error(tmp_path: Path) -> None:
+    links = 1200
+    chain = "".join(
+        f"? &a{index} [*a{index - 1}]\n: v\n" for index in range(1, links + 1)
+    )
+    path = tmp_path / "local.yaml"
+    path.write_text("? &a0 [x]\n: v\n" + chain + f"lectures: *a{links}\n")
+
+    with pytest.raises(LocalLectureError, match="aliases are not allowed"):
+        load_local_lectures(path)
+
+
+def test_registry_key_paths_mask_control_characters(tmp_path: Path) -> None:
+    path = tmp_path / "local.yaml"
+    path.write_text('"\\e[31mk": 1\n"\\e[31mk": 2\n')
+
+    with pytest.raises(LocalLectureError, match="repeated keys") as raised:
+        load_local_lectures(path)
+
+    assert "\x1b" not in str(raised.value)
+
+
+@pytest.mark.parametrize("root", ["false", "0", "''", "[]"])
+def test_registry_with_a_non_mapping_root_is_rejected(
+    tmp_path: Path, root: str
+) -> None:
+    path = tmp_path / "local.yaml"
+    path.write_text(root + "\n")
+
+    with pytest.raises(LocalLectureError, match="mapa"):
+        load_local_lectures(path)
+
+
+def test_registry_validation_error_does_not_echo_row_values(tmp_path: Path) -> None:
+    path = tmp_path / "local.yaml"
+    path.write_text(_ROW_PREFIX + "  unexpected_field: MARKER-VALUE-42\n")
+
+    with pytest.raises(LocalLectureError, match="extra_forbidden") as raised:
+        load_local_lectures(path)
+
+    assert "MARKER-VALUE-42" not in str(raised.value)
+    assert raised.value.__cause__ is None
+    assert raised.value.__context__ is None
+
+
+def test_registry_validation_location_masks_control_characters(tmp_path: Path) -> None:
+    path = tmp_path / "local.yaml"
+    path.write_text(_ROW_PREFIX + '  "\\e]0;x\\a": 1\n')
+
+    with pytest.raises(LocalLectureError, match="escape sequences") as raised:
+        load_local_lectures(path)
+
+    assert "\x1b" not in str(raised.value)
+    assert "\x07" not in str(raised.value)
+
+
+def test_registry_rejects_rows_kept_outside_the_lectures_key(tmp_path: Path) -> None:
+    path = tmp_path / "local.yaml"
+    path.write_text(
+        "spare:\n" + _ROW_BODY + "  remote_llm_allowed: true\nlectures: []\n"
+    )
+
+    with pytest.raises(LocalLectureError, match="chaves de topo não permitidas: spare"):
+        load_local_lectures(path)
+
+
+def test_registry_rejects_a_binary_encoded_lecture_id(tmp_path: Path) -> None:
+    path = tmp_path / "local.yaml"
+    path.write_text(_ROW_PREFIX.replace("'925101'", "!!binary OTI1MTAx"))
+
+    with pytest.raises(LocalLectureError, match="unsupported tags"):
+        load_local_lectures(path)
 
 
 def test_unreadable_registry_is_a_typed_error_not_an_empty_registry(
@@ -858,3 +980,65 @@ def test_guides_pattern_keeps_unpublished_nested_bundles_out_of_a_real_rsync(
 
     names = sorted(path.name for path in (server / layout).iterdir())
     assert names == ["10001-aula", "925201-aula"]
+
+
+def test_long_numeric_id_is_not_reserved_and_raises_nothing() -> None:
+    assert local_lectures.is_reserved_local_id("9" * 5000) is False
+
+
+def test_writer_never_emits_aliases_for_rows_sharing_one_date(tmp_path: Path) -> None:
+    shared = date(2025, 7, 1)
+    path = tmp_path / "local.yaml"
+    for lecture_id in ("925101", "925102"):
+        local_lectures._upsert_local_lecture(
+            LocalLecture(
+                lecture_id=lecture_id,
+                title="T",
+                discipline="D",
+                section="S",
+                scheduled_date=shared,
+            ),
+            path,
+        )
+    text = path.read_text()
+
+    assert "&" not in text and "*" not in text
+    assert [item.lecture_id for item in load_local_lectures(path)] == [
+        "925101",
+        "925102",
+    ]
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        'Aula "especial" com aspas',
+        "Aula com barra \\ invertida C:\\x",
+        "Aula " + " ".join(["longa"] * 40),
+        "Aula com acentuação e emoji \U0001f600",
+    ],
+)
+@pytest.mark.parametrize("field", ["title", "discipline", "section"])
+def test_registry_written_by_the_writer_always_loads_back(
+    tmp_path: Path, text: str, field: str
+) -> None:
+    path = tmp_path / "local.yaml"
+    texts = {"title": "T", "discipline": "D", "section": "S", field: text}
+    local_lectures._upsert_local_lecture(
+        LocalLecture(lecture_id="925101", scheduled_date=date(2025, 7, 1), **texts),
+        path,
+    )
+
+    assert getattr(load_local_lectures(path)[0], field) == text
+
+
+@pytest.mark.parametrize("field", ["title", "discipline", "section"])
+@pytest.mark.parametrize("hidden", ["\ufeff", "\x9b", "\ufffe", "\u200b"])
+def test_texts_with_non_printable_characters_are_rejected(
+    hidden: str, field: str
+) -> None:
+    texts = {"title": "T", "discipline": "D", "section": "S"}
+    texts[field] = f"Aula{hidden} especial"
+
+    with pytest.raises(ValueError, match="imprimíveis"):
+        LocalLecture(lecture_id="925101", scheduled_date=date(2025, 7, 1), **texts)
