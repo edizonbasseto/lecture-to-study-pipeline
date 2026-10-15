@@ -2,19 +2,18 @@
 gsd_state_version: "1.0"
 milestone: v1.0
 current_phase: 7
-current_phase_name: Synthetic demo lecture and measured results
-status: planning
-stopped_at: Phase 6 complete, ready to plan Phase 7
-last_updated: "2026-10-15T19:08:30.171Z"
+current_phase_name: synthetic-demo-lecture-and-measured-results
+status: executing
+stopped_at: Completed 07-01-PLAN.md
+last_updated: "2026-10-15T20:10:46.309Z"
 last_activity: 2026-10-15
-last_activity_desc: Phase 6 complete, transitioned to Phase 7
-state_head: b8803eb0715e32d78b047106206d778122fcaaf9
+last_activity_desc: Phase 7 execution started
+state_head: 46c9d29a171d56e20ebb24986d465ba8db345ffc
 progress:
   total_phases: 9
   completed_phases: 6
-  total_plans: 12
-  completed_plans: 12
-  percent: 67
+  total_plans: 20
+  completed_plans: 13
 ---
 
 # Project State
@@ -24,14 +23,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-14)
 
 **Core value:** No text the critic rejected or never reviewed reaches a reader of the study material, and everything a reader sees is labelled as uncertified.
-**Current focus:** Phase 6 — Pluggable LLM gateway
+**Current focus:** Phase 7 — synthetic-demo-lecture-and-measured-results
 
 ## Current Position
 
-Phase: 7 — Synthetic demo lecture and measured results
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-10-15 — Phase 6 complete, transitioned to Phase 7
+Phase: 7 (synthetic-demo-lecture-and-measured-results) — EXECUTING
+Plan: 2 of 8
+Status: Ready to execute
+Last activity: 2026-10-15 — Phase 7 execution started
 Next action: `/gsd-plan-phase 6`
 
 Progress: [███████░░░] 67% (phases, 5 of 9; Phases 1-5 are complete baseline built before GSD adoption, no GSD plans yet)
@@ -70,6 +69,7 @@ Progress: [███████░░░] 67% (phases, 5 of 9; Phases 1-5 are c
 | Phase 06 P09 | 14min | 2 tasks | 6 files |
 | Phase 06 P11 | 12min | 3 tasks | 4 files |
 | Phase 06 P12 | 8min | 2 tasks | 7 files |
+| Phase 07 P01 | 4 min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -101,6 +101,7 @@ Recent decisions affecting current work:
 - [Phase 06]: OPEN-1 (D-25): no per-model-family reasoning mechanism; generic --reasoning off suffices, adequacy for thinking-style models validated in the operator's D-07 manual run (recorded in ADR 0046)
 - [Phase 06]: OPEN-2 (D-26, option A): an id in both the local registry and remote_llm_allowed_lecture_ids is a preflight configuration error (recorded in ADR 0046 decision 6)
 - [Phase 06]: Plan 06-12: older ADRs 0020/0022/0034/0035/0036/0037 and PROJECT.md decisions D-READ-01/D-ADR0038-01/D-ADR0045-02 point forward to ADR 0046 by additive notes only; OPEN-2 rule restated from 06-04-SUMMARY
+- [Phase 07]: 07-01: Kokoro invocation extracted to public synthesize_kokoro_wav (podcast and demo share it); narrator voice pm_alex, pf_dora accepted by the model
 
 ### Pending Todos
 
@@ -127,6 +128,6 @@ Items acknowledged and deferred at roadmap creation (detail in REQUIREMENTS.md v
 
 ## Session Continuity
 
-Last session: 2026-10-14T22:51:31.962Z
-Stopped at: Phase 6 complete, ready to plan Phase 7
+Last session: 2026-10-15T20:10:46.278Z
+Stopped at: Completed 07-01-PLAN.md
 Resume file: None

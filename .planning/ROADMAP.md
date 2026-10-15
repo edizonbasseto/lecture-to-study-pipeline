@@ -132,10 +132,10 @@ Plans:
   3. A results report gives the ASR word error rate against the known script before and after the terminology dictionary, the schema pass rate per LLM stage, the critic rejection rate and the per-stage wall time, for each adapter that was run
   4. With a rejected or stale unit, the exam, podcast, personal-study flashcard and study-guide scripts write nothing for the demo lecture; after the ADR 0045 recovery they produce the exam, podcast, flashcards and study guide
 
-**Plans**: 8 plans in 5 waves
+**Plans**: 1/8 plans executed in 5 waves
 
 Plans:
-- [ ] 07-01-PLAN.md — Shared Kokoro helper, `lecture_study.demo` package, DemoScript model and lint, authored pt-BR lecture script with planted terms (wave 1)
+- [x] 07-01-PLAN.md — Shared Kokoro helper, `lecture_study.demo` package, DemoScript model and lint, authored pt-BR lecture script with planted terms (wave 1)
 - [ ] 07-02-PLAN.md — Typst slides, build driver, `make demo-video`, build accepted by the pipeline's own extraction and OCR (wave 2)
 - [ ] 07-03-PLAN.md — Measurement logic: WER, ASR before/after the dictionary, run-record stage metrics, critic rejection rate, per-stage wall time, report renderer (wave 2)
 - [ ] 07-04-PLAN.md — Dry run of stages 8 and 9, the guide and the site on fixtures to a signed-in view; demo site access material and live check (wave 2)
@@ -183,6 +183,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 4. Study site | 0/0 | Complete (baseline) | Pre-GSD |
 | 5. Publication boundary and public repository | 0/0 | Complete (baseline) | Pre-GSD |
 | 6. Pluggable LLM gateway | 12/12 | Complete    | 2026-10-15 |
-| 7. Synthetic demo lecture and measured results | 0/TBD | Not started | - |
+| 7. Synthetic demo lecture and measured results | 1/8 | In Progress | - |
 | 8. Portfolio README and documentation | 0/TBD | Not started | - |
 | 9. Pre-public gate and release | 0/TBD | Not started | - |
