@@ -160,13 +160,21 @@ def test_the_tracer_renders_the_asr_section_and_round_trips_through_json() -> No
     )
     results = DemoResults(
         measured_on=date(2026, 10, 15),
+        video_seconds=240.0,
+        reference_words=9,
         adapters=(
             AdapterResults(
                 adapter=AdapterName.LLAMA_CPP,
                 lecture_id="demo-local",
                 asr=(measurement,),
+                phases=(),
+                llm_stages=(),
+                critic=None,
+                evidence_packs=1,
+                notes=(),
             ),
         ),
+        adapters_not_run=(),
     )
 
     markdown = render_results_markdown(results)
