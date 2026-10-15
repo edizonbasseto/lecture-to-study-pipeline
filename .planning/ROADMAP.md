@@ -19,7 +19,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Assembly, study material and the uncertified boundary** - Critic-approved units become canonical documents and uncertified student-facing material, blocked per lecture by the critic gate (baseline)
 - [x] **Phase 4: Study site** - Allowlisted readers sign in, read, watch and take server-graded mock exams on a hardened site (baseline)
 - [x] **Phase 5: Publication boundary and public repository** - Local lectures stay private until published and the repository leaks no portal details, credentials or private terms (baseline)
-- [ ] **Phase 6: Pluggable LLM gateway** - Every LLM-backed stage calls one `LlmGateway` port; a Codex adapter keeps current behavior and a local llama.cpp adapter runs with no network egress, chosen by configuration
+- [x] **Phase 6: Pluggable LLM gateway** - Every LLM-backed stage calls one `LlmGateway` port; a Codex adapter keeps current behavior and a local llama.cpp adapter runs with no network egress, chosen by configuration (completed 2026-10-15)
 - [ ] **Phase 7: Synthetic demo lecture and measured results** - A lecture authored for the repository runs end to end to a served page, and the pipeline's quality is reported with real numbers
 - [ ] **Phase 8: Portfolio README and documentation** - A technical reader understands the problem, architecture, decisions and results, and the demo walkthrough runs as written
 - [ ] **Phase 9: Pre-public gate and release** - The full history passes the leak scans, a final whole-repository review closes, and the repository is switched to public
@@ -105,7 +105,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. The contract tests pass for both adapters in CI
   4. The new ADR is Accepted, and ADR 0038 and ADR 0045 carry amendment notes pointing to it
 
-**Plans**: 12/12 plans executed in 6 waves
+**Plans**: 12/12 plans complete in 6 waves
 
 Plans:
 - [x] 06-01-PLAN.md — `llm/` port, typed errors, `complete_json`, `CodexCliAdapter`, stub harness, contract suite (codex), layering test (wave 1)
@@ -161,7 +161,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9. Phases 1-5 are complete baseline; the next action is planning Phase 6.
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9. Phases 1-5 are complete baseline; the next action is planning Phase 7.
 
 **Phase completion gates:** a phase that changes code or executable operational artifacts runs `/gsd-code-review` and `/gsd-secure-phase` on the phase-final diff before it closes, and re-runs them after any material fix (operator rule R0.4; canonical mechanism set by operator decision 2026-10-14).
 
@@ -172,7 +172,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 3. Assembly, study material and the uncertified boundary | 0/0 | Complete (baseline) | Pre-GSD |
 | 4. Study site | 0/0 | Complete (baseline) | Pre-GSD |
 | 5. Publication boundary and public repository | 0/0 | Complete (baseline) | Pre-GSD |
-| 6. Pluggable LLM gateway | 12/12 | In Progress | - |
+| 6. Pluggable LLM gateway | 12/12 | Complete    | 2026-10-15 |
 | 7. Synthetic demo lecture and measured results | 0/TBD | Not started | - |
 | 8. Portfolio README and documentation | 0/TBD | Not started | - |
 | 9. Pre-public gate and release | 0/TBD | Not started | - |
