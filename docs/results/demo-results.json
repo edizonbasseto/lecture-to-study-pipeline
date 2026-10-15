@@ -1,0 +1,509 @@
+{
+  "measured_on": "2026-10-15",
+  "video_seconds": 243.647656,
+  "reference_words": 620,
+  "adapters": [
+    {
+      "adapter": "llama-cpp",
+      "lecture_id": "925100",
+      "asr": [
+        {
+          "condition": "pipeline_prompt_on",
+          "before": {
+            "reference_words": 620,
+            "substitutions": 12,
+            "deletions": 2,
+            "insertions": 0
+          },
+          "after": {
+            "reference_words": 620,
+            "substitutions": 1,
+            "deletions": 2,
+            "insertions": 0
+          },
+          "corrections_applied": 11,
+          "planted_terms": [
+            {
+              "term": "biópsia excisional",
+              "reference_occurrences": 4,
+              "before_occurrences": 4,
+              "after_occurrences": 4
+            },
+            {
+              "term": "histopatológico",
+              "reference_occurrences": 8,
+              "before_occurrences": 8,
+              "after_occurrences": 8
+            },
+            {
+              "term": "camada fascial",
+              "reference_occurrences": 5,
+              "before_occurrences": 0,
+              "after_occurrences": 5
+            },
+            {
+              "term": "plano fascial",
+              "reference_occurrences": 3,
+              "before_occurrences": 0,
+              "after_occurrences": 3
+            },
+            {
+              "term": "margem fascial",
+              "reference_occurrences": 3,
+              "before_occurrences": 0,
+              "after_occurrences": 3
+            },
+            {
+              "term": "margem profunda",
+              "reference_occurrences": 5,
+              "before_occurrences": 5,
+              "after_occurrences": 5
+            },
+            {
+              "term": "margem lateral",
+              "reference_occurrences": 6,
+              "before_occurrences": 6,
+              "after_occurrences": 6
+            },
+            {
+              "term": "mastocitoma",
+              "reference_occurrences": 1,
+              "before_occurrences": 1,
+              "after_occurrences": 1
+            },
+            {
+              "term": "sarcoma de tecidos moles",
+              "reference_occurrences": 1,
+              "before_occurrences": 1,
+              "after_occurrences": 1
+            },
+            {
+              "term": "citologia aspirativa",
+              "reference_occurrences": 1,
+              "before_occurrences": 1,
+              "after_occurrences": 1
+            },
+            {
+              "term": "tecido subcutâneo",
+              "reference_occurrences": 2,
+              "before_occurrences": 2,
+              "after_occurrences": 2
+            },
+            {
+              "term": "linfonodo regional",
+              "reference_occurrences": 2,
+              "before_occurrences": 2,
+              "after_occurrences": 2
+            },
+            {
+              "term": "formalina",
+              "reference_occurrences": 2,
+              "before_occurrences": 2,
+              "after_occurrences": 2
+            },
+            {
+              "term": "hemostasia",
+              "reference_occurrences": 3,
+              "before_occurrences": 3,
+              "after_occurrences": 3
+            },
+            {
+              "term": "nervo facial",
+              "reference_occurrences": 1,
+              "before_occurrences": 1,
+              "after_occurrences": 1
+            }
+          ]
+        },
+        {
+          "condition": "ablation_prompt_off",
+          "before": {
+            "reference_words": 620,
+            "substitutions": 19,
+            "deletions": 0,
+            "insertions": 0
+          },
+          "after": {
+            "reference_words": 620,
+            "substitutions": 0,
+            "deletions": 0,
+            "insertions": 0
+          },
+          "corrections_applied": 19,
+          "planted_terms": [
+            {
+              "term": "biópsia excisional",
+              "reference_occurrences": 4,
+              "before_occurrences": 4,
+              "after_occurrences": 4
+            },
+            {
+              "term": "histopatológico",
+              "reference_occurrences": 8,
+              "before_occurrences": 0,
+              "after_occurrences": 8
+            },
+            {
+              "term": "camada fascial",
+              "reference_occurrences": 5,
+              "before_occurrences": 0,
+              "after_occurrences": 5
+            },
+            {
+              "term": "plano fascial",
+              "reference_occurrences": 3,
+              "before_occurrences": 0,
+              "after_occurrences": 3
+            },
+            {
+              "term": "margem fascial",
+              "reference_occurrences": 3,
+              "before_occurrences": 0,
+              "after_occurrences": 3
+            },
+            {
+              "term": "margem profunda",
+              "reference_occurrences": 5,
+              "before_occurrences": 5,
+              "after_occurrences": 5
+            },
+            {
+              "term": "margem lateral",
+              "reference_occurrences": 6,
+              "before_occurrences": 6,
+              "after_occurrences": 6
+            },
+            {
+              "term": "mastocitoma",
+              "reference_occurrences": 1,
+              "before_occurrences": 1,
+              "after_occurrences": 1
+            },
+            {
+              "term": "sarcoma de tecidos moles",
+              "reference_occurrences": 1,
+              "before_occurrences": 1,
+              "after_occurrences": 1
+            },
+            {
+              "term": "citologia aspirativa",
+              "reference_occurrences": 1,
+              "before_occurrences": 1,
+              "after_occurrences": 1
+            },
+            {
+              "term": "tecido subcutâneo",
+              "reference_occurrences": 2,
+              "before_occurrences": 2,
+              "after_occurrences": 2
+            },
+            {
+              "term": "linfonodo regional",
+              "reference_occurrences": 2,
+              "before_occurrences": 2,
+              "after_occurrences": 2
+            },
+            {
+              "term": "formalina",
+              "reference_occurrences": 2,
+              "before_occurrences": 2,
+              "after_occurrences": 2
+            },
+            {
+              "term": "hemostasia",
+              "reference_occurrences": 3,
+              "before_occurrences": 3,
+              "after_occurrences": 3
+            },
+            {
+              "term": "nervo facial",
+              "reference_occurrences": 1,
+              "before_occurrences": 1,
+              "after_occurrences": 1
+            }
+          ]
+        }
+      ],
+      "phases": [
+        {
+          "number": 2,
+          "name": "extraction",
+          "status": "ran",
+          "seconds": 4.928
+        },
+        {
+          "number": 3,
+          "name": "transcription",
+          "status": "ran",
+          "seconds": 6.556
+        },
+        {
+          "number": 4,
+          "name": "evidence",
+          "status": "ran",
+          "seconds": 0.001
+        },
+        {
+          "number": 5,
+          "name": "semantic",
+          "status": "ran",
+          "seconds": 53.728
+        },
+        {
+          "number": 6,
+          "name": "drafting",
+          "status": "ran",
+          "seconds": 23.167
+        },
+        {
+          "number": 7,
+          "name": "critic",
+          "status": "ran",
+          "seconds": 9.726
+        },
+        {
+          "number": 8,
+          "name": "assembly",
+          "status": "ran",
+          "seconds": 0.001
+        },
+        {
+          "number": 9,
+          "name": "metadata",
+          "status": "ran",
+          "seconds": 0.001
+        },
+        {
+          "number": 10,
+          "name": "quality-certification",
+          "status": "incomplete",
+          "seconds": null
+        },
+        {
+          "number": 13,
+          "name": "exams",
+          "status": "ran",
+          "seconds": 232.296
+        },
+        {
+          "number": 14,
+          "name": "podcast",
+          "status": "ran",
+          "seconds": 25.196
+        },
+        {
+          "number": 15,
+          "name": "tts",
+          "status": "ran",
+          "seconds": 8.114
+        }
+      ],
+      "llm_stages": [
+        {
+          "script_stage": "critic",
+          "adapter_name": "llama-cpp",
+          "model_identifier": "qwen2:qwen2.5-14b-instruct-q4_k_m-00001-of-00003.gguf",
+          "engine_version": "91d2fc387529940230555abd297a8b5e99737d3f",
+          "record_status": "succeeded",
+          "superseded": false,
+          "requests": 1,
+          "retries": 0,
+          "wall_seconds": 9.487060708983336,
+          "call_seconds": 7.867670500010718
+        },
+        {
+          "script_stage": "drafting",
+          "adapter_name": "llama-cpp",
+          "model_identifier": "qwen2:qwen2.5-14b-instruct-q4_k_m-00001-of-00003.gguf",
+          "engine_version": "91d2fc387529940230555abd297a8b5e99737d3f",
+          "record_status": "succeeded",
+          "superseded": false,
+          "requests": 1,
+          "retries": 0,
+          "wall_seconds": 22.947197082976345,
+          "call_seconds": 21.26311691699084
+        },
+        {
+          "script_stage": "exams",
+          "adapter_name": "llama-cpp",
+          "model_identifier": "qwen2:qwen2.5-14b-instruct-q4_k_m-00001-of-00003.gguf",
+          "engine_version": "91d2fc387529940230555abd297a8b5e99737d3f",
+          "record_status": "succeeded",
+          "superseded": false,
+          "requests": 16,
+          "retries": 2,
+          "wall_seconds": 232.10237704199972,
+          "call_seconds": 229.72575945802964
+        },
+        {
+          "script_stage": "flashcards",
+          "adapter_name": "llama-cpp",
+          "model_identifier": "qwen2:qwen2.5-14b-instruct-q4_k_m-00001-of-00003.gguf",
+          "engine_version": "91d2fc387529940230555abd297a8b5e99737d3f",
+          "record_status": "succeeded",
+          "superseded": false,
+          "requests": 1,
+          "retries": 0,
+          "wall_seconds": 21.948014624998905,
+          "call_seconds": 19.984937125002034
+        },
+        {
+          "script_stage": "podcast",
+          "adapter_name": "llama-cpp",
+          "model_identifier": "qwen2:qwen2.5-14b-instruct-q4_k_m-00001-of-00003.gguf",
+          "engine_version": "91d2fc387529940230555abd297a8b5e99737d3f",
+          "record_status": "succeeded",
+          "superseded": false,
+          "requests": 1,
+          "retries": 0,
+          "wall_seconds": 24.88617404201068,
+          "call_seconds": 22.417244874988683
+        },
+        {
+          "script_stage": "semantic",
+          "adapter_name": "llama-cpp",
+          "model_identifier": "qwen2:qwen2.5-14b-instruct-q4_k_m-00001-of-00003.gguf",
+          "engine_version": "91d2fc387529940230555abd297a8b5e99737d3f",
+          "record_status": "succeeded",
+          "superseded": false,
+          "requests": 1,
+          "retries": 0,
+          "wall_seconds": 53.53557908296352,
+          "call_seconds": 51.69252924999455
+        }
+      ],
+      "critic": {
+        "record_status": "succeeded",
+        "reviews": 1,
+        "redrafts": 0,
+        "units": 1,
+        "final_rejected_units": 0,
+        "rejected_reviews": 0
+      },
+      "evidence_packs": 1,
+      "notes": [
+        "Exams stage: attempt 1 failed its contract (5 calls, 1 retry); the figures are those of the successful rerun.",
+        "Flashcards stage: attempts 1 and 2 at the default deck floor of 12 failed (9 calls with 4 retries, then 3 calls with 1 retry); the successful run used a floor of 5 by operator decision, so it made one request and no supplemental ones."
+      ]
+    }
+  ],
+  "adapters_not_run": [
+    {
+      "adapter": "codex",
+      "reason": "The codex adapter was not run for lecture 925101: the operator confirmed remote egress at the 07-07 checkpoint on 2026-10-15, but both attempts of phase 5 (semantic) failed in under 7 seconds with a non-zero exit of the codex CLI, before any model output. A content-free diagnostic showed the cause: the codex CLI default model configured outside the repository (model \"gpt-6.1-sol\" in the user-level codex configuration) is rejected with HTTP 400, \"The 'gpt-6.1-sol' model is not supported when using Codex with a ChatGPT account\". The adapter passes no model argument, so the run cannot succeed until the codex configuration names a model the account supports."
+    }
+  ],
+  "recovery": {
+    "lecture_id": "925100",
+    "adapter": "llama-cpp",
+    "scenarios": [
+      {
+        "scenario": "stale",
+        "blocked": [
+          {
+            "step": "exam",
+            "exit_code": 1
+          },
+          {
+            "step": "podcast",
+            "exit_code": 1
+          },
+          {
+            "step": "flashcards",
+            "exit_code": 1
+          },
+          {
+            "step": "study_guide",
+            "exit_code": 1
+          }
+        ],
+        "blocked_tree_unchanged": true,
+        "blocked_changes": [],
+        "units_deleted": [],
+        "critic_exit_code": 0,
+        "recovered": [
+          {
+            "step": "exam",
+            "exit_code": 1
+          },
+          {
+            "step": "podcast",
+            "exit_code": 0
+          },
+          {
+            "step": "flashcards",
+            "exit_code": 0
+          },
+          {
+            "step": "study_guide",
+            "exit_code": 0
+          }
+        ],
+        "outputs_refreshed": [
+          "podcast",
+          "flashcards",
+          "study_guide"
+        ],
+        "passed": false
+      },
+      {
+        "scenario": "rejected",
+        "blocked": [
+          {
+            "step": "exam",
+            "exit_code": 1
+          },
+          {
+            "step": "podcast",
+            "exit_code": 1
+          },
+          {
+            "step": "flashcards",
+            "exit_code": 1
+          },
+          {
+            "step": "study_guide",
+            "exit_code": 1
+          }
+        ],
+        "blocked_tree_unchanged": true,
+        "blocked_changes": [],
+        "units_deleted": [],
+        "critic_exit_code": 0,
+        "recovered": [
+          {
+            "step": "exam",
+            "exit_code": 1
+          },
+          {
+            "step": "podcast",
+            "exit_code": 0
+          },
+          {
+            "step": "flashcards",
+            "exit_code": 0
+          },
+          {
+            "step": "study_guide",
+            "exit_code": 0
+          }
+        ],
+        "outputs_refreshed": [
+          "podcast",
+          "flashcards",
+          "study_guide"
+        ],
+        "passed": false
+      }
+    ]
+  },
+  "recovery_notes": [
+    "Five full runs of the recovery were made on the local adapter. In every run and both scenarios the four derivative scripts exited 1 with every output root unchanged, and the critic rerun exited 0 (a real model verdict, no unit rejected again).",
+    "Attempts 1 and 2 used the default flashcards deck floor of 12: podcast and study guide recovered (exit 0), exam and flashcards exited 1 in both scenarios (local model contract failures).",
+    "Attempts 3 to 5 used a flashcards deck floor of 5 by operator decision, the deviation already applied to the harvested run (the recovery driver option was added for it).",
+    "Attempt 3: flashcards, podcast and study guide recovered in both scenarios; exam exited 1 in both (stale: JSON schema validation; rejected: student-facing text guard).",
+    "Attempt 4: rejected scenario fully recovered (exam, podcast, flashcards and study guide all exit 0, all four outputs refreshed); stale scenario exam exited 1 (no JSON array in the model output).",
+    "Attempt 5: flashcards, podcast and study guide recovered in both scenarios; exam exited 1 in both (stale: JSON schema validation; rejected: no JSON array in the model output).",
+    "Overall the exam recovered in 1 of 10 scenario runs and flashcards in 6 of 6 runs at floor 5 (0 of 4 at floor 12); podcast and study guide recovered in 10 of 10. The operator limit of three runs at floor 5 was reached, so no further run was made. The exam failures are contract failures of the local 14B model, not gate or critic outcomes."
+  ]
+}
