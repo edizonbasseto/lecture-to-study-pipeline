@@ -189,12 +189,34 @@ class BuildSummary(BaseModel):
 def missing_headings(
     headings: tuple[str, ...], ocr_texts: list[str]
 ) -> tuple[str, ...]:
-    return headings
+    """The headings that no OCR text contains, ignoring case and whitespace."""
+    normalized_texts = [_normalized(text) for text in ocr_texts]
+    return tuple(
+        heading
+        for heading in headings
+        if not any(_normalized(heading) in text for text in normalized_texts)
+    )
 
 
 def require_duration_in_band(seconds: float) -> None:
-    return None
+    """Refuse a video outside about four minutes (D-05)."""
+    if not MINIMUM_VIDEO_SECONDS <= seconds <= MAXIMUM_VIDEO_SECONDS:
+        raise DemoBuildError(
+            f"video lasts {seconds:.1f} seconds, expected "
+            f"{MINIMUM_VIDEO_SECONDS:.0f} to {MAXIMUM_VIDEO_SECONDS:.0f} seconds"
+        )
 
 
 def midpoint_slide_number(slide_seconds: tuple[float, ...]) -> int:
-    return 0
+    """The 1-based slide on screen when half of the total duration has passed."""
+    midpoint = sum(slide_seconds) / 2
+    elapsed = 0.0
+    for number, seconds in enumerate(slide_seconds, start=1):
+        elapsed += seconds
+        if midpoint < elapsed:
+            return number
+    return len(slide_seconds)
+
+
+def _normalized(text: str) -> str:
+    return " ".join(text.casefold().split())

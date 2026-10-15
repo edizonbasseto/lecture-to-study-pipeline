@@ -187,7 +187,7 @@ def test_require_duration_in_band_accepts_inside_the_band(seconds: float) -> Non
 
 
 def test_midpoint_slide_number_is_the_slide_containing_half_the_duration() -> None:
-    assert midpoint_slide_number((10.0, 10.0, 30.0, 30.0, 10.0, 10.0)) == 3
+    assert midpoint_slide_number((10.0, 10.0, 30.0, 20.0, 10.0, 10.0)) == 3
     assert midpoint_slide_number((10.0, 10.0, 10.0, 10.0, 10.0, 10.0)) == 4
 
 
