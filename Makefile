@@ -1,5 +1,5 @@
 .PHONY: test lint run site clean hooks demo-video demo-register demo-preflight \
-	demo-run demo-site-access demo-site demo-serve demo-check
+	demo-run demo-site-access demo-site demo-serve demo-check demo-harvest
 
 WHISPER_MODEL_PATH ?= engines/whisper.cpp/models/ggml-large-v3-turbo.bin
 DEMO_LOCAL_ID ?= 925100
@@ -67,6 +67,11 @@ demo-serve:
 
 demo-check:
 	uv run python scripts/demo_site.py check --lecture-id $(LECTURE)
+
+# Copies the run's measured artifacts before any recovery step can overwrite them.
+demo-harvest:
+	uv run python scripts/demo_results.py harvest --adapter $(ADAPTER) \
+		--lecture-id $(LECTURE) --asr-ablation --whisper-model-path $(WHISPER_MODEL_PATH)
 
 clean:
 	find . -type d -name '__pycache__' -not -path './.venv/*' -exec rm -rf {} +

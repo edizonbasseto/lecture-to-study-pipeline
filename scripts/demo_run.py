@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Literal
 
 from lecture_study.cli.llm_gateway_wiring import preflight_stage_gateways
+from lecture_study.demo.harvest import DEMO_LOGS_ROOT
 from lecture_study.demo.phase_timing import (
     PhaseLogError,
     parse_phase_log,
@@ -37,7 +38,6 @@ Acceptance = Literal["exit_zero", "stopped_at_certification"]
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS_DIRECTORY = REPOSITORY_ROOT / "scripts"
-DEMO_LOGS_ROOT = Path("workspace/demo/logs")
 DEFAULT_WHISPER_MODEL_PATH = Path("engines/whisper.cpp/models/ggml-large-v3-turbo.bin")
 STUDY_GUIDE_ARGUMENTS = (
     "--targets-path",
