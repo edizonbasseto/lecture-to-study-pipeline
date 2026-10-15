@@ -61,6 +61,7 @@ _ABLATION_UNAVAILABLE_NAME = "unavailable.txt"
 _WITHOUT_VOCABULARY_PROMPT = ""
 DEFAULT_REPORT_DIRECTORY = Path("docs/results")
 RECOVERY_EVIDENCE_PATH = Path("workspace/demo/recovery/evidence.json")
+RECOVERY_NOTES_PATH = Path("workspace/demo/recovery/notes.txt")
 _HARVEST_MANIFEST_NAME = "harvest.json"
 _MARKDOWN_NAME = "demo-results.md"
 _JSON_NAME = "demo-results.json"
@@ -166,6 +167,13 @@ def _recovery_evidence() -> RecoveryEvidence | None:
     return RecoveryEvidence.model_validate_json(RECOVERY_EVIDENCE_PATH.read_text())
 
 
+def _recovery_notes() -> tuple[str, ...]:
+    if not RECOVERY_NOTES_PATH.is_file():
+        return ()
+    lines = (line.strip() for line in RECOVERY_NOTES_PATH.read_text().splitlines())
+    return tuple(line for line in lines if line)
+
+
 def collect_results() -> DemoResults:
     script = load_demo_script(DEMO_SCRIPT_PATH)
     reference = _reference(script)
@@ -182,6 +190,7 @@ def collect_results() -> DemoResults:
         adapters=run,
         adapters_not_run=not_run,
         recovery=_recovery_evidence(),
+        recovery_notes=_recovery_notes(),
     )
 
 

@@ -365,8 +365,7 @@ def test_recovery_section_lists_every_scenario_with_exit_codes() -> None:
     markdown = render_results_markdown(results)
 
     assert (
-        "Lecture demo-local with the llama-cpp adapter; the demonstration passed"
-        in markdown
+        "Lecture demo-local with the llama-cpp adapter; the last run passed" in markdown
     )
     assert "### stale draft" in markdown
     assert "### rejected review" in markdown
@@ -400,7 +399,7 @@ def test_recovery_section_names_deleted_units_and_failures() -> None:
 
     assert "- Units deleted: unit_002.json" in markdown
     assert "- Units deleted: none" not in markdown
-    assert "the demonstration did not pass" in markdown
+    assert "the last run did not pass" in markdown
     assert "- Result: did not pass" in markdown
 
 
@@ -414,3 +413,26 @@ def test_certification_refusal_is_explained_below_the_wall_times() -> None:
     markdown = render_results_markdown(two_adapter_results())
 
     assert "Phase 10 (quality-certification) refuses the lecture by design" in markdown
+
+
+def test_recovery_attempts_are_listed_before_the_scenarios() -> None:
+    results = two_adapter_results().model_copy(
+        update={
+            "recovery": recovery_evidence(),
+            "recovery_notes": ("Attempt 1: exam exit 1.", "Attempt 2: all passed."),
+        }
+    )
+
+    markdown = render_results_markdown(results)
+
+    assert (
+        "### Attempts\n\n- Attempt 1: exam exit 1.\n- Attempt 2: all passed."
+        in markdown
+    )
+    assert markdown.index("### Attempts") < markdown.index("### stale draft")
+
+
+def test_recovery_section_has_no_attempts_heading_without_notes() -> None:
+    results = two_adapter_results().model_copy(update={"recovery": recovery_evidence()})
+
+    assert "### Attempts" not in render_results_markdown(results)

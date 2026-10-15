@@ -85,6 +85,7 @@ class DemoResults(_FrozenStrictModel):
     adapters: tuple[AdapterResults, ...]
     adapters_not_run: tuple[NotRunAdapter, ...]
     recovery: RecoveryEvidence | None = None
+    recovery_notes: tuple[str, ...] = ()
 
 
 def format_rate(numerator: int, denominator: int, unit: str) -> str:
@@ -111,7 +112,7 @@ def render_results_markdown(results: DemoResults) -> str:
     ]
     if results.adapters_not_run:
         blocks.append(_not_run_block(results.adapters_not_run))
-    blocks.append(_recovery_block(results.recovery))
+    blocks.append(_recovery_block(results.recovery, results.recovery_notes))
     return "\n\n".join(blocks) + "\n"
 
 
@@ -344,7 +345,7 @@ def _not_run_block(not_run: tuple[NotRunAdapter, ...]) -> str:
     return "\n".join(lines)
 
 
-def _recovery_block(recovery: RecoveryEvidence | None) -> str:
+def _recovery_block(recovery: RecoveryEvidence | None, notes: tuple[str, ...]) -> str:
     lines = ["## Blocked-lecture recovery", ""]
     if recovery is None:
         lines.append("The blocked-lecture recovery was not run.")
@@ -352,8 +353,11 @@ def _recovery_block(recovery: RecoveryEvidence | None) -> str:
     verdict = "passed" if recovery.passed() else "did not pass"
     lines.append(
         f"Lecture {recovery.lecture_id} with the {recovery.adapter.value} adapter; "
-        f"the demonstration {verdict} (ADR 0045)."
+        f"the last run {verdict} (ADR 0045). The scenarios below are those of "
+        "the last run."
     )
+    if notes:
+        lines.extend(["", "### Attempts", "", *(f"- {note}" for note in notes)])
     for scenario in recovery.scenarios:
         lines.extend(["", *_scenario_lines(scenario)])
     return "\n".join(lines)
