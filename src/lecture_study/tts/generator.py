@@ -19,6 +19,7 @@ replaced by Kokoro/`mlx-audio`.
 import subprocess
 import sys
 from pathlib import Path
+from typing import Literal
 
 from pydantic import TypeAdapter
 
@@ -56,7 +57,9 @@ AUDIO_OUTPUT_DIR = Path("workspace/data/16_podcast_audio")
 # list (`mlx-community/Kokoro-82M-bf16`, checked via `list_repo_files`)
 # and resolve through `lang_code="p"` to `EspeakG2P(language='pt-br')`,
 # not European Portuguese.
-_VOICE_BY_SPEAKER: dict[str, str] = {"Host": "pf_dora", "Expert": "pm_alex"}
+KokoroVoice = Literal["pf_dora", "pm_alex"]
+
+_VOICE_BY_SPEAKER: dict[str, KokoroVoice] = {"Host": "pf_dora", "Expert": "pm_alex"}
 
 _KOKORO_MODEL_ID = "mlx-community/Kokoro-82M-bf16"
 _KOKORO_LANGUAGE_CODE = "p"
@@ -133,16 +136,6 @@ class PodcastAudioGenerator:
         lecture_id: str,
         chunk_paths: list[Path],
     ) -> None:
-        environment = sanitized_child_process_environment()
-        # Invoked as a module (`python -m mlx_audio.tts.generate`), not a
-        # PATH console script: the console script exists in the venv's
-        # bin, but resolving it through the sanitized environment's PATH
-        # fails whenever that PATH does not include the venv's bin
-        # directory -- exactly how lecture 10004's audio pass failed
-        # (2026-09-17). The module form needs no PATH at all.
-        # sys.executable is this process's own interpreter, already
-        # trusted by construction.
-        tts_command_prefix = [sys.executable, "-m", "mlx_audio.tts.generate"]
         for index, line in enumerate(dialogue, start=1):
             chunk_path = workspace_dir / _CHUNK_FILENAME_TEMPLATE.format(index)
             # Appended before starting the TTS subprocess, not after: it
@@ -154,63 +147,12 @@ class PodcastAudioGenerator:
             # failing chunk is ever cleaned up, not just every chunk
             # before it.
             chunk_paths.append(chunk_path)
-            voice = _VOICE_BY_SPEAKER[line.speaker]
-            try:
-                run_bounded_process(
-                    [
-                        *tts_command_prefix,
-                        "--model",
-                        _KOKORO_MODEL_ID,
-                        "--lang_code",
-                        _KOKORO_LANGUAGE_CODE,
-                        "--voice",
-                        voice,
-                        "--text",
-                        line.text,
-                        "--output_path",
-                        str(workspace_dir),
-                        "--file_prefix",
-                        chunk_path.stem,
-                        # `line.text` is untrusted LLM output and may
-                        # contain an embedded newline; without
-                        # --join_audio, Kokoro's own pipeline splits on
-                        # "\n+" internally and writes one file per
-                        # resulting segment (chunk_001_000.wav,
-                        # chunk_001_001.wav, ...), silently dropping every
-                        # segment past the first from this pipeline's
-                        # output since only "_000" was ever read.
-                        # --join_audio merges every internal segment back
-                        # into one file, always named exactly
-                        # "{file_prefix}.wav" (== chunk_path here) with no
-                        # numeric suffix regardless of how many internal
-                        # segments the text produced -- confirmed by
-                        # direct invocation with a "\n"-containing line
-                        # before adoption.
-                        "--join_audio",
-                    ],
-                    env=environment,
-                    timeout_seconds=_TTS_TIMEOUT_SECONDS,
-                    maximum_stdout_bytes=_MAXIMUM_STDOUT_BYTES,
-                    maximum_stderr_bytes=_MAXIMUM_STDERR_BYTES,
-                    check=True,
-                )
-                if not chunk_path.exists():
-                    raise AudioGenerationError(
-                        f"mlx_audio TTS synthesis failed for lecture "
-                        f"{lecture_id!r} dialogue line {index} (voice "
-                        f"{voice!r}): expected output file {chunk_path} "
-                        "was not created"
-                    )
-            except (
-                OSError,
-                ProcessOutputLimitExceeded,
-                subprocess.CalledProcessError,
-                subprocess.TimeoutExpired,
-            ) as error:
-                raise AudioGenerationError(
-                    f"mlx_audio TTS synthesis failed for lecture {lecture_id!r} "
-                    f"dialogue line {index} (voice {voice!r}): {error}"
-                ) from error
+            synthesize_kokoro_wav(
+                line.text,
+                voice=_VOICE_BY_SPEAKER[line.speaker],
+                wav_path=chunk_path,
+                failure_subject=f"lecture {lecture_id!r} dialogue line {index}",
+            )
 
     @staticmethod
     def _concatenate_chunks(
@@ -272,3 +214,85 @@ class PodcastAudioGenerator:
         for chunk_path in chunk_paths:
             chunk_path.unlink(missing_ok=True)
         concat_list_path.unlink(missing_ok=True)
+
+
+def synthesize_kokoro_wav(
+    text: str,
+    *,
+    voice: KokoroVoice,
+    wav_path: Path,
+    failure_subject: str,
+) -> None:
+    """Synthesize `text` with Kokoro-82M into the single file `wav_path`.
+
+    `text` is passed to the engine as one opaque argument (never a shell
+    string); `failure_subject` names the caller's unit of work in error
+    messages. Raises `ValueError` before any process starts when `wav_path`
+    is not a `.wav` file, and `AudioGenerationError` when the engine fails
+    or does not create the expected file.
+    """
+    if wav_path.suffix != ".wav":
+        raise ValueError(f"Kokoro output must be a .wav file, got {wav_path}")
+    try:
+        run_bounded_process(
+            _kokoro_command(text, voice=voice, wav_path=wav_path),
+            env=sanitized_child_process_environment(),
+            timeout_seconds=_TTS_TIMEOUT_SECONDS,
+            maximum_stdout_bytes=_MAXIMUM_STDOUT_BYTES,
+            maximum_stderr_bytes=_MAXIMUM_STDERR_BYTES,
+            check=True,
+        )
+        if not wav_path.exists():
+            raise AudioGenerationError(
+                f"mlx_audio TTS synthesis failed for {failure_subject} (voice "
+                f"{voice!r}): expected output file {wav_path} was not created"
+            )
+    except (
+        OSError,
+        ProcessOutputLimitExceeded,
+        subprocess.CalledProcessError,
+        subprocess.TimeoutExpired,
+    ) as error:
+        raise AudioGenerationError(
+            f"mlx_audio TTS synthesis failed for {failure_subject} (voice "
+            f"{voice!r}): {error}"
+        ) from error
+
+
+def _kokoro_command(text: str, *, voice: KokoroVoice, wav_path: Path) -> list[str]:
+    return [
+        # Invoked as a module (`python -m mlx_audio.tts.generate`), not a
+        # PATH console script: the console script exists in the venv's
+        # bin, but resolving it through the sanitized environment's PATH
+        # fails whenever that PATH does not include the venv's bin
+        # directory -- exactly how lecture 10004's audio pass failed
+        # (2026-09-17). The module form needs no PATH at all.
+        # sys.executable is this process's own interpreter, already
+        # trusted by construction.
+        sys.executable,
+        "-m",
+        "mlx_audio.tts.generate",
+        "--model",
+        _KOKORO_MODEL_ID,
+        "--lang_code",
+        _KOKORO_LANGUAGE_CODE,
+        "--voice",
+        voice,
+        "--text",
+        text,
+        "--output_path",
+        str(wav_path.parent),
+        "--file_prefix",
+        wav_path.stem,
+        # `text` may be untrusted LLM output containing an embedded
+        # newline; without --join_audio, Kokoro's own pipeline splits on
+        # "\n+" internally and writes one file per resulting segment
+        # (chunk_001_000.wav, chunk_001_001.wav, ...), silently dropping
+        # every segment past the first since only "_000" was ever read.
+        # --join_audio merges every internal segment back into one file,
+        # always named exactly "{file_prefix}.wav" (== wav_path here) with
+        # no numeric suffix regardless of how many internal segments the
+        # text produced -- confirmed by direct invocation with a
+        # "\n"-containing line before adoption.
+        "--join_audio",
+    ]

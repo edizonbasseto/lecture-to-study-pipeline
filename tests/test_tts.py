@@ -24,7 +24,7 @@ from lecture_study.domain.models import (
 )
 from lecture_study.quality.derivative import DerivativeQualityError
 from lecture_study.tts import generator as generator_module
-from lecture_study.tts.generator import PodcastAudioGenerator
+from lecture_study.tts.generator import PodcastAudioGenerator, synthesize_kokoro_wav
 
 
 pytestmark = pytest.mark.usefixtures("legacy_certification_bypass")
@@ -596,3 +596,58 @@ class TestGeneratePodcastPersonalStudyBypass:
         lecture_dir = audio_dir / "aula-001"
         assert not (lecture_dir / "chunk_001.wav").exists()
         assert not (lecture_dir / "chunk_002.wav").exists()
+
+
+class TestSynthesizeKokoroWav:
+    """The public helper shared by the podcast stage and the demo builder."""
+
+    def test_raises_when_the_engine_exits_zero_without_creating_the_file(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ):
+        _patch_run(
+            monkeypatch,
+            lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 0),
+        )
+
+        with pytest.raises(AudioGenerationError, match="was not created"):
+            synthesize_kokoro_wav(
+                "Texto.",
+                voice="pm_alex",
+                wav_path=tmp_path / "narration.wav",
+                failure_subject="demo slide 1",
+            )
+
+    def test_names_subject_and_voice_when_the_engine_exits_nonzero(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ):
+        _patch_run_failing_on(
+            monkeypatch,
+            "mlx_audio.tts.generate",
+            subprocess.CalledProcessError(1, ["mlx_audio.tts.generate"]),
+        )
+
+        with pytest.raises(
+            AudioGenerationError,
+            match=r"mlx_audio TTS synthesis failed for demo slide 1 \(voice 'pm_alex'\)",
+        ):
+            synthesize_kokoro_wav(
+                "Texto.",
+                voice="pm_alex",
+                wav_path=tmp_path / "narration.wav",
+                failure_subject="demo slide 1",
+            )
+
+    def test_rejects_a_non_wav_path_before_any_process_starts(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ):
+        calls = _patch_run(monkeypatch, _fake_run_writing_outputs)
+
+        with pytest.raises(ValueError, match=r"\.wav"):
+            synthesize_kokoro_wav(
+                "Texto.",
+                voice="pf_dora",
+                wav_path=tmp_path / "narration.mp3",
+                failure_subject="demo slide 1",
+            )
+
+        assert calls == []
