@@ -179,7 +179,51 @@ Run in the main checkout after the last fix (no worktree was created):
 - `uv run ruff format --check .`: 235 files already formatted.
 - `uv run mypy src`: no issues in 126 source files.
 
+## Round 4 (final)
+
+### Fixed
+
+- Commit `3a9efa1`: the typed-error mapping around `yaml.safe_load` now also
+  catches `KeyError` and `AttributeError`, so explicit invalid tags (for example
+  `x: !!bool .nan` and `x: !!timestamp 0x`) no longer escape as raw exceptions.
+  Applied in `src/lecture_study/llm/config.py` (`GatewayConfigurationError`) and
+  `src/lecture_study/study_materials/local_lectures.py` (`LocalLectureError`).
+  Messages stay content-free (exception type name only). Regression cases were
+  added to the configuration, local-registry and egress-policy tests; the
+  egress case asserts `GatewayConfigurationError` for such a registry.
+
+### Accepted, not fixed
+
+Residuals from `06-REVIEW-ROUND3.md`:
+
+- WR-01 (post-reap sweep ignores `EPERM`; reader-thread join is unbounded):
+  pre-existing, low likelihood, accepted and tracked.
+- IN-01 (`EPERM` read as "present" by one helper and "nothing left" by the
+  next): the combination behaves correctly; only the naming of the contract is
+  inconsistent.
+- IN-02 (cleanup tests simulate `EPERM` instead of exercising a real zombie
+  leader): coverage gap, not a defect; no behavior change at stake.
+
+Residuals from the final security audit:
+
+- `ignore_cleanup_errors` is silent: a failed temporary-directory removal is not
+  reported; accepted as a residual, not fixed in this phase.
+- `LocalLectureError` embeds a parser snippet: pre-existing behavior, not
+  introduced by this phase; not fixed here.
+- ADR 0046 section 1 and the `llm` package docstring drift on which `ops`
+  modules are allowed; text-only drift, no runtime effect.
+
+### Verification
+
+Run in the main checkout (no worktree was created):
+
+- `uv run pytest -q -p no:cacheprovider`: 2565 passed, 1 warning (pre-existing
+  starlette deprecation). Baseline before this round: 2559.
+- `uv run ruff check .`: passed.
+- `uv run ruff format --check .`: 235 files already formatted.
+- `uv run mypy src`: no issues in 126 source files.
+
 ---
 
 _Fixer: Claude (gsd-code-fixer)_
-_Iteration: 3_
+_Iteration: 4_
