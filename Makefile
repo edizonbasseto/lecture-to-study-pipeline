@@ -1,5 +1,6 @@
 .PHONY: test lint run site clean hooks demo-video demo-register demo-preflight \
-	demo-run demo-site-access demo-site demo-serve demo-check demo-harvest
+	demo-run demo-site-access demo-site demo-serve demo-check demo-harvest \
+	demo-recovery demo-report
 
 WHISPER_MODEL_PATH ?= engines/whisper.cpp/models/ggml-large-v3-turbo.bin
 DEMO_LOCAL_ID ?= 925100
@@ -74,6 +75,13 @@ demo-check:
 demo-harvest:
 	uv run python scripts/demo_results.py harvest --adapter $(ADAPTER) \
 		--lecture-id $(LECTURE) --asr-ablation --whisper-model-path $(WHISPER_MODEL_PATH)
+
+# Induces each blocked state on the local-adapter lecture and recovers it (ADR 0045).
+demo-recovery:
+	uv run python scripts/demo_blocked_recovery.py --lecture-id $(DEMO_LOCAL_ID) --scenario both
+
+demo-report:
+	uv run python scripts/demo_results.py report
 
 clean:
 	find . -type d -name '__pycache__' -not -path './.venv/*' -exec rm -rf {} +
