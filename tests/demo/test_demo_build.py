@@ -7,14 +7,20 @@ from pathlib import Path
 import pytest
 
 from lecture_study.demo.media_build import (
+    MAXIMUM_VIDEO_SECONDS,
+    MINIMUM_VIDEO_SECONDS,
     SLIDE_TAIL_PAD_SECONDS,
     SLIDES_SOURCE_PATH,
+    BuildSummary,
     DemoBuildError,
     SlideSegment,
     concat_command,
     concat_list_text,
     duration_probe_command,
+    midpoint_slide_number,
+    missing_headings,
     parse_probed_duration,
+    require_duration_in_band,
     slide_images_command,
     slide_segment_command,
 )
@@ -144,3 +150,59 @@ def test_real_slides_compile_to_six_full_hd_images(tmp_path: Path) -> None:
     images = sorted(tmp_path.glob("slide-*.png"))
     assert len(images) == SLIDE_COUNT
     assert {_png_size(image) for image in images} == {(SLIDE_WIDTH, SLIDE_HEIGHT)}
+
+
+def test_missing_headings_is_empty_when_each_heading_is_in_some_text() -> None:
+    headings = ("Objetivos da aula", "Planejamento das margens")
+    ocr_texts = ["OBJETIVOS  da\naula\nIndicações", "Planejamento das margens"]
+
+    assert missing_headings(headings, ocr_texts) == ()
+
+
+def test_missing_headings_reports_the_headings_absent_from_every_text() -> None:
+    headings = ("Objetivos da aula", "Revisão dos pontos principais")
+
+    assert missing_headings(headings, ["Objetivos da aula"]) == (
+        "Revisão dos pontos principais",
+    )
+
+
+def test_missing_headings_reports_every_heading_when_there_is_no_text() -> None:
+    assert missing_headings(("A", "B"), []) == ("A", "B")
+
+
+@pytest.mark.parametrize(
+    "seconds", [MINIMUM_VIDEO_SECONDS - 0.1, MAXIMUM_VIDEO_SECONDS + 0.1]
+)
+def test_require_duration_in_band_rejects_outside_the_band(seconds: float) -> None:
+    with pytest.raises(DemoBuildError, match="seconds"):
+        require_duration_in_band(seconds)
+
+
+@pytest.mark.parametrize(
+    "seconds", [MINIMUM_VIDEO_SECONDS, 243.6, MAXIMUM_VIDEO_SECONDS]
+)
+def test_require_duration_in_band_accepts_inside_the_band(seconds: float) -> None:
+    assert require_duration_in_band(seconds) is None
+
+
+def test_midpoint_slide_number_is_the_slide_containing_half_the_duration() -> None:
+    assert midpoint_slide_number((10.0, 10.0, 30.0, 30.0, 10.0, 10.0)) == 3
+    assert midpoint_slide_number((10.0, 10.0, 10.0, 10.0, 10.0, 10.0)) == 4
+
+
+def test_midpoint_slide_number_of_one_slide_is_that_slide() -> None:
+    assert midpoint_slide_number((42.0,)) == 1
+
+
+def test_build_summary_round_trips_through_json() -> None:
+    summary = BuildSummary(
+        video_seconds=243.6,
+        slide_seconds=(30.0, 40.0, 50.0),
+        frames_extracted=7,
+        headings_found=3,
+        heading_count=3,
+        midpoint_slide_number=2,
+    )
+
+    assert BuildSummary.model_validate_json(summary.model_dump_json()) == summary
