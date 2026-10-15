@@ -6,9 +6,10 @@ one of them. A merge key (``<<: *anchor``) lets a row inherit a flag it never
 states, and any alias (``*granted``) lets a value appear where it was never
 written and multiplies the work of every later validation step. YAML 1.1
 reads ``yes``, ``on`` and their variants as booleans, so a word the operator
-did not mean as a grant becomes one; tags such as ``!!binary`` and escapes
-such as ``"\\x74rue"`` hide a value from a search for its literal text. The
-loaders that carry egress or publication flags therefore parse through
+did not mean as a grant becomes one; tags such as ``!!binary`` or ``! true``
+and escapes such as ``"\\x74rue"`` hide a value from a search for its literal
+text, so no scalar may carry a tag. The loaders that carry egress or
+publication flags therefore parse through
 ``load_strict_yaml``, which refuses all of them. It also bounds the work a
 document can cause: its size, its node count (checked while the node tree is
 built), and numbers whose YAML 1.1 forms cost quadratic time to construct.
@@ -70,8 +71,9 @@ def load_strict_yaml(text: str) -> object:
     or ``MAX_DOCUMENT_NODES``, unparseable text, any alias, a mapping key
     repeated as written, a merge key, a tag outside the plain scalar and
     collection types, a boolean not written ``true`` or ``false``, a long or
-    base-60 number, or an escape that decodes to anything but a printable
-    non-ASCII character.
+    base-60 number, an escape that decodes to anything but a printable
+    non-ASCII character, or any scalar that carries an explicit tag
+    (``! true``, ``&anchor !!str true``).
     """
 
     if len(text) > MAX_DOCUMENT_CHARACTERS:
@@ -84,6 +86,11 @@ def load_strict_yaml(text: str) -> object:
     if root is None:
         return None
     _reject_non_strict_nodes(root)
+    if loader.tagged_scalar_lines:
+        listing = bounded_listing(
+            loader.tagged_scalar_lines, lambda line: f"line {line}"
+        )
+        raise StrictYamlError(f"scalar tags are not allowed: {listing}")
     return _parsed_safely(loader.construct_document, root)
 
 
@@ -122,12 +129,14 @@ def _masked_segment(segment: str) -> str:
 
 
 class _StrictLoader(yaml.SafeLoader):
-    """A safe loader that records the line of every alias and stops composing
-    once the document holds more than ``MAX_DOCUMENT_NODES`` nodes."""
+    """A safe loader that records the line of every alias and every explicitly
+    tagged scalar, and stops composing once the document holds more than
+    ``MAX_DOCUMENT_NODES`` nodes."""
 
     def __init__(self, stream: str) -> None:
         super().__init__(stream)
         self.alias_lines: list[int] = []
+        self.tagged_scalar_lines: list[int] = []
         self._composed_nodes = 0
 
     def compose_node(self, parent: yaml.Node | None, index: int) -> yaml.Node | None:
@@ -136,6 +145,8 @@ class _StrictLoader(yaml.SafeLoader):
         event = cast(Callable[[], yaml.Event], self.peek_event)()
         if isinstance(event, yaml.AliasEvent):
             self.alias_lines.append(event.start_mark.line + 1)
+        if isinstance(event, yaml.ScalarEvent) and event.tag is not None:
+            self.tagged_scalar_lines.append(event.start_mark.line + 1)
         self._composed_nodes += 1
         if self._composed_nodes > MAX_DOCUMENT_NODES:
             raise StrictYamlError(f"document exceeds {MAX_DOCUMENT_NODES} nodes")

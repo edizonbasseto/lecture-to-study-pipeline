@@ -161,19 +161,15 @@ def test_registry_with_repeated_inherited_or_ambiguous_flags_refuses_remote_clea
         "lectures: []\nreleased: 2001-13-45\n",
         "lectures: " + "[" * 5000 + "]" * 5000 + "\n",
         "x: !!bool .nan\n",
-        "x: !!timestamp 0x\n",
-        'x: !!int ""\n',
-        "x: !!int _\n",
-        'x: !!float ""\n',
+        "x: 0x_\n",
+        "x: ! true\n",
     ],
     ids=[
         "calendar-invalid-timestamp",
         "deep-nesting",
         "invalid-bool-tag",
-        "invalid-timestamp-tag",
-        "empty-int-tag",
-        "underscore-int-tag",
-        "empty-float-tag",
+        "empty-hexadecimal-number",
+        "explicit-scalar-tag",
     ],
 )
 def test_registry_with_unparseable_yaml_refuses_remote_clearance(

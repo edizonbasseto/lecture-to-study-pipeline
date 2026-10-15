@@ -321,19 +321,8 @@ def test_duplicate_yaml_keys_fail_closed_naming_only_the_key_path(
     [
         ("released: 2001-13-45\n", "ValueError"),
         ("a: " + "[" * 5000 + "]" * 5000 + "\n", "RecursionError"),
-        ("x: !!timestamp 0x\n", "AttributeError"),
-        ('x: !!int ""\n', "IndexError"),
-        ("x: !!int _\n", "IndexError"),
-        ('x: !!float ""\n', "IndexError"),
     ],
-    ids=[
-        "calendar-invalid-timestamp",
-        "deep-nesting",
-        "invalid-timestamp-tag",
-        "empty-int-tag",
-        "underscore-int-tag",
-        "empty-float-tag",
-    ],
+    ids=["calendar-invalid-timestamp", "deep-nesting"],
 )
 def test_unparseable_yaml_scalars_fail_closed_without_content(
     tmp_path: Path, text: str, type_name: str

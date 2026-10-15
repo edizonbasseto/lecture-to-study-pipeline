@@ -187,6 +187,66 @@ def test_escape_sequences_are_rejected(text: str) -> None:
         load_strict_yaml(text)
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        "remote_llm_allowed: ! true\n",
+        "remote_llm_allowed: !!bool true\n",
+        "remote_llm_allowed: !!str true\n",
+        'remote_llm_allowed: ! "true"\n',
+        "flags: [! true]\n",
+        "remote_llm_allowed: &a ! true\n",
+        "remote_llm_allowed: &a ! 'true'\n",
+        'remote_llm_allowed: &a !!bool "true"\n',
+        "remote_llm_allowed: &a !<tag:yaml.org,2002:bool> true\n",
+        "remote_llm_allowed: &a !!str |\n  true\n",
+        "&k !!str remote_llm_allowed: true\n",
+        "remote_llm_allowed: !!str\n",
+        "%TAG !e! tag:yaml.org,2002:\n---\nremote_llm_allowed: &a !e!bool 'true'\n",
+    ],
+    ids=[
+        "non-specific",
+        "bool",
+        "str",
+        "quoted",
+        "nested",
+        "anchored-non-specific",
+        "anchored-quoted",
+        "anchored-bool",
+        "anchored-verbatim",
+        "anchored-block",
+        "tagged-key",
+        "empty-tagged",
+        "tag-directive",
+    ],
+)
+def test_explicit_scalar_tags_are_rejected(text: str) -> None:
+    with pytest.raises(StrictYamlError, match="scalar tags are not allowed"):
+        load_strict_yaml(text)
+
+
+def test_scalar_tag_is_reported_at_its_own_line() -> None:
+    with pytest.raises(StrictYamlError, match="scalar tags are not allowed: line 2$"):
+        load_strict_yaml("a: 1\nb: ! x\n")
+
+
+def test_unsupported_tag_takes_priority_over_the_scalar_tag_report() -> None:
+    with pytest.raises(StrictYamlError, match="unsupported tags"):
+        load_strict_yaml("a: !x 1\nb: ! y\n")
+
+
+def test_value_key_mapping_under_a_boolean_tag_is_rejected() -> None:
+    with pytest.raises(StrictYamlError, match="unsupported tags"):
+        load_strict_yaml("a: !!bool {=: true}\n")
+
+
+def test_untagged_text_with_a_bang_and_an_unused_anchor_are_accepted() -> None:
+    assert load_strict_yaml('note: "!important"\nflag: &unused true\n') == {
+        "note": "!important",
+        "flag": True,
+    }
+
+
 @pytest.mark.parametrize("value", ["1:0:0", "1:30.5", "9" * 31])
 def test_sexagesimal_and_long_numbers_are_rejected(value: str) -> None:
     with pytest.raises(StrictYamlError, match="numbers must be plain"):
