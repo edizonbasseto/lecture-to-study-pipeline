@@ -1,0 +1,9 @@
+# Versioned empty academic schedule for the synthetic demo lecture (ADR 0047).
+#
+# The demo lecture is a local lecture: its official date and placement are
+# merged into the schedule in memory by
+# lecture_study.study_materials.local_lectures.merge_local_lectures, so this
+# file lists no portal entries. It exists because registration, the study-guide
+# script and the site generator all require a schedule file with an `entries`
+# list.
+entries: []
