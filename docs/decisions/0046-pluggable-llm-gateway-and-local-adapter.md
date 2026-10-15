@@ -446,43 +446,43 @@ Procedure:
 
 Only pack 1 has a ledger, so drafts and critic process one pack.
 
-Record (status: pending operator run; each result cell is filled when the run
-is executed):
+Record (executed 2026-10-15 by the operator's session; the lecture identifier
+is withheld). The run used one real lecture with a single evidence pack,
+processed only by the local adapter. The commands ran through
+`.venv/bin/python` because `uv run` is unavailable on that machine; the
+scripts and arguments are those of the procedure.
 
 | Item | Result |
 | ---- | ------ |
-| Date | pending operator run |
-| Machine class | pending operator run |
-| llama.cpp commit (`engines/llama.cpp/build/.built-commit`) | pending operator run |
-| Model file SHA-256 values (three shards) | pending operator run |
-| Command line, stage 5 | pending operator run |
-| Command line, stage 6 | pending operator run |
-| Command line, stage 7 | pending operator run |
-| Stage 5 outcome (exit code, error class if any, run record status) | pending operator run |
-| Stage 6 outcome (exit code, error class if any, run record status) | pending operator run |
-| Stage 7 outcome (exit code, error class if any, run record status) | pending operator run |
-| Run records report adapter `llama-cpp` and no Codex process started | pending operator run |
-| GGUF chat template worked with `--single-turn`, or the `-no-cnv` fallback is needed | pending operator run |
-| Child needed `HOME` | pending operator run |
-| First shard loaded the split model | pending operator run |
-| Token-count line format as parsed by the adapter | pending operator run |
-| Every flag of decision 4 accepted at the pinned commit | pending operator run |
-| Thinking-style model with `--reasoning off` (optional): any reasoning text on stdout | pending operator run |
+| Date | 2026-10-15 |
+| Machine class | Apple M5 Pro, 48 GB unified memory, macOS 27 |
+| llama.cpp commit (`engines/llama.cpp/build/.built-commit`) | `91d2fc387529940230555abd297a8b5e99737d3f` (the pinned commit) |
+| Model file SHA-256 values (three shards) | the three pinned digests of decision 5, verified by `scripts/01_provision_engines.sh --with-example-llm-model`; the run records report the first shard's digest |
+| Command line, stage 5 | `LECTURE_STUDY_LLM_ADAPTER=llama-cpp .venv/bin/python scripts/generate_codex_semantic_ledgers.py LECTURE_ID --pack-sequence 1` |
+| Command line, stage 6 | `LECTURE_STUDY_LLM_ADAPTER=llama-cpp .venv/bin/python scripts/generate_codex_drafts.py LECTURE_ID` |
+| Command line, stage 7 | `LECTURE_STUDY_LLM_ADAPTER=llama-cpp .venv/bin/python scripts/generate_codex_critic_review.py LECTURE_ID` |
+| Stage 5 outcome (exit code, error class if any, run record status) | exit 0, no error, `succeeded`; 1 call, 0 retries, 39.4 s wall |
+| Stage 6 outcome (exit code, error class if any, run record status) | exit 0, no error, `succeeded`; 1 call, 0 retries, 16.3 s wall |
+| Stage 7 outcome (exit code, error class if any, run record status) | exit 0, no error, `succeeded`; 1 critic call, 0 retries, unit approved with 0 repair attempts, 8.0 s wall |
+| Run records report adapter `llama-cpp` and no Codex process started | yes: every gateway entry of the three records reports `llama-cpp`; the lecture is listed in no remote clearance source, so the egress gate would also have refused the codex adapter |
+| GGUF chat template worked with `--single-turn`, or the `-no-cnv` fallback is needed | worked with `--single-turn`; each response parsed as JSON on the first attempt |
+| Child needed `HOME` | no: the child ran with only `LANG`, `LC_ALL`, `LLAMA_ARG_OFFLINE`, `PATH` and `TMPDIR` |
+| First shard loaded the split model | yes |
+| Token-count line format as parsed by the adapter | `Total number of tokens: N`, parsed on every call |
+| Every flag of decision 4 accepted at the pinned commit | yes for every first-attempt flag; the retry-only flags (`--repeat-penalty`, `--repeat-last-n`) were not exercised because no call needed a retry |
+| Thinking-style model with `--reasoning off` (optional): any reasoning text on stdout | not run (no thinking-style model was supplied) |
 
-The last row is optional and applies only if the operator supplies a
-thinking-style model; no such model has a pinned digest in provisioning.
+The record carries no quality numbers; measured results belong to Phase 7.
 
-Follow-ups from this run. The Accepted status holds while these are open. This
-record implements none of them. After the run, the operator marks each cell
-"needed" or "not needed":
+Follow-ups from this run. None is needed:
 
 | Item | Follow-up if the run requires it | Needed |
 | ---- | -------------------------------- | ------ |
-| (a) | The D-17 fallback: `-no-cnv` plus an adapter-rendered family envelope, if the GGUF chat template fails with `--single-turn` | pending operator run |
-| (b) | `HOME` added to the llama child environment, if the child cannot start or Metal fails without it (research assumption A3) | pending operator run |
-| (c) | A model-path or adapter change, if the first shard does not load the split model (research assumption A9) | pending operator run |
-| (d) | An adapter change if the real `llama-tokenize` count line differs from the `Total number of tokens:` format the adapter parses | pending operator run |
-| (e) | An argument change for any flag of decision 4 that the pinned commit does not accept | pending operator run |
+| (a) | The D-17 fallback: `-no-cnv` plus an adapter-rendered family envelope, if the GGUF chat template fails with `--single-turn` | not needed |
+| (b) | `HOME` added to the llama child environment, if the child cannot start or Metal fails without it (research assumption A3) | not needed |
+| (c) | A model-path or adapter change, if the first shard does not load the split model (research assumption A9) | not needed |
+| (d) | An adapter change if the real `llama-tokenize` count line differs from the `Total number of tokens:` format the adapter parses | not needed |
+| (e) | An argument change for any flag of decision 4 that the pinned commit does not accept | not needed for the first-attempt flags; the retry-only flags remain unexercised |
 
 An item marked "needed" is recorded as a failed item in the phase UAT produced
 by `/gsd-verify-work`, which routes it to gap-closure planning
