@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Harvest and report the measurements of the demo run (ADR 0047, DEMO-03).
 
+Subcommand `report` renders the committed results report from every harvested
+adapter (or its not-run marker) and the recovery evidence.
+
 Subcommand `harvest` copies one adapter's run artifacts into
 `workspace/demo/runs/<adapter>/` before anything can overwrite them, optionally
 re-transcribes the lecture audio without the vocabulary prompt (the ASR
@@ -16,14 +19,17 @@ import sys
 from collections.abc import Sequence
 from datetime import date
 from pathlib import Path
+from typing import cast
 
 from lecture_study.demo.asr_measure import AsrReference
 from lecture_study.demo.harvest import (
     HARVEST_ROOT,
     HarvestError,
+    HarvestManifest,
     HarvestSources,
     harvest_run,
     load_adapter_results,
+    load_not_run,
     segments_json,
 )
 from lecture_study.demo.media_build import (
@@ -31,7 +37,14 @@ from lecture_study.demo.media_build import (
     DEMO_SCRIPT_PATH,
     BuildSummary,
 )
-from lecture_study.demo.report import DemoResults, render_results_markdown
+from lecture_study.demo.recovery import RecoveryEvidence
+from lecture_study.demo.report import (
+    AdapterResults,
+    DemoResults,
+    NotRunAdapter,
+    render_results_json,
+    render_results_markdown,
+)
 from lecture_study.demo.script import DemoScript, load_demo_script
 from lecture_study.demo.wer import normalized_words
 from lecture_study.llm.gateway import AdapterName
@@ -46,6 +59,12 @@ _ABLATION_AUDIO_NAME = "audio.wav"
 _ABLATION_SEGMENTS_NAME = "segments.json"
 _ABLATION_UNAVAILABLE_NAME = "unavailable.txt"
 _WITHOUT_VOCABULARY_PROMPT = ""
+DEFAULT_REPORT_DIRECTORY = Path("docs/results")
+RECOVERY_EVIDENCE_PATH = Path("workspace/demo/recovery/evidence.json")
+_HARVEST_MANIFEST_NAME = "harvest.json"
+_MARKDOWN_NAME = "demo-results.md"
+_JSON_NAME = "demo-results.json"
+_NO_HARVEST_REASON = "no harvest found"
 
 
 def record_asr_ablation(audio: Path, model_path: Path, harvest_directory: Path) -> Path:
@@ -78,9 +97,7 @@ def record_asr_ablation(audio: Path, model_path: Path, harvest_directory: Path) 
 def preview_markdown(
     harvest_directory: Path, script: DemoScript, build_summary: BuildSummary
 ) -> str:
-    reference = AsrReference(
-        text=script.reference_text(), planted_terms=script.planted_terms
-    )
+    reference = _reference(script)
     results = DemoResults(
         measured_on=date.today(),
         video_seconds=build_summary.video_seconds,
@@ -115,6 +132,76 @@ def run_harvest(arguments: argparse.Namespace) -> int:
     return 0
 
 
+def _reference(script: DemoScript) -> AsrReference:
+    return AsrReference(
+        text=script.reference_text(), planted_terms=script.planted_terms
+    )
+
+
+def _harvest_or_reason(
+    adapter: AdapterName, reference: AsrReference
+) -> AdapterResults | NotRunAdapter:
+    harvest_directory = HARVEST_ROOT / adapter.value
+    not_run = load_not_run(harvest_directory, adapter)
+    if not_run is not None:
+        return not_run
+    if not (harvest_directory / _HARVEST_MANIFEST_NAME).is_file():
+        return NotRunAdapter(adapter=adapter, reason=_NO_HARVEST_REASON)
+    return load_adapter_results(harvest_directory, reference)
+
+
+def _latest_harvest_date(run: tuple[AdapterResults, ...]) -> date:
+    harvested = [
+        HarvestManifest.model_validate_json(
+            (HARVEST_ROOT / item.adapter.value / _HARVEST_MANIFEST_NAME).read_text()
+        ).harvested_at
+        for item in run
+    ]
+    return max(harvested).date()
+
+
+def _recovery_evidence() -> RecoveryEvidence | None:
+    if not RECOVERY_EVIDENCE_PATH.is_file():
+        return None
+    return RecoveryEvidence.model_validate_json(RECOVERY_EVIDENCE_PATH.read_text())
+
+
+def collect_results() -> DemoResults:
+    script = load_demo_script(DEMO_SCRIPT_PATH)
+    reference = _reference(script)
+    outcomes = [_harvest_or_reason(adapter, reference) for adapter in AdapterName]
+    run = tuple(item for item in outcomes if isinstance(item, AdapterResults))
+    not_run = tuple(item for item in outcomes if isinstance(item, NotRunAdapter))
+    if not run:
+        raise HarvestError("no adapter has a harvest; run `make demo-harvest` first")
+    build_summary = BuildSummary.model_validate_json(BUILD_SUMMARY_PATH.read_text())
+    return DemoResults(
+        measured_on=_latest_harvest_date(run),
+        video_seconds=build_summary.video_seconds,
+        reference_words=len(normalized_words(reference.text)),
+        adapters=run,
+        adapters_not_run=not_run,
+        recovery=_recovery_evidence(),
+    )
+
+
+def run_report(arguments: argparse.Namespace) -> int:
+    try:
+        results = collect_results()
+    except HarvestError as error:
+        print(f"report refused: {error}", file=sys.stderr)
+        return 1
+    output_directory = cast(Path, arguments.output_dir)
+    output_directory.mkdir(parents=True, exist_ok=True)
+    markdown_path = output_directory / _MARKDOWN_NAME
+    json_path = output_directory / _JSON_NAME
+    markdown_path.write_text(render_results_markdown(results))
+    json_path.write_text(render_results_json(results) + "\n")
+    print(f"report: {markdown_path}")
+    print(f"report: {json_path}")
+    return 0
+
+
 def _argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subcommands = parser.add_subparsers(dest="command", required=True)
@@ -126,13 +213,20 @@ def _argument_parser() -> argparse.ArgumentParser:
     harvest.add_argument("--asr-ablation", action="store_true")
     harvest.add_argument("--whisper-model-path", type=Path)
     harvest.set_defaults(run=run_harvest)
+    report = subcommands.add_parser("report", help="render the committed report")
+    report.add_argument("--output-dir", type=Path, default=DEFAULT_REPORT_DIRECTORY)
+    report.set_defaults(run=run_report)
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = _argument_parser()
     arguments = parser.parse_args(argv)
-    if arguments.asr_ablation and arguments.whisper_model_path is None:
+    if (
+        arguments.command == "harvest"
+        and arguments.asr_ablation
+        and arguments.whisper_model_path is None
+    ):
         parser.error("--asr-ablation requires --whisper-model-path")
     return int(arguments.run(arguments))
 

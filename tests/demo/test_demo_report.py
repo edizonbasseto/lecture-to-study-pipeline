@@ -5,6 +5,11 @@ from datetime import date
 
 from lecture_study.demo.asr_measure import AsrMeasurement, PlantedTermCount
 from lecture_study.demo.phase_timing import PhaseTiming
+from lecture_study.demo.recovery import (
+    RecoveryEvidence,
+    ScenarioEvidence,
+    ScriptOutcome,
+)
 from lecture_study.demo.report import (
     AdapterResults,
     DemoResults,
@@ -147,6 +152,7 @@ def test_every_section_is_rendered_in_order() -> None:
         "## Critic rejection rate",
         "## Per-stage wall time",
         "## Adapters not run",
+        "## Blocked-lecture recovery",
     ]
     assert "- codex: no network egress" in markdown
 
@@ -286,3 +292,125 @@ def test_pipe_in_a_cell_does_not_break_the_table() -> None:
     )
 
     assert "a\\|b" in markdown
+
+
+DERIVATIVE_STEPS = ("exam", "podcast", "flashcards", "study_guide")
+
+
+def outcomes(exit_code: int) -> tuple[ScriptOutcome, ...]:
+    return tuple(
+        ScriptOutcome(step=step, exit_code=exit_code) for step in DERIVATIVE_STEPS
+    )
+
+
+def scenario_evidence(
+    scenario: str, *, passed: bool = True, units_deleted: tuple[str, ...] = ()
+) -> ScenarioEvidence:
+    return ScenarioEvidence.model_validate(
+        {
+            "scenario": scenario,
+            "blocked": outcomes(1),
+            "blocked_tree_unchanged": True,
+            "blocked_changes": (),
+            "units_deleted": units_deleted,
+            "critic_exit_code": 0,
+            "recovered": outcomes(0),
+            "outputs_refreshed": DERIVATIVE_STEPS,
+            "passed": passed,
+        }
+    )
+
+
+def recovery_evidence(*, passed: bool = True) -> RecoveryEvidence:
+    return RecoveryEvidence(
+        lecture_id="demo-local",
+        adapter=AdapterName.LLAMA_CPP,
+        scenarios=(
+            scenario_evidence("stale", passed=passed),
+            scenario_evidence("rejected", passed=passed),
+        ),
+    )
+
+
+def test_recovery_section_is_last_and_says_when_it_was_not_run() -> None:
+    markdown = render_results_markdown(two_adapter_results())
+
+    assert (
+        markdown.rstrip().splitlines()[-1]
+        == "The blocked-lecture recovery was not run."
+    )
+    assert markdown.rindex("## ") == markdown.index("## Blocked-lecture recovery")
+
+
+def test_recovery_section_follows_the_adapters_not_run_section() -> None:
+    results = two_adapter_results().model_copy(
+        update={
+            "adapters_not_run": (
+                NotRunAdapter(adapter=AdapterName.CODEX, reason="no network egress"),
+            ),
+            "recovery": recovery_evidence(),
+        }
+    )
+
+    markdown = render_results_markdown(results)
+
+    assert markdown.index("## Adapters not run") < markdown.index(
+        "## Blocked-lecture recovery"
+    )
+
+
+def test_recovery_section_lists_every_scenario_with_exit_codes() -> None:
+    results = two_adapter_results().model_copy(update={"recovery": recovery_evidence()})
+
+    markdown = render_results_markdown(results)
+
+    assert (
+        "Lecture demo-local with the llama-cpp adapter; the demonstration passed"
+        in markdown
+    )
+    assert "### stale draft" in markdown
+    assert "### rejected review" in markdown
+    assert (
+        "- Blocked scripts (exit codes): exam 1, podcast 1, flashcards 1, study_guide 1"
+        in markdown
+    )
+    assert (
+        "- Recovered scripts (exit codes): exam 0, podcast 0, flashcards 0, study_guide 0"
+        in markdown
+    )
+    assert (
+        "- Output roots unchanged by the blocked scripts: yes (changes: none)"
+        in markdown
+    )
+    assert "- Critic rerun exit code: 0" in markdown
+    assert "- Outputs refreshed: exam, podcast, flashcards, study_guide" in markdown
+
+
+def test_recovery_section_names_deleted_units_and_failures() -> None:
+    evidence = RecoveryEvidence(
+        lecture_id="demo-local",
+        adapter=AdapterName.LLAMA_CPP,
+        scenarios=(
+            scenario_evidence("stale", passed=False, units_deleted=("unit_002.json",)),
+        ),
+    )
+    results = two_adapter_results().model_copy(update={"recovery": evidence})
+
+    markdown = render_results_markdown(results)
+
+    assert "- Units deleted: unit_002.json" in markdown
+    assert "- Units deleted: none" not in markdown
+    assert "the demonstration did not pass" in markdown
+    assert "- Result: did not pass" in markdown
+
+
+def test_recovery_evidence_round_trips_through_the_json() -> None:
+    results = two_adapter_results().model_copy(update={"recovery": recovery_evidence()})
+
+    assert DemoResults.model_validate_json(render_results_json(results)) == results
+
+
+def test_certification_refusal_is_explained_below_the_wall_times() -> None:
+    markdown = render_results_markdown(two_adapter_results())
+
+    assert "Phase 10 (quality-certification) refuses the lecture by design" in markdown

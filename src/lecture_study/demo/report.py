@@ -14,6 +14,12 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from lecture_study.demo.asr_measure import AsrMeasurement
 from lecture_study.demo.phase_timing import PhaseTiming
+from lecture_study.demo.recovery import (
+    RecoveryEvidence,
+    RecoveryScenario,
+    ScenarioEvidence,
+    ScriptOutcome,
+)
 from lecture_study.demo.run_metrics import CriticMetrics, StageMetrics
 from lecture_study.llm.gateway import AdapterName, Stage
 
@@ -33,7 +39,17 @@ _CONDITION_LABELS = {
 }
 _CERTIFICATION_PHASE = 10
 _FLASHCARDS_PHASE = 18
+_CERTIFICATION_NOTE = (
+    "Phase 10 (quality-certification) refuses the lecture by design: "
+    "publication certification stays fail-closed because authoritative evidence "
+    "is unavailable, so no certificate is issued and the phase has no wall time "
+    "(ADR 0024)."
+)
 _STAGE_ORDER = {stage: position for position, stage in enumerate(Stage)}
+_SCENARIO_LABELS: dict[RecoveryScenario, str] = {
+    "stale": "stale draft (a draft newer than its reviewed unit)",
+    "rejected": "rejected review (a unit whose review did not pass)",
+}
 
 
 class _FrozenStrictModel(BaseModel):
@@ -68,6 +84,7 @@ class DemoResults(_FrozenStrictModel):
     reference_words: int = Field(ge=0)
     adapters: tuple[AdapterResults, ...]
     adapters_not_run: tuple[NotRunAdapter, ...]
+    recovery: RecoveryEvidence | None = None
 
 
 def format_rate(numerator: int, denominator: int, unit: str) -> str:
@@ -94,6 +111,7 @@ def render_results_markdown(results: DemoResults) -> str:
     ]
     if results.adapters_not_run:
         blocks.append(_not_run_block(results.adapters_not_run))
+    blocks.append(_recovery_block(results.recovery))
     return "\n\n".join(blocks) + "\n"
 
 
@@ -283,6 +301,7 @@ def _wall_time_block(adapters: tuple[AdapterResults, ...]) -> str:
                 *_wall_time_rows(item),
             ]
         )
+    lines.extend(["", _CERTIFICATION_NOTE])
     return "\n".join(lines)
 
 
@@ -323,6 +342,42 @@ def _not_run_block(not_run: tuple[NotRunAdapter, ...]) -> str:
     lines = ["## Adapters not run", ""]
     lines.extend(f"- {item.adapter.value}: {item.reason}" for item in ordered)
     return "\n".join(lines)
+
+
+def _recovery_block(recovery: RecoveryEvidence | None) -> str:
+    lines = ["## Blocked-lecture recovery", ""]
+    if recovery is None:
+        lines.append("The blocked-lecture recovery was not run.")
+        return "\n".join(lines)
+    verdict = "passed" if recovery.passed() else "did not pass"
+    lines.append(
+        f"Lecture {recovery.lecture_id} with the {recovery.adapter.value} adapter; "
+        f"the demonstration {verdict} (ADR 0045)."
+    )
+    for scenario in recovery.scenarios:
+        lines.extend(["", *_scenario_lines(scenario)])
+    return "\n".join(lines)
+
+
+def _scenario_lines(scenario: ScenarioEvidence) -> list[str]:
+    deleted = ", ".join(scenario.units_deleted) or "none (every unit has its draft)"
+    changes = ", ".join(scenario.blocked_changes) or "none"
+    return [
+        f"### {_SCENARIO_LABELS[scenario.scenario]}",
+        "",
+        f"- Blocked scripts (exit codes): {_outcomes(scenario.blocked)}",
+        f"- Output roots unchanged by the blocked scripts: "
+        f"{'yes' if scenario.blocked_tree_unchanged else 'no'} (changes: {changes})",
+        f"- Units deleted: {deleted}",
+        f"- Critic rerun exit code: {scenario.critic_exit_code}",
+        f"- Recovered scripts (exit codes): {_outcomes(scenario.recovered)}",
+        f"- Outputs refreshed: {', '.join(scenario.outputs_refreshed) or 'none'}",
+        f"- Result: {'passed' if scenario.passed else 'did not pass'}",
+    ]
+
+
+def _outcomes(outcomes: tuple[ScriptOutcome, ...]) -> str:
+    return ", ".join(f"{outcome.step} {outcome.exit_code}" for outcome in outcomes)
 
 
 def _adapter_heading(item: AdapterResults) -> str:
