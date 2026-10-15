@@ -9,6 +9,9 @@ explicit tags are refused before validation.
 
 from __future__ import annotations
 
+import re
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated
 
@@ -32,12 +35,19 @@ __all__ = [
     "DemoScript",
     "DemoScriptError",
     "DemoSlide",
+    "NarrationViolation",
     "load_demo_script",
+    "narration_violations",
+    "require_clean_narration",
 ]
 
 _HEX_COLOUR_PATTERN = r"^#[0-9A-Fa-f]{6}$"
 _NARRATION_LINE_SEPARATOR = "\n"
 _REFERENCE_WORD_SEPARATOR = " "
+
+_MAXIMUM_NARRATION_LINE_CHARACTERS = 200
+_MAXIMUM_EXCERPT_CHARACTERS = 40
+_TERMINAL_PUNCTUATION = (".", "!", "?")
 
 HexColour = Annotated[str, StringConstraints(pattern=_HEX_COLOUR_PATTERN)]
 
@@ -110,3 +120,73 @@ def load_demo_script(path: Path) -> DemoScript:
 def _invalid_locations(error: ValidationError) -> str:
     locations = sorted({masked_location(item["loc"]) for item in error.errors()})
     return "invalid fields: " + ", ".join(locations)
+
+
+@dataclass(frozen=True, slots=True)
+class NarrationViolation:
+    """One narration line that breaks a rule written to keep the speech
+    recognition reference predictable."""
+
+    slide_number: int
+    line_number: int
+    rule: str
+    excerpt: str
+
+
+def narration_violations(script: DemoScript) -> tuple[NarrationViolation, ...]:
+    """Every narration line that breaks a rule, in reading order.
+
+    Whisper writes numerals and abbreviations unpredictably, and the study
+    guide flags dosage words, so the narration avoids all of them.
+    """
+    return tuple(
+        NarrationViolation(
+            slide_number, line_number, rule, line[:_MAXIMUM_EXCERPT_CHARACTERS]
+        )
+        for slide_number, slide in enumerate(script.slides, start=1)
+        for line_number, line in enumerate(slide.narration, start=1)
+        for rule, is_broken_by in _NARRATION_RULES
+        if is_broken_by(line)
+    )
+
+
+def require_clean_narration(script: DemoScript) -> None:
+    """Raise ``DemoScriptError`` listing every narration violation."""
+    violations = narration_violations(script)
+    if violations:
+        listing = "; ".join(
+            f"slide {v.slide_number} line {v.line_number}: {v.rule} ({v.excerpt!r})"
+            for v in violations
+        )
+        raise DemoScriptError(f"narration breaks its rules: {listing}")
+
+
+def _matches(pattern: str) -> Callable[[str], bool]:
+    compiled = re.compile(pattern, re.IGNORECASE)
+    return lambda line: compiled.search(line) is not None
+
+
+def _has_abbreviation(line: str) -> bool:
+    words = re.findall(r"[^\W\d_]+", line)
+    return any(len(word) >= 2 and word.isupper() for word in words)
+
+
+def _lacks_terminal_punctuation(line: str) -> bool:
+    return not line.endswith(_TERMINAL_PUNCTUATION)
+
+
+def _exceeds_line_length(line: str) -> bool:
+    return len(line) > _MAXIMUM_NARRATION_LINE_CHARACTERS
+
+
+_NARRATION_RULES: tuple[tuple[str, Callable[[str], bool]], ...] = (
+    ("digit", _matches(r"\d")),
+    ("abbreviation", _has_abbreviation),
+    ("unit", _matches(r"\b(mg|ml|kg|cm|mm)\b")),
+    ("inner-period", _matches(r"\w\.\w")),
+    ("hyphenated-compound", _matches(r"\w-\w")),
+    ("dosage-word", _matches(r"\b(dose|doses|dosagem)\b")),
+    ("multiple-sentences", _matches(r"[.!?]\s+\S")),
+    ("missing-terminal-punctuation", _lacks_terminal_punctuation),
+    ("line-too-long", _exceeds_line_length),
+)

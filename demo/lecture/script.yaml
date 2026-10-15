@@ -1,0 +1,126 @@
+# Synthetic demo lecture, authored for this repository and released under its
+# MIT license. The content is synthetic educational text: it contains no
+# third-party text, image or audio, and no patient, owner or case data.
+#
+# This file is the single source of three artifacts (ADR 0047): the slides
+# (demo/lecture/slides.typ reads it), the Kokoro narration, and the word error
+# rate reference (the narration lines joined in order).
+#
+# Narration rules, enforced by lecture_study.demo.script: Brazilian
+# Portuguese; one sentence per line; at most 200 characters per line; no
+# digits, abbreviations, units, hyphenated compounds, dosage words or English
+# words, because speech recognition writes them unpredictably.
+title: "Biópsia excisional de nódulos cutâneos em cães: margens e planos fasciais"
+narrator_voice: pm_alex
+planted_terms:
+  - biópsia excisional
+  - histopatológico
+  - camada fascial
+  - plano fascial
+  - margem fascial
+  - margem profunda
+  - margem lateral
+  - mastocitoma
+  - sarcoma de tecidos moles
+  - citologia aspirativa
+  - tecido subcutâneo
+  - linfonodo regional
+  - formalina
+  - hemostasia
+  - nervo facial
+slides:
+  - heading: Objetivos da aula
+    bullets:
+      - Indicações da biópsia excisional
+      - Margem lateral e margem profunda
+      - Plano fascial e exame histopatológico
+    background: "#12263F"
+    foreground: "#F5F7FA"
+    narration:
+      - Esta aula apresenta, de forma geral, a biópsia excisional de nódulos cutâneos em cães.
+      - O conteúdo é educativo e foi escrito apenas para esta demonstração.
+      - Nenhum caso real, nenhum tutor e nenhum paciente aparecem neste material.
+      - Ao final, o estudante deve reconhecer quando a biópsia excisional é indicada.
+      - Também deve planejar a margem lateral e a margem profunda antes de iniciar o procedimento.
+      - Por fim, deve entender como o exame histopatológico confirma o diagnóstico e avalia as margens.
+      - Cada tópico será apresentado em um slide curto, com os pontos mais importantes destacados.
+  - heading: Quando indicar a biópsia excisional
+    bullets:
+      - Nódulo pequeno e fácil de alcançar
+      - Citologia aspirativa antes da cirurgia
+      - Suspeita de mastocitoma ou sarcoma de tecidos moles
+    background: "#F3E9C6"
+    foreground: "#1B2A1B"
+    narration:
+      - A biópsia excisional remove o nódulo inteiro, com uma margem de tecido ao redor.
+      - Ela costuma ser indicada quando o nódulo é pequeno e fácil de alcançar.
+      - Antes da cirurgia, a citologia aspirativa ajuda a orientar o planejamento.
+      - Essa citologia não substitui o exame histopatológico, mas indica o que esperar.
+      - Suspeitas de mastocitoma e de sarcoma de tecidos moles exigem planejamento cuidadoso das margens.
+      - Nesses casos, o linfonodo regional também deve ser examinado e registrado.
+      - Quando o nódulo é grande ou muito aderido, outra abordagem pode ser mais adequada.
+      - A decisão final depende do raciocínio clínico de quem conduz o caso.
+  - heading: Planejamento das margens
+    bullets:
+      - Margem lateral medida sobre a pele
+      - Margem profunda inclui a camada fascial abaixo do tumor
+      - Plano fascial como barreira natural
+    background: "#4A1220"
+    foreground: "#FBEFEF"
+    narration:
+      - A margem lateral é planejada sobre a pele, com uma marcação ao redor do nódulo.
+      - A margem profunda é tão importante quanto a margem lateral.
+      - Abaixo do tumor, a camada fascial costuma funcionar como uma barreira natural.
+      - Por isso, o plano fascial na profundidade do tumor deve entrar no planejamento desde o início.
+      - Quando a margem fascial do tumor está livre de células alteradas, a chance de recidiva diminui.
+      - Uma margem fascial exige olhar para a profundidade e não apenas para a superfície.
+      - O cirurgião decide, antes do corte, qual camada fascial abaixo do nódulo será incluída na peça.
+  - heading: Dissecção abaixo do tumor
+    bullets:
+      - Plano fascial identificado antes do corte
+      - Camada fascial preservada junto com a peça
+      - Hemostasia cuidadosa no leito cirúrgico
+    background: "#D7F0E3"
+    foreground: "#10321F"
+    narration:
+      - A dissecção começa pela incisão da pele, respeitando a margem lateral planejada.
+      - Em seguida, o tecido subcutâneo é separado com cuidado, sem apertar o nódulo.
+      - O tecido subcutâneo deve acompanhar a peça, porque faz parte da margem.
+      - Abaixo do tumor, o plano fascial é identificado e seguido com tesoura ou lâmina.
+      - A camada fascial deve ser removida junto com o tumor sempre que for seguro.
+      - Se houver músculo logo abaixo, a margem fascial profunda pode incluir uma pequena porção da musculatura.
+      - A hemostasia é feita durante a dissecção, para manter o campo limpo e visível.
+      - Na região da cabeça, o nervo facial deve ser identificado e preservado.
+      - Ao final, a hemostasia é revisada antes do fechamento.
+  - heading: Exame histopatológico das margens
+    bullets:
+      - Peça fixada em formalina
+      - Margens identificadas com tinta
+      - Laudo histopatológico descreve as margens
+    background: "#2E1A47"
+    foreground: "#F3ECFA"
+    narration:
+      - Depois da retirada, a peça é identificada e colocada em formalina.
+      - O volume de formalina deve ser adequado ao tamanho da peça, para uma boa fixação.
+      - As margens são marcadas com tinta, para que o patologista saiba qual lado é qual.
+      - O exame histopatológico descreve o tipo de lesão e o grau de agressividade.
+      - O exame histopatológico também informa se a margem lateral está livre.
+      - Da mesma forma, o exame histopatológico avalia a margem profunda e a camada fascial abaixo do tumor.
+      - Quando o plano fascial na profundidade está comprometido, uma nova intervenção pode ser discutida.
+      - O laudo histopatológico orienta, ainda, o acompanhamento do linfonodo regional.
+      - Sem o exame histopatológico, a cirurgia fica sem uma confirmação objetiva.
+  - heading: Revisão dos pontos principais
+    bullets:
+      - Biópsia excisional com margem de segurança
+      - Margens planejadas antes do primeiro corte
+      - Confirmação pelo exame histopatológico
+    background: "#FBD9C7"
+    foreground: "#3A1D10"
+    narration:
+      - Para encerrar, vale retomar os pontos principais da aula.
+      - A biópsia excisional remove o nódulo inteiro com uma margem de segurança.
+      - A margem lateral e a margem profunda precisam ser planejadas antes do primeiro corte.
+      - A camada fascial abaixo do tumor é uma referência importante para a margem profunda.
+      - A hemostasia, o cuidado com estruturas nobres e a identificação da peça fazem parte de um procedimento seguro.
+      - O exame histopatológico confirma o diagnóstico e mostra se as margens estão livres.
+      - Esta aula é um material de demonstração e não substitui a orientação de um especialista.
