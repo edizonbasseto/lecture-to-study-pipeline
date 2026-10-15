@@ -92,8 +92,8 @@ All 47 register entries (T-06-01..T-06-45 and T-06-SC, which appears with two di
 
 | Risk ID | Threat Ref | Rationale | Accepted By | Date |
 |---------|------------|-----------|-------------|------|
-| AR-06-01 | T-06-20 | A registration rerun can flip `remote_llm_allowed`. This is an explicit action on the operator's own registry; revoking is always safe and granting requires the explicit flag (default false). | pending operator confirmation | 2026-10-14 |
-| AR-06-02 | T-06-SC (accept, low) | Plans 01-09, 11 and 12 install no package. Confirmed: no manifest, lockfile or CI workflow changed. | pending operator confirmation | 2026-10-14 |
+| AR-06-01 | T-06-20 | A registration rerun can flip `remote_llm_allowed`. This is an explicit action on the operator's own registry; revoking is always safe and granting requires the explicit flag (default false). | Edizon Basseto | 2026-10-14 |
+| AR-06-02 | T-06-SC (accept, low) | Plans 01-09, 11 and 12 install no package. Confirmed: no manifest, lockfile or CI workflow changed. | Edizon Basseto | 2026-10-14 |
 
 Design limitations documented in ADR 0046 and CONTEXT (not threats):
 - The local adapter has no OS sandbox; its offline posture is shown by construction and tests.
@@ -121,8 +121,8 @@ Note: the Round 3 hardening commits (killpg EPERM handling, typed YAML errors, l
 ## Sign-Off
 
 - [x] All threats have a disposition (mitigate / accept / transfer)
-- [x] Accepted risks documented in Accepted Risks Log (acceptor confirmation pending)
+- [x] Accepted risks documented in Accepted Risks Log (accepted by Edizon Basseto)
 - [x] `threats_open: 0` confirmed
 - [x] `status: verified` set in frontmatter
 
-**Approval:** verified 2026-10-14 (audit); accepted-by names pending operator
+**Approval:** verified 2026-10-14 (audit); risks AR-06-01 and AR-06-02 accepted by Edizon Basseto on 2026-10-15
