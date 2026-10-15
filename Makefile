@@ -1,6 +1,18 @@
-.PHONY: test lint run site clean hooks demo-video
+.PHONY: test lint run site clean hooks demo-video demo-register demo-preflight \
+	demo-run demo-site-access demo-site demo-serve demo-check
 
 WHISPER_MODEL_PATH ?= engines/whisper.cpp/models/ggml-large-v3-turbo.bin
+DEMO_LOCAL_ID ?= 925100
+DEMO_CODEX_ID ?= 925101
+ADAPTER ?= llama-cpp
+LECTURE ?= $(DEMO_LOCAL_ID)
+CONFIRM_REMOTE_EGRESS ?=
+FROM_STEP ?= run_all
+DEMO_VIDEO := workspace/demo/aula-demo.mp4
+DEMO_SITE_ACCESS := workspace/demo/site-access
+DEMO_REGISTRATION_ARGUMENTS := --discipline "Cirurgia veterinária (demonstração)" \
+	--semester 2026.2 --targets-path config/targets.example.yaml \
+	--schedule-path demo/site/academic-calendar.yaml --publish
 
 test:
 	uv run pytest --cov
@@ -19,6 +31,42 @@ site:
 
 demo-video:
 	uv run python scripts/build_demo_lecture.py
+
+# The local id is registered without --remote-llm-allowed on purpose: a run
+# whose adapter variable is missing fails closed instead of reaching the
+# remote provider (ADR 0045, ADR 0046).
+demo-register:
+	uv run python scripts/register_local_lecture.py $(DEMO_LOCAL_ID) $(DEMO_VIDEO) \
+		--title "Aula sintética: biópsia excisional e margens fasciais (adaptador local)" \
+		$(DEMO_REGISTRATION_ARGUMENTS)
+	uv run python scripts/register_local_lecture.py $(DEMO_CODEX_ID) $(DEMO_VIDEO) \
+		--title "Aula sintética: biópsia excisional e margens fasciais (adaptador Codex)" \
+		$(DEMO_REGISTRATION_ARGUMENTS) --remote-llm-allowed
+
+demo-preflight:
+	uv run python scripts/demo_run.py --adapter $(ADAPTER) --lecture-id $(LECTURE) \
+		--whisper-model-path $(WHISPER_MODEL_PATH) --preflight-only \
+		$(if $(filter yes,$(CONFIRM_REMOTE_EGRESS)),--confirm-remote-egress)
+
+demo-run:
+	uv run python scripts/demo_run.py --adapter $(ADAPTER) --lecture-id $(LECTURE) \
+		--whisper-model-path $(WHISPER_MODEL_PATH) --from-step $(FROM_STEP) \
+		$(if $(filter yes,$(CONFIRM_REMOTE_EGRESS)),--confirm-remote-egress)
+
+demo-site-access:
+	uv run python scripts/demo_site.py prepare-access
+
+demo-site:
+	uv run python scripts/demo_site.py generate
+
+demo-serve:
+	LECTURE_STUDY_SITE_CREDENTIALS=$(DEMO_SITE_ACCESS)/site-credentials.txt \
+	LECTURE_STUDY_SITE_SESSION_KEY=$(DEMO_SITE_ACCESS)/site-session-key \
+	uv run uvicorn lecture_study.site.app:app --host 127.0.0.1 --port 8443 \
+		--ssl-keyfile $(DEMO_SITE_ACCESS)/key.pem --ssl-certfile $(DEMO_SITE_ACCESS)/cert.pem
+
+demo-check:
+	uv run python scripts/demo_site.py check --lecture-id $(LECTURE)
 
 clean:
 	find . -type d -name '__pycache__' -not -path './.venv/*' -exec rm -rf {} +
