@@ -130,8 +130,15 @@ def test_registry_with_repeated_keys_refuses_remote_clearance(
     [
         "lectures: []\nreleased: 2001-13-45\n",
         "lectures: " + "[" * 5000 + "]" * 5000 + "\n",
+        "x: !!bool .nan\n",
+        "x: !!timestamp 0x\n",
     ],
-    ids=["calendar-invalid-timestamp", "deep-nesting"],
+    ids=[
+        "calendar-invalid-timestamp",
+        "deep-nesting",
+        "invalid-bool-tag",
+        "invalid-timestamp-tag",
+    ],
 )
 def test_registry_with_unparseable_yaml_refuses_remote_clearance(
     tmp_path: Path, registry_text: str

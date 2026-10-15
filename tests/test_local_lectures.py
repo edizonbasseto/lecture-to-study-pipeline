@@ -300,8 +300,15 @@ def test_repeated_registry_keys_are_rejected_naming_only_the_key_path(
     [
         (_ROW_PREFIX + "  note: 2001-13-45\n", "ValueError"),
         ("lectures: " + "[" * 5000 + "]" * 5000 + "\n", "RecursionError"),
+        (_ROW_PREFIX + "  note: !!bool .nan\n", "KeyError"),
+        (_ROW_PREFIX + "  note: !!timestamp 0x\n", "AttributeError"),
     ],
-    ids=["calendar-invalid-timestamp", "deep-nesting"],
+    ids=[
+        "calendar-invalid-timestamp",
+        "deep-nesting",
+        "invalid-bool-tag",
+        "invalid-timestamp-tag",
+    ],
 )
 def test_unparseable_registry_yaml_is_a_typed_error_without_content(
     tmp_path: Path, text: str, type_name: str

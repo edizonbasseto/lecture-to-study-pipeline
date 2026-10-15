@@ -175,15 +175,17 @@ def _read_registry_text(path: Path) -> str | None:
 def _parse_registry_yaml(text: str) -> object:
     """Parse the registry text, refusing repeated keys and unparseable scalars.
 
-    ``ValueError`` (a calendar-invalid timestamp such as ``2001-13-45``) and
-    ``RecursionError`` (deep nesting) are mapped to a typed error that names
-    only the exception type, never the document content.
+    ``ValueError`` (a calendar-invalid timestamp such as ``2001-13-45``),
+    ``RecursionError`` (deep nesting), ``KeyError`` and ``AttributeError``
+    (explicit invalid tags such as ``!!bool .nan`` and ``!!timestamp 0x``) are
+    mapped to a typed error that names only the exception type, never the
+    document content.
     """
 
     try:
         repeated = duplicated_key_paths(text)
         payload = yaml.safe_load(text)
-    except (ValueError, RecursionError) as error:
+    except (ValueError, RecursionError, KeyError, AttributeError) as error:
         raise LocalLectureError(
             f"conteúdo YAML não interpretável ({type(error).__name__})"
         ) from None
