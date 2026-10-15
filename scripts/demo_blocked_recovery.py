@@ -64,13 +64,32 @@ GUARD_EXIT_CODE = 2
 ALL_SCENARIOS: tuple[RecoveryScenario, ...] = get_args(RecoveryScenario)
 
 
+def script_command(
+    step: RecoveryStep, lecture_id: str, flashcards_minimum_total_cards: int | None
+) -> list[str]:
+    """The argv of one pipeline script; the deck floor only reaches flashcards."""
+    command = [sys.executable, str(SCRIPTS_DIRECTORY / SCRIPT_NAMES[step]), lecture_id]
+    if step == "study_guide":
+        command.extend(STUDY_GUIDE_ARGUMENTS)
+    if step == "flashcards" and flashcards_minimum_total_cards is not None:
+        command.extend(["--minimum-total-cards", str(flashcards_minimum_total_cards)])
+    return command
+
+
 class ProcessScriptRunner:
     """Runs the real pipeline scripts of one scenario and logs their output."""
 
-    def __init__(self, lecture_id: str, scenario: RecoveryScenario, log_dir: Path):
+    def __init__(
+        self,
+        lecture_id: str,
+        scenario: RecoveryScenario,
+        log_dir: Path,
+        flashcards_minimum_total_cards: int | None = None,
+    ):
         self._lecture_id = lecture_id
         self._scenario = scenario
         self._log_dir = log_dir
+        self._flashcards_minimum_total_cards = flashcards_minimum_total_cards
         self._environment = {**os.environ, ADAPTER_OVERRIDE_ENV: ADAPTER.value}
         self._logged_steps: set[RecoveryStep] = set()
 
@@ -87,14 +106,9 @@ class ProcessScriptRunner:
         return completed.returncode
 
     def _command(self, step: RecoveryStep) -> list[str]:
-        command = [
-            sys.executable,
-            str(SCRIPTS_DIRECTORY / SCRIPT_NAMES[step]),
-            self._lecture_id,
-        ]
-        if step == "study_guide":
-            command.extend(STUDY_GUIDE_ARGUMENTS)
-        return command
+        return script_command(
+            step, self._lecture_id, self._flashcards_minimum_total_cards
+        )
 
     def _append_log(
         self, step: RecoveryStep, completed: subprocess.CompletedProcess[str]
@@ -114,7 +128,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not HARVESTED_CRITIC_RECORD.is_file():
         print(_harvest_guard_message(), file=sys.stderr)
         return GUARD_EXIT_CODE
-    evidence = _run_scenarios(arguments.lecture_id, _selected(arguments.scenario))
+    evidence = _run_scenarios(
+        arguments.lecture_id,
+        _selected(arguments.scenario),
+        arguments.flashcards_minimum_total_cards,
+    )
     _write_evidence(evidence, arguments.evidence_path)
     return 0 if evidence.passed() else 1
 
@@ -126,6 +144,12 @@ def _argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--lecture-id", default=DEFAULT_LECTURE_ID)
     parser.add_argument("--scenario", choices=(*ALL_SCENARIOS, "both"), default="both")
     parser.add_argument("--evidence-path", type=Path, default=DEFAULT_EVIDENCE_PATH)
+    parser.add_argument(
+        "--flashcards-minimum-total-cards",
+        type=int,
+        default=None,
+        help="deck floor of the flashcards script; omit to keep the script default",
+    )
     return parser
 
 
@@ -144,12 +168,16 @@ def _harvest_guard_message() -> str:
 
 
 def _run_scenarios(
-    lecture_id: str, scenarios: Sequence[RecoveryScenario]
+    lecture_id: str,
+    scenarios: Sequence[RecoveryScenario],
+    flashcards_minimum_total_cards: int | None,
 ) -> RecoveryEvidence:
     layout = default_layout(lecture_id)
     results: list[ScenarioEvidence] = []
     for scenario in scenarios:
-        runner = ProcessScriptRunner(lecture_id, scenario, RECOVERY_WORKSPACE)
+        runner = ProcessScriptRunner(
+            lecture_id, scenario, RECOVERY_WORKSPACE, flashcards_minimum_total_cards
+        )
         result = run_recovery_scenario(scenario, layout=layout, runner=runner)
         print(_scenario_line(result))
         results.append(result)

@@ -334,3 +334,21 @@ def test_driver_runs_both_scenarios_and_writes_the_evidence(
     assert evidence.passed()
     assert [scenario.scenario for scenario in evidence.scenarios] == list(SCENARIOS)
     assert capsys.readouterr().out.count("passed=True") == 2
+
+
+def test_deck_floor_reaches_only_the_flashcards_script() -> None:
+    driver = _load_driver()
+
+    flashcards = driver.script_command("flashcards", "925100", 5)
+    exam = driver.script_command("exam", "925100", 5)
+
+    assert flashcards[-2:] == ["--minimum-total-cards", "5"]
+    assert "--minimum-total-cards" not in exam
+
+
+def test_flashcards_script_keeps_its_default_floor_when_none_is_given() -> None:
+    driver = _load_driver()
+
+    assert "--minimum-total-cards" not in driver.script_command(
+        "flashcards", "925100", None
+    )

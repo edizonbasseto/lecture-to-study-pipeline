@@ -78,7 +78,8 @@ demo-harvest:
 
 # Induces each blocked state on the local-adapter lecture and recovers it (ADR 0045).
 demo-recovery:
-	uv run python scripts/demo_blocked_recovery.py --lecture-id $(DEMO_LOCAL_ID) --scenario both
+	uv run python scripts/demo_blocked_recovery.py --lecture-id $(DEMO_LOCAL_ID) --scenario both \
+		$(if $(FLASHCARDS_MINIMUM_TOTAL_CARDS),--flashcards-minimum-total-cards $(FLASHCARDS_MINIMUM_TOTAL_CARDS))
 
 demo-report:
 	uv run python scripts/demo_results.py report
