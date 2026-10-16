@@ -1,4 +1,4 @@
-.PHONY: test lint run site clean hooks demo-video demo-register demo-preflight \
+.PHONY: test lint docs-check run site clean hooks demo-video demo-register demo-preflight \
 	demo-run demo-site-access demo-site demo-serve demo-check demo-harvest \
 	demo-recovery demo-report
 
@@ -23,6 +23,9 @@ lint:
 	uv run ruff check .
 	uv run ruff format --check .
 	uv run mypy src
+
+docs-check:
+	uv run python scripts/check_documentation.py
 
 run:
 	uv run python -m lecture_study.cli.main run-all $(LECTURE) \

@@ -44,14 +44,56 @@ def _words(commands: Iterable[Any]) -> list[tuple[str, ...]]:
     return [command.words for command in commands]
 
 
-def _write_repository(root: Path, readme_text: str, makefile_text: str) -> None:
-    (root / "Makefile").write_text(makefile_text, encoding="utf-8")
+_SAMPLE_TOOL = """\
+parser.add_argument("--adapter")
+parser.add_argument("--lecture-id")
+"""
+_SAMPLE_CLI = """\
+COMMANDS = ["run-all", "single"]
+parser.add_argument("--whisper-model-path")
+"""
+_SAMPLE_DECISION = """\
+# 0045 Sample decision
+
+The student-facing notice reads:
+
+> Study material generated
+> without certification.
+
+A wrapped
+sentence stays in the record.
+"""
+_REPOSITORY_FILES = {
+    "scripts/tool.py": _SAMPLE_TOOL,
+    "scripts/run.sh": "# flags: --verbose\n",
+    "src/lecture_study/__init__.py": "",
+    "src/lecture_study/cli/__init__.py": "",
+    "src/lecture_study/cli/main.py": _SAMPLE_CLI,
+    "docs/guide.md": "# Guide\n",
+    "docs/decisions/0045-sample-decision.md": _SAMPLE_DECISION,
+    "docs/decisions/0046-second-decision.md": "# 0046 Second\n",
+    "docs/results/report.md": "# Report\n",
+    "config/targets.example.yaml": "targets: []\n",
+}
+
+
+def _write_repository(root: Path, readme_text: str) -> None:
+    (root / "Makefile").write_text(_MAKEFILE, encoding="utf-8")
     (root / "README.md").write_text(readme_text, encoding="utf-8")
+    for relative, content in _REPOSITORY_FILES.items():
+        path = root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+
+
+def _report_for(root: Path, readme_text: str, *documents: str) -> Any:
+    _write_repository(root, readme_text)
+    names = [Path(name) for name in documents] or [Path("README.md")]
+    return check_documentation.check_documents(root, names)
 
 
 def _findings_for(root: Path, readme_text: str) -> list[str]:
-    _write_repository(root, readme_text, _MAKEFILE)
-    report = check_documentation.check_documents(root, [Path("README.md")])
+    report = _report_for(root, readme_text)
     return [finding.rule + " " + finding.detail for finding in report.findings]
 
 
@@ -135,6 +177,250 @@ class TestMakeRule:
         assert _findings_for(tmp_path, text) == [
             "unparseable-command the command line cannot be split into words"
         ]
+
+
+class TestScriptRule:
+    def test_existing_scripts_pass_in_every_invocation_form(
+        self, tmp_path: Path
+    ) -> None:
+        text = _fenced(
+            "bash",
+            "uv run python scripts/tool.py --adapter x",
+            "python3 ./scripts/tool.py",
+            "bash scripts/run.sh --verbose",
+            "scripts/run.sh",
+        )
+        assert _findings_for(tmp_path, text) == []
+
+    def test_an_absent_script_is_reported_once(self, tmp_path: Path) -> None:
+        text = _fenced("bash", "uv run python scripts/absent.py")
+        assert _findings_for(tmp_path, text) == ["script-missing scripts/absent.py"]
+
+    def test_a_flag_absent_from_the_script_is_reported(self, tmp_path: Path) -> None:
+        text = _fenced("bash", "python scripts/tool.py --adapter=a --nope=1")
+        assert _findings_for(tmp_path, text) == ["flag-missing --nope"]
+
+    def test_the_implicit_help_flag_passes(self, tmp_path: Path) -> None:
+        text = _fenced("bash", "python scripts/tool.py --help")
+        assert _findings_for(tmp_path, text) == []
+
+    def test_leading_assignments_do_not_hide_the_script(self, tmp_path: Path) -> None:
+        text = _fenced("bash", "ADAPTER=x uv run python scripts/gone.py")
+        assert _findings_for(tmp_path, text) == ["script-missing scripts/gone.py"]
+
+
+class TestModuleRule:
+    def test_an_existing_module_subcommand_and_flag_pass(self, tmp_path: Path) -> None:
+        text = _fenced(
+            "bash",
+            "uv run python -m lecture_study.cli.main run-all 925100 \\",
+            "  --whisper-model-path model.bin",
+        )
+        assert _findings_for(tmp_path, text) == []
+
+    def test_a_package_directory_counts_as_a_module(self, tmp_path: Path) -> None:
+        text = _fenced("bash", "python -m lecture_study.cli")
+        assert _findings_for(tmp_path, text) == []
+
+    def test_an_absent_module_is_reported(self, tmp_path: Path) -> None:
+        text = _fenced("bash", "python -m lecture_study.missing run-all")
+        assert _findings_for(tmp_path, text) == ["module-missing lecture_study.missing"]
+
+    def test_an_unquoted_subcommand_is_reported(self, tmp_path: Path) -> None:
+        text = _fenced("bash", "python -m lecture_study.cli.main absent-step")
+        assert _findings_for(tmp_path, text) == ["subcommand-missing absent-step"]
+
+    def test_a_flag_absent_from_the_module_is_reported(self, tmp_path: Path) -> None:
+        text = _fenced("bash", "python -m lecture_study.cli.main single --absent")
+        assert _findings_for(tmp_path, text) == ["flag-missing --absent"]
+
+
+class TestPathRule:
+    def test_existing_paths_in_command_words_pass(self, tmp_path: Path) -> None:
+        text = _fenced("bash", "cat docs/guide.md config/targets.example.yaml")
+        assert _findings_for(tmp_path, text) == []
+
+    def test_an_absent_path_is_reported(self, tmp_path: Path) -> None:
+        text = _fenced("bash", "cat docs/gone.md")
+        assert _findings_for(tmp_path, text) == ["path-missing docs/gone.md"]
+
+    def test_a_path_in_a_script_argument_is_checked(self, tmp_path: Path) -> None:
+        text = _fenced("bash", "python scripts/tool.py docs/gone.md")
+        assert _findings_for(tmp_path, text) == ["path-missing docs/gone.md"]
+
+    def test_placeholders_local_files_and_workspace_are_exempt(
+        self, tmp_path: Path
+    ) -> None:
+        text = _fenced(
+            "bash",
+            "cat docs/<name>.md docs/*.md config/targets.local.yaml",
+            "cat workspace/demo/out.txt tmp/log.txt engines/x.bin .venv/bin/x",
+            "cat docs/$NAME.md",
+        )
+        assert _findings_for(tmp_path, text) == []
+
+    def test_unchecked_programs_are_reported_by_name_and_never_fail(
+        self, tmp_path: Path
+    ) -> None:
+        text = _fenced("bash", "git status", "uv run ruff check .", "make build")
+        report = _report_for(tmp_path, text)
+        assert report.findings == ()
+        assert report.unchecked_programs == ("git", "ruff")
+
+
+class TestLinkRule:
+    def test_existing_links_pass(self, tmp_path: Path) -> None:
+        text = '[guide](docs/guide.md) and [top](docs/guide.md#top "title")\n'
+        assert _findings_for(tmp_path, text) == []
+
+    def test_an_absent_link_target_is_reported(self, tmp_path: Path) -> None:
+        assert _findings_for(tmp_path, "[x](docs/gone.md#part)\n") == [
+            "path-missing docs/gone.md"
+        ]
+
+    def test_a_link_leaving_the_root_is_reported(self, tmp_path: Path) -> None:
+        root = tmp_path / "repository"
+        root.mkdir()
+        (tmp_path / "outside.md").write_text("outside\n", encoding="utf-8")
+        assert _findings_for(root, "[x](../outside.md)\n") == [
+            "path-missing ../outside.md"
+        ]
+
+    def test_anchors_external_links_and_mail_links_are_skipped(
+        self, tmp_path: Path
+    ) -> None:
+        text = "[a](#section) [b](https://example.org/x) [c](mailto:a@example.org)\n"
+        assert _findings_for(tmp_path, text) == []
+
+    def test_links_resolve_relative_to_the_document_directory(
+        self, tmp_path: Path
+    ) -> None:
+        _write_repository(tmp_path, "")
+        (tmp_path / "docs" / "page.md").write_text("[g](guide.md)\n", encoding="utf-8")
+        report = check_documentation.check_documents(tmp_path, [Path("docs/page.md")])
+        assert report.findings == ()
+
+
+class TestInlineCodePathRule:
+    def test_existing_inline_paths_pass(self, tmp_path: Path) -> None:
+        assert _findings_for(tmp_path, "See `docs/guide.md` and `make build`.\n") == []
+
+    def test_an_absent_inline_path_is_reported(self, tmp_path: Path) -> None:
+        assert _findings_for(tmp_path, "See `docs/gone.md`.\n") == [
+            "path-missing docs/gone.md"
+        ]
+
+    def test_inline_code_with_several_words_is_not_a_path(self, tmp_path: Path) -> None:
+        assert _findings_for(tmp_path, "Run `docs/gone.md --flag`.\n") == []
+
+
+class TestAdrRule:
+    def test_singular_and_plural_references_pass(self, tmp_path: Path) -> None:
+        text = "ADR 0045 and ADRs 0045, 0046 and 0045; ADR-0046.\n"
+        assert _findings_for(tmp_path, text) == []
+
+    def test_a_missing_number_in_a_list_is_reported(self, tmp_path: Path) -> None:
+        assert _findings_for(tmp_path, "ADRs 0045 and 0099\n") == ["adr-missing 0099"]
+
+    def test_a_reference_wrapped_across_lines_reports_its_line(
+        self, tmp_path: Path
+    ) -> None:
+        report = _report_for(tmp_path, "intro\nsee ADR\n0099 here\n")
+        assert [(f.line_number, f.rule) for f in report.findings] == [
+            (2, "adr-missing")
+        ]
+
+    def test_other_four_digit_numbers_are_not_adr_references(
+        self, tmp_path: Path
+    ) -> None:
+        assert _findings_for(tmp_path, "In 2026 the ADR process began.\n") == []
+
+
+class TestQuoteRule:
+    def test_a_quote_matching_a_wrapped_passage_passes(self, tmp_path: Path) -> None:
+        text = "> Study material generated without\n> certification.\n"
+        assert _findings_for(tmp_path, text) == []
+
+    def test_a_quote_may_come_from_unquoted_adr_prose(self, tmp_path: Path) -> None:
+        assert _findings_for(tmp_path, "> A wrapped sentence stays\n") == []
+
+    def test_a_quote_that_reorders_adr_words_is_reported(self, tmp_path: Path) -> None:
+        assert _findings_for(tmp_path, "> A sentence wrapped stays\n") == [
+            "quote-not-in-adr the passage is not in docs/decisions"
+        ]
+
+    def test_an_invented_quote_is_reported(self, tmp_path: Path) -> None:
+        text = "intro\n\n> Study material generated with clinical review.\n"
+        report = _report_for(tmp_path, text)
+        assert [(f.line_number, f.rule) for f in report.findings] == [
+            (3, "quote-not-in-adr")
+        ]
+
+    def test_separate_blockquotes_are_checked_separately(self, tmp_path: Path) -> None:
+        text = "> Study material generated\n\n> without certification.\n"
+        assert _findings_for(tmp_path, text) == []
+
+    def test_blockquote_lines_joined_without_a_gap_are_one_passage(
+        self, tmp_path: Path
+    ) -> None:
+        text = "> without certification.\n> Study material generated\n"
+        assert [f.rule for f in _report_for(tmp_path, text).findings] == [
+            "quote-not-in-adr"
+        ]
+
+
+class TestMachinePathRule:
+    def test_each_home_directory_prefix_is_reported_without_echo(
+        self, tmp_path: Path
+    ) -> None:
+        for path in (
+            "/Users/someone/project",
+            "/home/someone/project",
+            "C:\\Users\\someone\\project",
+        ):
+            report = _report_for(tmp_path, f"Open {path} now.\n")
+            assert [f.rule for f in report.findings] == ["machine-path"]
+            assert "someone" not in report.findings[0].render()
+
+    def test_urls_and_relative_paths_are_not_home_paths(self, tmp_path: Path) -> None:
+        text = "See https://example.org/home/page and docs/users/list.\n"
+        assert _findings_for(tmp_path, text) == []
+
+
+class TestDefaultDocuments:
+    def test_readme_comes_first_then_top_level_pages_sorted(
+        self, tmp_path: Path
+    ) -> None:
+        _write_repository(tmp_path, "")
+        for name in ("operations.md", "architecture.md"):
+            (tmp_path / "docs" / name).write_text("# Page\n", encoding="utf-8")
+        names = [
+            path.as_posix() for path in check_documentation.default_documents(tmp_path)
+        ]
+        assert names == [
+            "README.md",
+            "docs/architecture.md",
+            "docs/guide.md",
+            "docs/operations.md",
+        ]
+
+    def test_readme_is_listed_even_when_absent(self, tmp_path: Path) -> None:
+        assert check_documentation.default_documents(tmp_path) == (Path("README.md"),)
+
+
+_REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
+
+
+class TestRepositoryDocumentation:
+    def test_the_repository_documents_pass_the_check(self) -> None:
+        documents = check_documentation.default_documents(_REPOSITORY_ROOT)
+        report = check_documentation.check_documents(_REPOSITORY_ROOT, documents)
+        rendered = "\n".join(finding.render() for finding in report.findings)
+        assert report.findings == (), rendered
+
+    def test_readme_is_among_the_default_documents(self) -> None:
+        documents = check_documentation.default_documents(_REPOSITORY_ROOT)
+        assert Path("README.md") in documents
 
 
 def _run_checker(root: Path) -> subprocess.CompletedProcess[str]:

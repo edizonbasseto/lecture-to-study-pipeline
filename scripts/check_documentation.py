@@ -1,13 +1,17 @@
-"""Check statically that the commands a document names exist as written.
+"""Check statically that what a document names exists as written.
 
-Reads the repository documents and the Makefile and reports every documented
-make target or make variable that the Makefile does not define. The check is
-read-only: no documented command is executed, no process is started and no
-project package is imported. Findings name the document, the line, the rule
-and the missing token only, never the surrounding document content.
+Reads the repository documents and the Makefile and reports a documented make
+target, make variable, script, python module, subcommand, long option,
+repository path, markdown link or ADR number that does not exist; a blockquote
+that does not occur verbatim in docs/decisions; and a machine-specific home
+path. The check is read-only: no documented command is executed, no process is
+started and no project package is imported. A finding names the document, the
+line, the rule and the missing token only, never the surrounding content.
 
-Knowingly not checked: what a command does, the meaning of its options and
-programs that are not make targets, repository scripts or project modules.
+Long options and subcommands are textual presence checks (the option or the
+quoted subcommand name occurs in the script or module source), not argparse
+introspection. Knowingly not checked: what a command does, the meaning of an
+option's value and programs that are not make, repository scripts or modules.
 
 Exit codes: 0 clean, 1 findings, 2 unreadable input.
 """
@@ -18,12 +22,21 @@ import argparse
 import re
 import shlex
 import sys
+import unicodedata
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
 RULE_MAKE_TARGET = "make-target"
 RULE_MAKE_VARIABLE = "make-variable"
+RULE_SCRIPT_MISSING = "script-missing"
+RULE_MODULE_MISSING = "module-missing"
+RULE_SUBCOMMAND_MISSING = "subcommand-missing"
+RULE_FLAG_MISSING = "flag-missing"
+RULE_PATH_MISSING = "path-missing"
+RULE_ADR_MISSING = "adr-missing"
+RULE_QUOTE_NOT_IN_ADR = "quote-not-in-adr"
+RULE_MACHINE_PATH = "machine-path"
 RULE_UNPARSEABLE_COMMAND = "unparseable-command"
 
 EXIT_CLEAN = 0
@@ -32,18 +45,52 @@ EXIT_UNREADABLE = 2
 
 DEFAULT_DOCUMENT = Path("README.md")
 DOCS_DIRECTORY = Path("docs")
+DECISIONS_DIRECTORY = DOCS_DIRECTORY / "decisions"
 MAKEFILE_NAME = "Makefile"
+SOURCE_DIRECTORY = Path("src")
 
 SHELL_FENCES = frozenset({"bash", "sh", "shell", "zsh", "console"})
 CONSOLE_FENCE = "console"
 PROMPT = "$ "
 COMMAND_SEPARATORS = frozenset({"&&", "||", ";", "|"})
 REDIRECTION_CHARACTERS = frozenset("<>&")
+KIND_MAKE = "make"
+KIND_SCRIPT = "script"
+KIND_MODULE = "module"
+KIND_OTHER = "other"
+PYTHON_PROGRAMS = frozenset({"python", "python3"})
+SHELL_PROGRAMS = frozenset({"sh", "bash"})
+IMPLICIT_FLAGS = frozenset({"--help"})
+TRACKED_ROOTS = (
+    "scripts/",
+    "src/",
+    "docs/",
+    "config/",
+    "demo/",
+    "infra/",
+    "tests/",
+    ".githooks/",
+    ".github/",
+)
+EXEMPT_PREFIXES = ("workspace/", "engines/", "tmp/", ".venv/")
+EXEMPT_MARKER = ".local."
+PLACEHOLDER_CHARACTERS = frozenset("<>{}*?$[]%")
+QUOTE_SEPARATOR = "\x00"
 
 _VARIABLE_LINE = re.compile(r"^([A-Za-z_][\w.-]*)[ \t]*(?:\?=|:=|\+=|=)")
 _TARGET_LINE = re.compile(r"^([A-Za-z0-9][\w.-]*(?:[ \t]+[\w.-]+)*)[ \t]*:(?![=:])")
 _FENCE_LINE = re.compile(r"^\s*(`{3,}|~{3,})\s*([\w-]*)")
 _ASSIGNMENT_WORD = re.compile(r"^([A-Za-z_]\w*)=")
+_LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
+_URL_SCHEME = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
+_INLINE_CODE = re.compile(r"`([^`\n]+)`")
+_ADR_REFERENCE = re.compile(
+    r"\bADRs?[\s-]+(\d{4}(?:(?:\s*,\s*(?:and\s+)?|\s+and\s+|\s*&\s*)\d{4})*)(?!\d)"
+)
+_BLOCKQUOTE_MARKER = re.compile(r"^\s*(?:>\s?)+")
+_HOME_PATH = re.compile(
+    r"(?<![\w.~-])(?:/Users/|/home/)|(?<!\w)[A-Za-z]:[\\/]+Users[\\/]"
+)
 
 
 class UnreadableInputError(Exception):
@@ -71,6 +118,23 @@ class MakefileFacts:
 class CommandLine:
     line_number: int
     words: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class _Invocation:
+    kind: str
+    target: str
+    arguments: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class _DocumentScope:
+    root: Path
+    document: Path
+    facts: MakefileFacts
+
+    def finding(self, line_number: int, rule: str, detail: str) -> Finding:
+        return Finding(self.document.as_posix(), line_number, rule, detail)
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,17 +167,41 @@ def fenced_command_lines(markdown_text: str) -> tuple[CommandLine, ...]:
     return tuple(commands)
 
 
-def check_document(root: Path, document: Path, facts: MakefileFacts) -> Report:
+def check_document(
+    root: Path, document: Path, facts: MakefileFacts, decision_text: str
+) -> Report:
     text = _read_text(root / document, document)
+    scope = _DocumentScope(root, document, facts)
     commands = fenced_command_lines(text)
-    findings = tuple(_command_findings(document.as_posix(), commands, facts))
-    return Report(findings, 1, len(commands), ())
+    invocations = _invocations(commands)
+    findings = [
+        *_unparseable_findings(scope, commands),
+        *(f for pair in invocations for f in _invocation_findings(scope, *pair)),
+        *_link_findings(scope, text),
+        *_inline_path_findings(scope, text),
+        *_adr_findings(scope, text),
+        *_quote_findings(scope, text, decision_text),
+        *_machine_path_findings(scope, text),
+    ]
+    findings.sort(key=lambda finding: finding.line_number)
+    programs = {call.target for _, call in invocations if call.kind == KIND_OTHER}
+    return Report(tuple(findings), 1, len(commands), tuple(sorted(programs)))
 
 
 def check_documents(root: Path, documents: Sequence[Path]) -> Report:
-    facts = read_makefile_facts(_read_text(root / MAKEFILE_NAME, Path(MAKEFILE_NAME)))
-    reports = [check_document(root, document, facts) for document in documents]
-    return _combined(reports)
+    makefile_text = _read_text(root / MAKEFILE_NAME, Path(MAKEFILE_NAME))
+    facts = read_makefile_facts(makefile_text)
+    decision_text = folded_decision_text(root)
+    return _combined(
+        [check_document(root, doc, facts, decision_text) for doc in documents]
+    )
+
+
+def folded_decision_text(root: Path) -> str:
+    """The decision files with blockquote markers removed and whitespace folded."""
+    pages = sorted((root / DECISIONS_DIRECTORY).glob("*.md"))
+    texts = [page.read_text(encoding="utf-8", errors="replace") for page in pages]
+    return QUOTE_SEPARATOR.join(_folded_quote(text) for text in texts)
 
 
 def default_documents(root: Path) -> tuple[Path, ...]:
@@ -150,6 +238,8 @@ def _print_report(report: Report) -> None:
         f"documentation check: {report.document_count} document(s), "
         f"{report.command_count} command line(s), {len(report.findings)} finding(s)"
     )
+    if report.unchecked_programs:
+        print(f"not statically checked: {', '.join(report.unchecked_programs)}")
 
 
 def _read_text(path: Path, shown_as: Path) -> str:
@@ -255,36 +345,228 @@ def _without_redirections(words: tuple[str, ...]) -> tuple[str, ...]:
     return tuple(kept)
 
 
-def _command_findings(
-    document: str, commands: Sequence[CommandLine], facts: MakefileFacts
+def _unparseable_findings(
+    scope: _DocumentScope, commands: Sequence[CommandLine]
 ) -> Iterator[Finding]:
     for command in commands:
         if not command.words:
-            yield Finding(
-                document,
+            yield scope.finding(
                 command.line_number,
                 RULE_UNPARSEABLE_COMMAND,
                 "the command line cannot be split into words",
             )
-        elif command.words[0] == "make":
-            yield from _make_findings(document, command, facts)
+
+
+def _invocations(commands: Sequence[CommandLine]) -> list[tuple[int, _Invocation]]:
+    pairs = []
+    for command in commands:
+        invocation = _classified(_without_launchers(command.words))
+        if invocation:
+            pairs.append((command.line_number, invocation))
+    return pairs
+
+
+def _without_launchers(words: tuple[str, ...]) -> tuple[str, ...]:
+    start = 0
+    while start < len(words) and _ASSIGNMENT_WORD.match(words[start]):
+        start += 1
+    rest = words[start:]
+    return rest[2:] if rest[:2] == ("uv", "run") else rest
+
+
+def _classified(words: tuple[str, ...]) -> _Invocation | None:
+    if not words:
+        return None
+    program, arguments = words[0], words[1:]
+    if program == "make":
+        return _Invocation(KIND_MAKE, program, arguments)
+    if program in PYTHON_PROGRAMS and arguments[:1] == ("-m",) and len(arguments) > 1:
+        return _Invocation(KIND_MODULE, arguments[1], arguments[2:])
+    if program in PYTHON_PROGRAMS | SHELL_PROGRAMS and _starts_with_word(arguments):
+        return _Invocation(KIND_SCRIPT, arguments[0], arguments[1:])
+    if "/" in program and not _is_exempt_path(program):
+        return _Invocation(KIND_SCRIPT, program, arguments)
+    return _Invocation(KIND_OTHER, program, arguments)
+
+
+def _starts_with_word(arguments: tuple[str, ...]) -> bool:
+    return bool(arguments) and not arguments[0].startswith("-")
+
+
+def _invocation_findings(
+    scope: _DocumentScope, line_number: int, call: _Invocation
+) -> Iterator[Finding]:
+    if call.kind == KIND_MAKE:
+        yield from _make_findings(scope, line_number, call.arguments)
+    elif call.kind == KIND_SCRIPT:
+        yield from _script_findings(scope, line_number, call)
+    elif call.kind == KIND_MODULE:
+        yield from _module_findings(scope, line_number, call)
+    words = (
+        (call.target, *call.arguments) if call.kind == KIND_OTHER else call.arguments
+    )
+    yield from _argument_path_findings(scope, line_number, words)
 
 
 def _make_findings(
-    document: str, command: CommandLine, facts: MakefileFacts
+    scope: _DocumentScope, line_number: int, arguments: tuple[str, ...]
 ) -> Iterator[Finding]:
-    for word in command.words[1:]:
+    for word in arguments:
+        assignment = _ASSIGNMENT_WORD.match(word)
         if word.startswith("-"):
             continue
-        assignment = _ASSIGNMENT_WORD.match(word)
-        if assignment and assignment.group(1) in facts.variables:
-            continue
-        if assignment:
-            yield Finding(
-                document, command.line_number, RULE_MAKE_VARIABLE, assignment.group(1)
+        if not assignment and word not in scope.facts.targets:
+            yield scope.finding(line_number, RULE_MAKE_TARGET, word)
+        elif assignment and assignment.group(1) not in scope.facts.variables:
+            yield scope.finding(line_number, RULE_MAKE_VARIABLE, assignment.group(1))
+
+
+def _script_findings(
+    scope: _DocumentScope, line_number: int, call: _Invocation
+) -> Iterator[Finding]:
+    source = _source_text(scope.root, Path(call.target.removeprefix("./")))
+    if source is None:
+        yield scope.finding(line_number, RULE_SCRIPT_MISSING, call.target)
+        return
+    yield from _flag_findings(scope, line_number, call.arguments, source)
+
+
+def _module_findings(
+    scope: _DocumentScope, line_number: int, call: _Invocation
+) -> Iterator[Finding]:
+    source = _module_source(scope.root, call.target)
+    if source is None:
+        yield scope.finding(line_number, RULE_MODULE_MISSING, call.target)
+        return
+    subcommand = next((a for a in call.arguments if not a.startswith("-")), None)
+    if (
+        subcommand
+        and f'"{subcommand}"' not in source
+        and f"'{subcommand}'" not in source
+    ):
+        yield scope.finding(line_number, RULE_SUBCOMMAND_MISSING, subcommand)
+    yield from _flag_findings(scope, line_number, call.arguments, source)
+
+
+def _flag_findings(
+    scope: _DocumentScope,
+    line_number: int,
+    arguments: tuple[str, ...],
+    source: str,
+) -> Iterator[Finding]:
+    for argument in arguments:
+        flag = argument.split("=", 1)[0]
+        if flag.startswith("--") and flag not in IMPLICIT_FLAGS and flag not in source:
+            yield scope.finding(line_number, RULE_FLAG_MISSING, flag)
+
+
+def _module_source(root: Path, dotted_name: str) -> str | None:
+    base = SOURCE_DIRECTORY.joinpath(*dotted_name.split("."))
+    for candidate in (base.with_suffix(".py"), base / "__init__.py"):
+        source = _source_text(root, candidate)
+        if source is not None:
+            return source
+    return None
+
+
+def _source_text(root: Path, relative: Path) -> str | None:
+    path = root / relative
+    if not (_inside_root(root, path) and path.is_file()):
+        return None
+    return path.read_text(encoding="utf-8", errors="replace")
+
+
+def _inside_root(root: Path, path: Path) -> bool:
+    return path.resolve().is_relative_to(root.resolve())
+
+
+def _exists_inside_root(root: Path, path: Path) -> bool:
+    return _inside_root(root, path) and path.exists()
+
+
+def _is_exempt_path(word: str) -> bool:
+    return (
+        any(character in PLACEHOLDER_CHARACTERS for character in word)
+        or EXEMPT_MARKER in word
+        or word.startswith(EXEMPT_PREFIXES)
+    )
+
+
+def _is_tracked_path(word: str) -> bool:
+    return word.startswith(TRACKED_ROOTS) and not _is_exempt_path(word)
+
+
+def _argument_path_findings(
+    scope: _DocumentScope, line_number: int, words: Sequence[str]
+) -> Iterator[Finding]:
+    for word in words:
+        if _is_tracked_path(word) and not _exists_inside_root(
+            scope.root, scope.root / word
+        ):
+            yield scope.finding(line_number, RULE_PATH_MISSING, word)
+
+
+def _link_findings(scope: _DocumentScope, text: str) -> Iterator[Finding]:
+    directory = scope.root / scope.document.parent
+    for line_number, line in enumerate(text.splitlines(), start=1):
+        for target in _LINK.findall(line):
+            path = target.split("#", 1)[0]
+            if path and not _URL_SCHEME.match(path):
+                if not _exists_inside_root(scope.root, directory / path):
+                    yield scope.finding(line_number, RULE_PATH_MISSING, path)
+
+
+def _inline_path_findings(scope: _DocumentScope, text: str) -> Iterator[Finding]:
+    for line_number, line in enumerate(text.splitlines(), start=1):
+        tokens = [t for t in _INLINE_CODE.findall(line) if len(t.split()) == 1]
+        yield from _argument_path_findings(scope, line_number, tokens)
+
+
+def _adr_findings(scope: _DocumentScope, text: str) -> Iterator[Finding]:
+    decisions = scope.root / DECISIONS_DIRECTORY
+    for reference in _ADR_REFERENCE.finditer(text):
+        line_number = text.count("\n", 0, reference.start()) + 1
+        for number in re.findall(r"\d{4}", reference.group(1)):
+            if not any(decisions.glob(f"{number}-*.md")):
+                yield scope.finding(line_number, RULE_ADR_MISSING, number)
+
+
+def _quote_findings(
+    scope: _DocumentScope, text: str, decision_text: str
+) -> Iterator[Finding]:
+    for line_number, passage in _blockquote_passages(text):
+        folded = _folded_quote(passage)
+        if folded and folded not in decision_text:
+            yield scope.finding(
+                line_number,
+                RULE_QUOTE_NOT_IN_ADR,
+                "the passage is not in docs/decisions",
             )
-        elif word not in facts.targets:
-            yield Finding(document, command.line_number, RULE_MAKE_TARGET, word)
+
+
+def _blockquote_passages(text: str) -> Iterator[tuple[int, str]]:
+    first_number, lines = 0, []
+    for number, line in enumerate(text.splitlines(), start=1):
+        if _BLOCKQUOTE_MARKER.match(line):
+            first_number = first_number or number
+            lines.append(line)
+            continue
+        if lines:
+            yield first_number, "\n".join(lines)
+        first_number, lines = 0, []
+    if lines:
+        yield first_number, "\n".join(lines)
+
+
+def _folded_quote(text: str) -> str:
+    unmarked = " ".join(_BLOCKQUOTE_MARKER.sub("", line) for line in text.splitlines())
+    return " ".join(unicodedata.normalize("NFC", unmarked).split())
+
+
+def _machine_path_findings(scope: _DocumentScope, text: str) -> Iterator[Finding]:
+    for line_number, line in enumerate(text.splitlines(), start=1):
+        if _HOME_PATH.search(line):
+            yield scope.finding(line_number, RULE_MACHINE_PATH, "home-directory path")
 
 
 if __name__ == "__main__":
