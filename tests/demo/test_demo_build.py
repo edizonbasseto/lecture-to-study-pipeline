@@ -1,8 +1,11 @@
 """Demo video build: pure command builders and the real slide compilation."""
 
+import importlib.util
 import shutil
 import struct
+import sys
 from pathlib import Path
+from types import ModuleType, SimpleNamespace
 
 import pytest
 
@@ -206,3 +209,76 @@ def test_build_summary_round_trips_through_json() -> None:
     )
 
     assert BuildSummary.model_validate_json(summary.model_dump_json()) == summary
+
+
+BUILD_SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "build_demo_lecture.py"
+
+
+@pytest.fixture
+def build_script() -> ModuleType:
+    spec = importlib.util.spec_from_file_location("build_demo_lecture", BUILD_SCRIPT)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def _stub_build_up_to_composition(
+    build_script: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> Path:
+    """Stub every stage before acceptance; composition leaves a partial video."""
+    build_dir = tmp_path / "build"
+    demo_video = tmp_path / "demo" / "aula-demo.mp4"
+    monkeypatch.setattr(build_script, "BUILD_DIR", build_dir)
+    monkeypatch.setattr(build_script, "DEMO_VIDEO_PATH", demo_video)
+    monkeypatch.setattr(
+        build_script, "load_demo_script", lambda _path: SimpleNamespace(slides=[])
+    )
+    monkeypatch.setattr(build_script, "require_clean_narration", lambda _script: None)
+    monkeypatch.setattr(build_script, "resolve_toolchain", lambda: None)
+    monkeypatch.setattr(build_script, "reset_build_dir", build_dir.mkdir)
+    monkeypatch.setattr(build_script, "render_slide_images", lambda *_args: [])
+    monkeypatch.setattr(build_script, "narrate_and_encode", lambda *_args: [])
+
+    def compose(*_args: object) -> None:
+        build_script.partial_video_path().write_bytes(b"video")
+
+    monkeypatch.setattr(build_script, "compose_video", compose)
+    return demo_video
+
+
+def test_a_rejected_video_is_never_promoted(
+    build_script: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    demo_video = _stub_build_up_to_composition(build_script, monkeypatch, tmp_path)
+
+    def reject(*_args: object, **_keywords: object) -> None:
+        raise DemoBuildError("OCR did not recover the slide headings")
+
+    monkeypatch.setattr(build_script, "accept_video", reject)
+
+    with pytest.raises(DemoBuildError):
+        build_script.build_demo_video()
+
+    assert not demo_video.exists()
+
+
+def test_an_accepted_video_is_promoted(
+    build_script: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    demo_video = _stub_build_up_to_composition(build_script, monkeypatch, tmp_path)
+    monkeypatch.setattr(build_script, "accept_video", lambda *_a, **_k: "summary")
+
+    assert build_script.build_demo_video() == "summary"
+    assert demo_video.read_bytes() == b"video"
+
+
+def test_ocr_and_extraction_errors_are_reported_build_failures(
+    build_script: ModuleType,
+) -> None:
+    from lecture_study.extraction.media_workers import MediaExtractionError
+    from lecture_study.extraction.ocr_worker import OcrError
+
+    assert OcrError in build_script.BUILD_FAILURES
+    assert MediaExtractionError in build_script.BUILD_FAILURES

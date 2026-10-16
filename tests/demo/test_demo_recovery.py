@@ -2,6 +2,7 @@
 
 import importlib.util
 import os
+import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -295,6 +296,7 @@ def test_driver_refuses_to_start_before_the_critic_record_is_harvested(
 ) -> None:
     monkeypatch.chdir(tmp_path)
     driver = _load_driver()
+    monkeypatch.setattr(driver, "REPOSITORY_ROOT", tmp_path)
     monkeypatch.setattr(
         driver,
         "ProcessScriptRunner",
@@ -321,6 +323,7 @@ def test_driver_runs_both_scenarios_and_writes_the_evidence(
     harvested.parent.mkdir(parents=True)
     harvested.write_text("{}")
     driver = _load_driver()
+    monkeypatch.setattr(driver, "REPOSITORY_ROOT", tmp_path)
     monkeypatch.setattr(
         driver, "ProcessScriptRunner", lambda *_arguments: FakePipeline(layout)
     )
@@ -352,3 +355,96 @@ def test_flashcards_script_keeps_its_default_floor_when_none_is_given() -> None:
     assert "--minimum-total-cards" not in driver.script_command(
         "flashcards", "925100", None
     )
+
+
+def test_driver_anchors_its_working_directory_to_the_repository_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    driver = _load_driver()
+    monkeypatch.setattr(driver, "REPOSITORY_ROOT", tmp_path)
+
+    driver.main([])
+
+    assert Path.cwd() == tmp_path
+
+
+def test_driver_refuses_an_evidence_path_outside_the_workspace(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    harvested = tmp_path / "workspace/demo/runs/llama-cpp/llm_runs/critic.json"
+    harvested.parent.mkdir(parents=True)
+    harvested.write_text("{}")
+    driver = _load_driver()
+    monkeypatch.setattr(driver, "REPOSITORY_ROOT", tmp_path)
+    monkeypatch.setattr(driver, "ProcessScriptRunner", _forbidden_runner)
+
+    exit_code = driver.main(["--evidence-path", str(tmp_path / "outside.json")])
+
+    assert exit_code == 2
+    assert "outside" in capsys.readouterr().err
+
+
+def test_driver_rejects_an_unsafe_lecture_id(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    driver = _load_driver()
+    monkeypatch.setattr(driver, "REPOSITORY_ROOT", tmp_path)
+
+    with pytest.raises(SystemExit):
+        driver.main(["--lecture-id", "../../x"])
+
+
+def test_default_layout_refuses_an_unsafe_lecture_id() -> None:
+    with pytest.raises(ValueError, match="unsafe lecture id"):
+        default_layout("../../x")
+
+
+def test_aborted_script_is_logged_and_raised_as_script_aborted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    driver = _load_driver()
+
+    def time_out(*_arguments: object, **_keywords: object) -> None:
+        raise subprocess.TimeoutExpired(cmd="script", timeout=1.0)
+
+    monkeypatch.setattr(driver, "run_bounded_process", time_out)
+    runner = driver.ProcessScriptRunner(LECTURE_ID, "stale", tmp_path)
+
+    with pytest.raises(driver.ScriptAborted, match="stale/exam"):
+        runner("exam")
+
+    assert "aborted" in (tmp_path / "stale-exam.log").read_text()
+
+
+def test_driver_warns_and_writes_partial_evidence_when_a_script_aborts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    layout = _reviewed_lecture(tmp_path)
+    harvested = tmp_path / "workspace/demo/runs/llama-cpp/llm_runs/critic.json"
+    harvested.parent.mkdir(parents=True)
+    harvested.write_text("{}")
+    driver = _load_driver()
+    monkeypatch.setattr(driver, "REPOSITORY_ROOT", tmp_path)
+
+    def aborting_runner(*_arguments: object) -> Callable[[RecoveryStep], int]:
+        def run(step: RecoveryStep) -> int:
+            raise driver.ScriptAborted(f"stale/{step}: TimeoutExpired")
+
+        return run
+
+    monkeypatch.setattr(driver, "ProcessScriptRunner", aborting_runner)
+
+    exit_code = driver.main([])
+
+    recovery_dir = tmp_path / "workspace/demo/recovery"
+    assert exit_code == 1
+    assert (recovery_dir / "evidence.partial.json").is_file()
+    assert not (recovery_dir / "evidence.json").exists()
+    assert "induced state" in capsys.readouterr().err
+    assert layout.units_dir.is_dir()

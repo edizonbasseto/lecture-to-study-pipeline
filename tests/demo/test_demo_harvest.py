@@ -392,3 +392,8 @@ def test_operator_notes_in_the_logs_become_report_notes(
     results = load_adapter_results(destination, REFERENCE)
 
     assert results.notes == ("flashcards floor lowered to 5", "exams attempt 1 failed")
+
+
+def test_harvest_sources_refuse_an_unsafe_lecture_id(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="unsafe lecture id"):
+        HarvestSources.for_lecture("../../x", data_root=tmp_path, logs_root=tmp_path)

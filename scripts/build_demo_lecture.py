@@ -46,8 +46,12 @@ from lecture_study.demo.script import (
     require_clean_narration,
 )
 from lecture_study.domain.errors import AudioGenerationError
-from lecture_study.extraction.media_workers import extract_frames
+from lecture_study.extraction.media_workers import (
+    MediaExtractionError,
+    extract_frames,
+)
 from lecture_study.extraction.ocr_supervisor import extract_text_supervised
+from lecture_study.extraction.ocr_worker import OcrError
 from lecture_study.ops.process_environment import (
     resolve_trusted_executable,
     sanitized_child_process_environment,
@@ -75,6 +79,8 @@ BUILD_FAILURES = (
     DemoScriptError,
     DemoBuildError,
     AudioGenerationError,
+    OcrError,
+    MediaExtractionError,
     subprocess.CalledProcessError,
     subprocess.TimeoutExpired,
     ProcessOutputLimitExceeded,
@@ -121,7 +127,9 @@ def build_demo_video() -> BuildSummary:
     slide_images = render_slide_images(toolchain, len(script.slides))
     segments = narrate_and_encode(toolchain, script, slide_images)
     compose_video(toolchain, segments)
-    return accept_video(toolchain, script, segments)
+    summary = accept_video(toolchain, script, segments, video=partial_video_path())
+    promote_video(partial_video_path())
+    return summary
 
 
 def resolve_toolchain() -> Toolchain:
@@ -225,16 +233,28 @@ def compose_video(toolchain: Toolchain, segments: list[SlideSegment]) -> None:
         timeout_seconds=FFMPEG_TIMEOUT_SECONDS,
         cwd=BUILD_DIR,
     )
+
+
+def partial_video_path() -> Path:
+    return BUILD_DIR / PARTIAL_VIDEO_NAME
+
+
+def promote_video(accepted_video: Path) -> None:
+    """Publish an accepted video where the pipeline consumes it."""
     DEMO_VIDEO_PATH.parent.mkdir(parents=True, exist_ok=True)
-    (BUILD_DIR / PARTIAL_VIDEO_NAME).replace(DEMO_VIDEO_PATH)
+    accepted_video.replace(DEMO_VIDEO_PATH)
 
 
 def accept_video(
-    toolchain: Toolchain, script: DemoScript, segments: list[SlideSegment]
+    toolchain: Toolchain,
+    script: DemoScript,
+    segments: list[SlideSegment],
+    *,
+    video: Path,
 ) -> BuildSummary:
     """Accept the video only when the pipeline's own extraction and OCR
     recover every slide heading and the duration is in band."""
-    frames = asyncio.run(extract_frames(DEMO_VIDEO_PATH, BUILD_DIR / "frames"))
+    frames = asyncio.run(extract_frames(video, BUILD_DIR / "frames"))
     if len(frames) < len(script.slides):
         raise DemoBuildError(
             f"frame extraction found {len(frames)} frames for "
@@ -245,7 +265,7 @@ def accept_video(
     absent = missing_headings(headings, ocr_texts)
     if absent:
         raise DemoBuildError(f"OCR did not recover the slide headings: {absent}")
-    video_seconds = probe_duration(toolchain, DEMO_VIDEO_PATH)
+    video_seconds = probe_duration(toolchain, video)
     require_duration_in_band(video_seconds)
     slide_seconds = tuple(segment.segment_seconds for segment in segments)
     summary = BuildSummary(

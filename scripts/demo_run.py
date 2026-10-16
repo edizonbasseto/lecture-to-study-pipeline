@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import subprocess
 import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -24,6 +25,7 @@ from typing import Literal
 
 from lecture_study.cli.llm_gateway_wiring import preflight_stage_gateways
 from lecture_study.demo.harvest import DEMO_LOGS_ROOT
+from lecture_study.demo.lecture_id import parse_lecture_id
 from lecture_study.demo.phase_timing import (
     PhaseLogError,
     parse_phase_log,
@@ -32,7 +34,10 @@ from lecture_study.demo.phase_timing import (
 )
 from lecture_study.llm.config import ADAPTER_OVERRIDE_ENV
 from lecture_study.llm.gateway import AdapterName, LlmGatewayError, Stage
-from lecture_study.ops.process_lifecycle import run_bounded_process
+from lecture_study.ops.process_lifecycle import (
+    ProcessOutputLimitExceeded,
+    run_bounded_process,
+)
 
 Acceptance = Literal["exit_zero", "stopped_at_certification"]
 
@@ -52,6 +57,7 @@ _FLASHCARDS_TIMEOUT_SECONDS = 7200.0
 _GUIDE_TIMEOUT_SECONDS = 3600.0
 _MAXIMUM_STDOUT_BYTES = 16 * 1024 * 1024
 _MAXIMUM_STDERR_BYTES = 64 * 1024 * 1024
+_STEP_ABORTS = (subprocess.TimeoutExpired, ProcessOutputLimitExceeded, OSError)
 _REFUSED_EXIT_CODE = 2
 _CERTIFICATION_REFUSAL_EXIT_CODE = 1
 
@@ -198,14 +204,17 @@ def run_step(
 ) -> bool:
     """Run one step, keep its log and report whether its outcome is acceptable."""
 
-    completed = run_bounded_process(
-        step.argv,
-        env=environment,
-        timeout_seconds=step.timeout_seconds,
-        maximum_stdout_bytes=_MAXIMUM_STDOUT_BYTES,
-        maximum_stderr_bytes=_MAXIMUM_STDERR_BYTES,
-        check=False,
-    )
+    try:
+        completed = run_bounded_process(
+            step.argv,
+            env=environment,
+            timeout_seconds=step.timeout_seconds,
+            maximum_stdout_bytes=_MAXIMUM_STDOUT_BYTES,
+            maximum_stderr_bytes=_MAXIMUM_STDERR_BYTES,
+            check=False,
+        )
+    except _STEP_ABORTS as error:
+        return _report_aborted_step(step, error, lecture_id)
     log_text = completed.stdout + completed.stderr
     log_path = _write_log(lecture_id, step.log_name, log_text)
     reason = rejection_reason(
@@ -214,6 +223,13 @@ def run_step(
     if reason is None:
         print(f"step={step.name} status=ok exit={completed.returncode} log={log_path}")
         return True
+    print(f"step={step.name} status=failed reason={reason} log={log_path}")
+    return False
+
+
+def _report_aborted_step(step: DemoRunStep, error: Exception, lecture_id: str) -> bool:
+    log_path = _write_log(lecture_id, step.log_name, f"aborted: {error!r}\n")
+    reason = type(error).__name__
     print(f"step={step.name} status=failed reason={reason} log={log_path}")
     return False
 
@@ -253,6 +269,7 @@ def run_pipeline(
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    os.chdir(REPOSITORY_ROOT)
     arguments = _argument_parser().parse_args(argv)
     adapter = AdapterName(arguments.adapter)
     print(f"adapter={adapter.value} lecture={arguments.lecture_id}")
@@ -284,7 +301,7 @@ def _argument_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--adapter", choices=[member.value for member in AdapterName], required=True
     )
-    parser.add_argument("--lecture-id", required=True)
+    parser.add_argument("--lecture-id", type=parse_lecture_id, required=True)
     parser.add_argument(
         "--whisper-model-path", type=Path, default=DEFAULT_WHISPER_MODEL_PATH
     )

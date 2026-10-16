@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import os
 import shutil
 import sys
 from collections.abc import Sequence
@@ -32,6 +33,7 @@ from lecture_study.demo.harvest import (
     load_not_run,
     segments_json,
 )
+from lecture_study.demo.lecture_id import parse_lecture_id
 from lecture_study.demo.media_build import (
     BUILD_SUMMARY_PATH,
     DEMO_SCRIPT_PATH,
@@ -46,6 +48,7 @@ from lecture_study.demo.report import (
     render_results_markdown,
 )
 from lecture_study.demo.script import DemoScript, load_demo_script
+from lecture_study.demo.site_access import require_inside
 from lecture_study.demo.wer import normalized_words
 from lecture_study.llm.gateway import AdapterName
 from lecture_study.transcription.whisper_worker import (
@@ -53,6 +56,7 @@ from lecture_study.transcription.whisper_worker import (
     run_transcription,
 )
 
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 ABLATION_DIRECTORY = "ablation"
 PREVIEW_NAME = "preview.md"
 _ABLATION_AUDIO_NAME = "audio.wav"
@@ -200,7 +204,13 @@ def run_report(arguments: argparse.Namespace) -> int:
     except HarvestError as error:
         print(f"report refused: {error}", file=sys.stderr)
         return 1
-    output_directory = cast(Path, arguments.output_dir)
+    try:
+        output_directory = require_inside(
+            cast(Path, arguments.output_dir), REPOSITORY_ROOT
+        )
+    except ValueError as error:
+        print(f"report refused: {error}", file=sys.stderr)
+        return 1
     output_directory.mkdir(parents=True, exist_ok=True)
     markdown_path = output_directory / _MARKDOWN_NAME
     json_path = output_directory / _JSON_NAME
@@ -218,7 +228,7 @@ def _argument_parser() -> argparse.ArgumentParser:
     harvest.add_argument(
         "--adapter", choices=[member.value for member in AdapterName], required=True
     )
-    harvest.add_argument("--lecture-id", required=True)
+    harvest.add_argument("--lecture-id", type=parse_lecture_id, required=True)
     harvest.add_argument("--asr-ablation", action="store_true")
     harvest.add_argument("--whisper-model-path", type=Path)
     harvest.set_defaults(run=run_harvest)
@@ -229,6 +239,7 @@ def _argument_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    os.chdir(REPOSITORY_ROOT)
     parser = _argument_parser()
     arguments = parser.parse_args(argv)
     if (

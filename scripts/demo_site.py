@@ -31,6 +31,7 @@ from pathlib import Path
 import httpx
 from dotenv import dotenv_values
 
+from lecture_study.demo.lecture_id import parse_lecture_id
 from lecture_study.demo.site_access import (
     DEMO_EMAIL,
     DEMO_SCHEDULE_PATH,
@@ -55,7 +56,8 @@ from lecture_study.site.login_csrf import LOGIN_CSRF_FIELD
 from lecture_study.site.renderer import UNCERTIFIED_NOTICE
 
 LOGIN_PATH = "/entrar"
-WORKSPACE_ROOT = Path("workspace")
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+WORKSPACE_ROOT = REPOSITORY_ROOT / "workspace"
 _SIGNED_IN_REDIRECT_STATUS = 303
 _PAGE_OK_STATUS = 200
 _OWNER_ONLY_FILE = 0o600
@@ -255,7 +257,7 @@ def _argument_parser() -> argparse.ArgumentParser:
         run=_run_generate
     )
     check = subcommands.add_parser("check", help="signed-in page check")
-    check.add_argument("--lecture-id", required=True)
+    check.add_argument("--lecture-id", type=parse_lecture_id, required=True)
     check.add_argument("--base-url", default=DEMO_SITE_URL)
     check.add_argument("--directory", type=Path, default=SITE_ACCESS_DIR)
     check.set_defaults(run=_run_check)
@@ -263,6 +265,7 @@ def _argument_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    os.chdir(REPOSITORY_ROOT)
     arguments = _argument_parser().parse_args(argv)
     return int(arguments.run(arguments))
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import subprocess
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -264,3 +265,35 @@ def test_flashcards_floor_is_passed_only_when_given(demo_run: ModuleType) -> Non
 
     assert "--minimum-total-cards" not in default.argv
     assert lowered.argv[-2:] == ("--minimum-total-cards", "5")
+
+
+def test_a_timed_out_step_keeps_a_log_and_reports_failure(
+    demo_run: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def time_out(*_arguments: object, **_keywords: object) -> None:
+        raise subprocess.TimeoutExpired(cmd="step", timeout=1.0)
+
+    monkeypatch.setattr(demo_run, "DEMO_LOGS_ROOT", tmp_path)
+    monkeypatch.setattr(demo_run, "run_bounded_process", time_out)
+    step = demo_run.pipeline_steps(LECTURE_ID, MODEL_PATH)[0]
+
+    passed = demo_run.run_step(step, environment={}, lecture_id=LECTURE_ID)
+
+    assert not passed
+    assert "TimeoutExpired" in capsys.readouterr().out
+    assert "aborted" in (tmp_path / LECTURE_ID / step.log_name).read_text()
+
+
+def test_main_anchors_the_working_directory_and_rejects_an_unsafe_lecture_id(
+    demo_run: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(demo_run, "REPOSITORY_ROOT", tmp_path)
+
+    with pytest.raises(SystemExit):
+        demo_run.main(["--adapter", "llama-cpp", "--lecture-id", "../../x"])
+
+    assert Path.cwd() == tmp_path

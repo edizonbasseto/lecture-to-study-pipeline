@@ -17,6 +17,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict
 
+from lecture_study.demo.lecture_id import parse_lecture_id
 from lecture_study.demo.tree_snapshot import (
     TreeDifference,
     TreeSnapshot,
@@ -83,6 +84,7 @@ def default_layout(
     lecture_id: str, *, workspace_root: Path = Path(".")
 ) -> RecoveryLayout:
     """The workspace paths the pipeline scripts use for one lecture."""
+    lecture_id = parse_lecture_id(lecture_id)
     data_root = workspace_root / _WORKSPACE_DATA_ROOT
     return RecoveryLayout(
         lecture_id=lecture_id,

@@ -28,6 +28,7 @@ from lecture_study.demo.asr_measure import (
     measure_unprompted_transcript,
     parse_terminology_corrections,
 )
+from lecture_study.demo.lecture_id import parse_lecture_id
 from lecture_study.demo.phase_timing import PhaseTiming, parse_phase_log
 from lecture_study.demo.report import AdapterResults, NotRunAdapter
 from lecture_study.demo.run_metrics import (
@@ -96,6 +97,7 @@ class HarvestSources:
         data_root: Path = _DATA_ROOT,
         logs_root: Path = DEMO_LOGS_ROOT,
     ) -> HarvestSources:
+        lecture_id = parse_lecture_id(lecture_id)
         return cls(
             lecture_id=lecture_id,
             llm_runs=data_root / "llm_runs" / lecture_id,

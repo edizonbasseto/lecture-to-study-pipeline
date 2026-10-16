@@ -24,6 +24,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import get_args
 
+from lecture_study.demo.lecture_id import parse_lecture_id
 from lecture_study.demo.recovery import (
     RecoveryEvidence,
     RecoveryScenario,
@@ -33,8 +34,12 @@ from lecture_study.demo.recovery import (
     run_recovery_scenario,
 )
 from lecture_study.llm.config import ADAPTER_OVERRIDE_ENV
+from lecture_study.demo.site_access import require_inside
 from lecture_study.llm.gateway import AdapterName
-from lecture_study.ops.process_lifecycle import run_bounded_process
+from lecture_study.ops.process_lifecycle import (
+    ProcessOutputLimitExceeded,
+    run_bounded_process,
+)
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS_DIRECTORY = REPOSITORY_ROOT / "scripts"
@@ -62,6 +67,13 @@ MAXIMUM_OUTPUT_BYTES = 32 * 1024 * 1024
 GUARD_EXIT_CODE = 2
 
 ALL_SCENARIOS: tuple[RecoveryScenario, ...] = get_args(RecoveryScenario)
+
+
+class ScriptAborted(RuntimeError):
+    """A pipeline script timed out, overflowed its output or could not start."""
+
+
+_SCRIPT_ABORTS = (subprocess.TimeoutExpired, ProcessOutputLimitExceeded, OSError)
 
 
 def script_command(
@@ -94,14 +106,20 @@ class ProcessScriptRunner:
         self._logged_steps: set[RecoveryStep] = set()
 
     def __call__(self, step: RecoveryStep) -> int:
-        completed = run_bounded_process(
-            self._command(step),
-            env=self._environment,
-            timeout_seconds=SCRIPT_TIMEOUT_SECONDS,
-            maximum_stdout_bytes=MAXIMUM_OUTPUT_BYTES,
-            maximum_stderr_bytes=MAXIMUM_OUTPUT_BYTES,
-            check=False,
-        )
+        try:
+            completed = run_bounded_process(
+                self._command(step),
+                env=self._environment,
+                timeout_seconds=SCRIPT_TIMEOUT_SECONDS,
+                maximum_stdout_bytes=MAXIMUM_OUTPUT_BYTES,
+                maximum_stderr_bytes=MAXIMUM_OUTPUT_BYTES,
+                check=False,
+            )
+        except _SCRIPT_ABORTS as error:
+            self._append_text_log(step, f"=== aborted: {error!r} ===\n")
+            raise ScriptAborted(
+                f"{self._scenario}/{step}: {type(error).__name__}"
+            ) from error
         self._append_log(step, completed)
         return completed.returncode
 
@@ -113,35 +131,52 @@ class ProcessScriptRunner:
     def _append_log(
         self, step: RecoveryStep, completed: subprocess.CompletedProcess[str]
     ) -> None:
+        self._append_text_log(
+            step,
+            f"=== exit={completed.returncode} ===\n"
+            f"{completed.stdout}{completed.stderr}",
+        )
+
+    def _append_text_log(self, step: RecoveryStep, text: str) -> None:
         log_path = self._log_dir / f"{self._scenario}-{step}.log"
         mode = "a" if step in self._logged_steps else "w"
         self._logged_steps.add(step)
         self._log_dir.mkdir(parents=True, exist_ok=True)
         with log_path.open(mode) as log:
-            log.write(f"=== exit={completed.returncode} ===\n")
-            log.write(completed.stdout)
-            log.write(completed.stderr)
+            log.write(text)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    os.chdir(REPOSITORY_ROOT)
     arguments = _argument_parser().parse_args(argv)
     if not HARVESTED_CRITIC_RECORD.is_file():
         print(_harvest_guard_message(), file=sys.stderr)
         return GUARD_EXIT_CODE
-    evidence = _run_scenarios(
+    try:
+        evidence_path = require_inside(
+            arguments.evidence_path, REPOSITORY_ROOT / "workspace"
+        )
+    except ValueError as error:
+        print(f"refusing to start: {error}", file=sys.stderr)
+        return GUARD_EXIT_CODE
+    evidence, completed = _run_scenarios(
         arguments.lecture_id,
         _selected(arguments.scenario),
         arguments.flashcards_minimum_total_cards,
     )
-    _write_evidence(evidence, arguments.evidence_path)
-    return 0 if evidence.passed() else 1
+    _write_evidence(
+        evidence, evidence_path if completed else _partial_path(evidence_path)
+    )
+    return 0 if completed and evidence.passed() else 1
 
 
 def _argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Demonstrate the ADR 0045 blocked-lecture recovery."
     )
-    parser.add_argument("--lecture-id", default=DEFAULT_LECTURE_ID)
+    parser.add_argument(
+        "--lecture-id", type=parse_lecture_id, default=DEFAULT_LECTURE_ID
+    )
     parser.add_argument("--scenario", choices=(*ALL_SCENARIOS, "both"), default="both")
     parser.add_argument("--evidence-path", type=Path, default=DEFAULT_EVIDENCE_PATH)
     parser.add_argument(
@@ -171,18 +206,34 @@ def _run_scenarios(
     lecture_id: str,
     scenarios: Sequence[RecoveryScenario],
     flashcards_minimum_total_cards: int | None,
-) -> RecoveryEvidence:
+) -> tuple[RecoveryEvidence, bool]:
+    """The evidence of the scenarios that finished and whether all of them did."""
     layout = default_layout(lecture_id)
     results: list[ScenarioEvidence] = []
+    completed = True
     for scenario in scenarios:
         runner = ProcessScriptRunner(
             lecture_id, scenario, RECOVERY_WORKSPACE, flashcards_minimum_total_cards
         )
-        result = run_recovery_scenario(scenario, layout=layout, runner=runner)
+        try:
+            result = run_recovery_scenario(scenario, layout=layout, runner=runner)
+        except (ScriptAborted, OSError) as error:
+            print(_aborted_warning(scenario, error), file=sys.stderr)
+            completed = False
+            break
         print(_scenario_line(result))
         results.append(result)
-    return RecoveryEvidence(
+    evidence = RecoveryEvidence(
         lecture_id=lecture_id, adapter=ADAPTER, scenarios=tuple(results)
+    )
+    return evidence, completed
+
+
+def _aborted_warning(scenario: RecoveryScenario, error: Exception) -> str:
+    return (
+        f"warning: scenario {scenario} aborted ({error}); lecture may still be in "
+        f"the {scenario} induced state and needs a critic rerun before further use. "
+        "Partial evidence is written."
     )
 
 
@@ -193,6 +244,10 @@ def _scenario_line(result: ScenarioEvidence) -> str:
         f"scenario={result.scenario} passed={result.passed} "
         f"blocked_exit_codes={blocked_codes} recovered_exit_codes={recovered_codes}"
     )
+
+
+def _partial_path(evidence_path: Path) -> Path:
+    return evidence_path.with_name(evidence_path.stem + ".partial.json")
 
 
 def _write_evidence(evidence: RecoveryEvidence, evidence_path: Path) -> None:

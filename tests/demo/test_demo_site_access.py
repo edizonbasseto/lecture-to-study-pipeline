@@ -82,6 +82,14 @@ def test_require_inside_refuses_a_path_that_leaves_the_root(tmp_path: Path) -> N
         require_inside(root / ".." / "elsewhere", root)
 
 
+def test_require_inside_refuses_the_root_itself(tmp_path: Path) -> None:
+    root = tmp_path / "workspace"
+    root.mkdir()
+
+    with pytest.raises(ValueError):
+        require_inside(root, root)
+
+
 @pytest.mark.skipif(shutil.which("openssl") is None, reason="openssl is not installed")
 def test_prepare_access_writes_owner_only_files_and_keeps_the_password_in_env(
     demo_site: ModuleType, tmp_path: Path
@@ -114,3 +122,23 @@ def test_prepare_access_refuses_a_directory_outside_the_workspace(
         demo_site.prepare_access(tmp_path / "elsewhere", workspace_root=workspace_root)
 
     assert not (tmp_path / "elsewhere").exists()
+
+
+def test_demo_site_roots_are_anchored_to_the_repository(
+    demo_site: ModuleType,
+) -> None:
+    assert demo_site.WORKSPACE_ROOT == demo_site.REPOSITORY_ROOT / "workspace"
+    assert demo_site.REPOSITORY_ROOT.joinpath("scripts", "demo_site.py").is_file()
+
+
+def test_demo_site_main_moves_to_the_repository_root(
+    demo_site: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(demo_site, "REPOSITORY_ROOT", tmp_path / "repository")
+    (tmp_path / "repository").mkdir()
+
+    with pytest.raises(SystemExit):
+        demo_site.main(["check", "--lecture-id", "../x"])
+
+    assert Path.cwd() == tmp_path / "repository"

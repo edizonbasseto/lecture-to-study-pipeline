@@ -115,9 +115,12 @@ def certificate_command(
 
 
 def require_inside(path: Path, root: Path) -> Path:
-    """The resolved `path`, or ValueError when it leaves the resolved `root`."""
+    """The resolved `path`, or ValueError unless it is strictly inside `root`."""
 
     resolved_path = path.resolve()
-    if not resolved_path.is_relative_to(root.resolve()):
+    resolved_root = root.resolve()
+    if resolved_path == resolved_root or not resolved_path.is_relative_to(
+        resolved_root
+    ):
         raise ValueError(f"{path} is outside {root}")
     return resolved_path
