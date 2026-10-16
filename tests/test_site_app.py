@@ -2056,6 +2056,20 @@ class TestMalformedCredentialsNeverRaise:
 
         assert response.status_code == 401
 
+    def test_a_latin1_superscript_byte_basic_header_is_unauthorized(
+        self, site_directory: Path, credentials_path: Path
+    ):
+        """A raw 0xb2 byte (the latin-1 superscript two) reaches the header
+        parser as one character, unlike the two-byte UTF-8 encoding the
+        other parameters send; it must be refused, never raise."""
+        client = _client(site_directory, credentials_path)
+
+        response = client.get(
+            "/index.html", headers={"authorization": b"Basic \xb2\xb2"}
+        )
+
+        assert response.status_code == 401
+
     @pytest.mark.parametrize("expiry", ["²", "٣٣", "9" * 5000, "-1", "1_0"])
     def test_a_session_cookie_with_a_malformed_expiry_is_unauthorized(
         self, site_directory: Path, credentials_path: Path, expiry: str

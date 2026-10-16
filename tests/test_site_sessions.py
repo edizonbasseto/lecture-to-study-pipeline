@@ -7,6 +7,7 @@ import time
 from lecture_study.site.access import Credential, hash_password
 from lecture_study.site.sessions import (
     SESSION_LIFETIME_SECONDS,
+    _parse_expiry,
     issue_session_token,
     session_email,
 )
@@ -61,6 +62,14 @@ class TestRejectedTokens:
         forged = f"{encoded_email}.depois.{signature}"
 
         assert session_email(forged, (credential,), _SECRET) is None
+
+    def test_digits_that_int_rejects_are_refused_by_the_parser(self):
+        """`str.isdigit` accepts what `int` refuses (superscripts, Arabic-Indic
+        digits, absurdly long runs); the parser itself must return None for
+        each, before any signature check runs."""
+        assert _parse_expiry("²") is None
+        assert _parse_expiry("٣٣") is None
+        assert _parse_expiry("9" * 5000) is None
 
     def test_a_tampered_signature_is_rejected(self):
         credential = _credential()
