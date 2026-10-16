@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 8
 current_phase_name: Portfolio README and documentation
 status: planning
-stopped_at: Completed 08-01-PLAN.md
-last_updated: "2026-10-16T03:52:05.323Z"
+stopped_at: Completed 08-02-PLAN.md
+last_updated: "2026-10-16T03:56:16.173Z"
 last_activity: 2026-10-16
 last_activity_desc: Phase 7 complete, transitioned to Phase 8
-state_head: 795898441c4ab4cc08ac205489f8e41dd6c22273
+state_head: 4a174aaf4e829c7c2abe59a652a3e99057c28cd4
 progress:
   total_phases: 9
   completed_phases: 7
   total_plans: 23
-  completed_plans: 21
+  completed_plans: 22
 ---
 
 # Project State
@@ -72,6 +72,7 @@ Progress: [████████░░] 78% (phases, 5 of 9; Phases 1-5 are c
 | Phase 06 P12 | 8min | 2 tasks | 7 files |
 | Phase 07 P01 | 4 min | 2 tasks | 6 files |
 | Phase 08 P01 | 8min | 2 tasks | 3 files |
+| Phase 08 P02 | 15min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -105,6 +106,7 @@ Recent decisions affecting current work:
 - [Phase 06]: Plan 06-12: older ADRs 0020/0022/0034/0035/0036/0037 and PROJECT.md decisions D-READ-01/D-ADR0038-01/D-ADR0045-02 point forward to ADR 0046 by additive notes only; OPEN-2 rule restated from 06-04-SUMMARY
 - [Phase 07]: 07-01: Kokoro invocation extracted to public synthesize_kokoro_wav (podcast and demo share it); narrator voice pm_alex, pf_dora accepted by the model
 - [Phase 08]: check_documentation main defaults to README.md plus top-level docs/*.md so make docs-check covers every page
+- [Phase 08]: Operations summary table follows the reading guide; regeneration classified as procedural operational requirement
 
 ### Pending Todos
 
@@ -131,8 +133,8 @@ Items acknowledged and deferred at roadmap creation (detail in REQUIREMENTS.md v
 
 ## Session Continuity
 
-Last session: 2026-10-16T03:52:05.266Z
-Stopped at: Completed 08-01-PLAN.md
+Last session: 2026-10-16T03:56:16.113Z
+Stopped at: Completed 08-02-PLAN.md
 Resume file: None
 
 Phase 7 note: DEMO-04 was accepted as partial by the operator on 2026-10-15 (mock exam recovered in 1 of 10 scenario runs on the local model). The Codex adapter was measured on 2026-10-16.
