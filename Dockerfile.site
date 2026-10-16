@@ -7,8 +7,11 @@
 # study-guides corpus or the video library, both of which are mounted
 # volumes (ADR 0029).
 #
-# markdown-it-py pinned to the same version as uv.lock (2026-09-15, added
-# when generator.py started pre-rendering Markdown previews to HTML).
+# All Python dependencies (top-level and transitive) come from
+# infra/site-requirements.txt: the closure of the five top-level packages
+# extracted from uv.lock with hashes for every wheel and sdist, installed
+# with --require-hashes. Regenerate with
+# scripts/export_site_requirements.py after any uv.lock change.
 #
 # pydantic + domain/models.py added 2026-09-18 (ADR 0041): the interactive
 # mock exam reads MockExam/MockQuestion/SafeIdentifier from the domain
@@ -17,11 +20,12 @@
 # dependencies the site image does not otherwise need; domain/__init__.py
 # is empty, so this does not smuggle in anything else.
 
-FROM python:3.12-slim AS runtime
+FROM python:3.12-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1 AS runtime
 
 WORKDIR /app
 
-RUN pip install --no-cache-dir fastapi==0.139.2 uvicorn==0.51.0 pyyaml==6.0.3 markdown-it-py==4.2.0 pydantic==2.13.4
+COPY infra/site-requirements.txt /tmp/site-requirements.txt
+RUN pip install --no-cache-dir --require-hashes -r /tmp/site-requirements.txt
 
 COPY src/lecture_study/site/ /app/lecture_study/site/
 COPY src/lecture_study/domain/__init__.py src/lecture_study/domain/models.py /app/lecture_study/domain/

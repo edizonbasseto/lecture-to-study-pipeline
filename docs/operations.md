@@ -213,6 +213,8 @@ The acceptance has stated limits and stated triggers for a new review:
 
 `make docs-check` checks the commands in shell-labelled fences, paths that start with a tracked directory, link files (not anchors), ADR numbers and that each blockquote occurs verbatim in some ADR (not that it comes from the ADR cited). `make` commands in running text and root-level files are not checked.
 
-## Known limitation: container base image not pinned by digest
+## Container image supply chain
 
-`Dockerfile.site` builds from the tag `python:3.12-slim`, and its Python dependencies are pinned by version. The base image is not pinned by digest, because resolving a digest requires querying the registry and this repository change was made without network access. A rebuild can therefore pick up a newer base image under the same tag. Mitigation until a digest is recorded: resolve the digest of `python:3.12-slim` at build time with the registry client, replace the tag by `python:3.12-slim@sha256:<digest>`, and refresh it deliberately.
+`Dockerfile.site` builds from `python:3.12-slim` pinned by digest (`python:3.12-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1`, resolved from the registry on 2026-10-16), and installs its Python dependencies from `infra/site-requirements.txt` with `--require-hashes`: the closure of the five top-level packages and every transitive dependency, each with the hashes `uv export --frozen` records for every wheel and sdist, so a build fails rather than resolving unpinned transitives at build time.
+
+To refresh either pin deliberately: regenerate the requirements with `python3 scripts/export_site_requirements.py` after any `uv.lock` change, and resolve the current digest of the tag with a registry client (`docker manifest inspect python:3.12-slim`, or the registry HTTP API) before replacing the digest in `Dockerfile.site`.
