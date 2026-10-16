@@ -72,7 +72,7 @@ The README and the module docstring say "textual presence", which honestly cover
 ### IN-01: Anchor fragments are unchecked (disclosed, original WR-05)
 
 **File:** `scripts/check_documentation.py:609`; disclosure `README.md:168`
-**Issue:** `[x](#nope)` and `[x](README.md#nope)` pass (probe). The README table of contents consists of anchors only. The README now states "anchors, the part after `#`, are not checked", so the claim is honest; the gap remains.
+**Issue:** `[x](#nope)` and `[x](../../../README.md#nope)` pass (probe). The README table of contents consists of anchors only. The README now states "anchors, the part after `#`, are not checked", so the claim is honest; the gap remains.
 **Fix:** Optional: collect heading slugs of the target file and check the fragment.
 
 ### IN-02: Inline `make` commands, root-level files and bare package paths are unchecked (disclosed, original WR-06)

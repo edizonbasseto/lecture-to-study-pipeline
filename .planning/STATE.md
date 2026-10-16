@@ -3,12 +3,12 @@ gsd_state_version: "1.0"
 milestone: v1.0
 current_phase: 9
 current_phase_name: Pre-public gate and release
-status: planning
-stopped_at: Phase 8 complete, ready to plan Phase 9
-last_updated: "2026-10-16T04:42:08.211Z"
+status: executing
+stopped_at: Phase 9 gate items closed; the public switch (PUBG-03) awaits the operator
+last_updated: "2026-10-16T11:30:00.000Z"
 last_activity: 2026-10-16
-last_activity_desc: Phase 8 complete, transitioned to Phase 9
-state_head: 5ae468d198de21af573d4babe31b3af31db4f307
+last_activity_desc: PUBG-01 and PUBG-02 closed; history rewritten to the no-reply identity
+state_head: 7652f7b
 progress:
   total_phases: 9
   completed_phases: 8
@@ -24,15 +24,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-14)
 
 **Core value:** No text the critic rejected or never reviewed reaches a reader of the study material, and everything a reader sees is labelled as uncertified.
-**Current focus:** Phase 7 — synthetic-demo-lecture-and-measured-results
+**Current focus:** Phase 9 — pre-public gate and release
 
 ## Current Position
 
 Phase: 9 — Pre-public gate and release
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-10-16 — Phase 8 complete, transitioned to Phase 9
-Next action: `/gsd-plan-phase 6`
+Plan: Gate items executed directly (PUBG-01..03); no GSD plan files
+Status: Gate closing
+Last activity: 2026-10-16 — PUBG-01 scans and PUBG-02 reviews closed; history rewritten to the no-reply identity
+Next action: Operator confirms the switch to public (PUBG-03)
 
 Progress: [█████████░] 89% (phases, 5 of 9; Phases 1-5 are complete baseline built before GSD adoption, no GSD plans yet)
 
@@ -136,8 +136,8 @@ Items acknowledged and deferred at roadmap creation (detail in REQUIREMENTS.md v
 
 ## Session Continuity
 
-Last session: 2026-10-16T04:02:35.715Z
-Stopped at: Phase 8 complete, ready to plan Phase 9
+Last session: 2026-10-16T11:30:00.000Z
+Stopped at: Phase 9 gate items closed; the public switch (PUBG-03) awaits the operator
 Resume file: None
 
 Phase 7 note: DEMO-04 was accepted as partial by the operator on 2026-10-15 (mock exam recovered in 1 of 10 scenario runs on the local model). The Codex adapter was measured on 2026-10-16.

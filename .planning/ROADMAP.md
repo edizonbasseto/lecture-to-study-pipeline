@@ -190,4 +190,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 6. Pluggable LLM gateway | 12/12 | Complete    | 2026-10-15 |
 | 7. Synthetic demo lecture and measured results | 8/8 | Complete    | 2026-10-16 |
 | 8. Portfolio README and documentation | 3/3 | Complete    | 2026-10-16 |
-| 9. Pre-public gate and release | 0/TBD | Not started | - |
+| 9. Pre-public gate and release | 0/TBD | In progress — gate closed, public switch pending operator | 2026-10-16 |
