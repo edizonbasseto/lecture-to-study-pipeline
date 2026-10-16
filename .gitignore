@@ -95,3 +95,6 @@ cookies*.txt
 # Local tooling state
 .serena/
 .planning/state.json
+
+# --- Claude Code local state ---
+.claude/
