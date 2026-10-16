@@ -7,8 +7,7 @@ the first time), ADR 0032 (Kokoro narration engine), ADR 0045 (blocked-lecture
 recovery) and ADR 0046 (adapters, egress rule, run records).
 
 The status covers the demo lecture, the measurement method and the local-adapter
-measurement. The comparison against the Codex adapter is pending: that adapter
-could not be run (decision 4 and Consequences).
+measurement and the Codex-adapter measurement (decision 4).
 
 ## Context
 
@@ -86,16 +85,15 @@ synthetic, carries no patient data and no third-party content, and goes to an
 external provider knowingly. The provider's terms of use remain a procedural
 check of the operator.
 
-The Codex run did not produce a measurement. Both attempts of stage 5 failed in
-under seven seconds with a non-zero exit of the codex CLI, before any model
-output. A content-free diagnostic showed that the default model named in the
-operator's own codex configuration, outside the repository, is not supported by
-the ChatGPT account in use. The adapter passes no model argument and was left
-unchanged, and the codex configuration was not edited. The report lists the
-adapter under "Adapters not run" with that reason, and no number is reported for
-it. The comparison is pending an external configuration fix; once the
-configuration names a supported model, the run, harvest and report commands
-reproduce the missing section without any change to the method.
+The first Codex attempt did not produce a measurement: both attempts of stage 5
+failed in under seven seconds, before any model output, because the default
+model named in the operator's own codex configuration (outside the repository)
+is not supported by the ChatGPT account in use. The adapter passes no model
+argument and was left unchanged. On 2026-10-16 the run was repeated with the
+supported model `gpt-6-sol`, set through a temporary edit of that user-level
+configuration that was restored afterwards. It covers the same synthetic
+lecture 925101 under the egress confirmation of 2026-10-15. The report carries
+the Codex section, with a note naming the model used.
 
 ### 5. Harvest before recovery
 
@@ -233,9 +231,6 @@ procedure of ADR 0045.
   local model, a larger evidence pack or a higher retry budget would change that;
   none of them was altered here, and neither the gate nor the scripts were
   touched to obtain a pass.
-- The Codex measurement is open. Completing it needs a supported model in the
-  codex configuration or an explicit decision to let the adapter pass a model,
-  a change outside this record.
-- Phase 8 cites the report; it must cite the not-run adapter as such.
+- Phase 8 cites the report; it must cite the Codex figures as one evidence pack of one run, with the model named in the report.
 - The demo needs no new dependency and no change to the critic gate, the
   adapters or the pipeline scripts.

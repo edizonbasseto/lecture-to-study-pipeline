@@ -1,12 +1,14 @@
 # Demo lecture results
 
-Measured on 2026-10-15. Every rate is printed with its denominator; the method, the word error rate definition and the limits of a single evidence pack are recorded in [ADR 0047](../decisions/0047-demo-lecture-measurement-method.md).
+Measured on 2026-10-16. Every rate is printed with its denominator; the method, the word error rate definition and the limits of a single evidence pack are recorded in [ADR 0047](../decisions/0047-demo-lecture-measurement-method.md).
 
 ## Lecture
 
 - Video duration: 243.6 s
 - Reference words: 620
+- Evidence packs (codex): 1
 - Evidence packs (llama-cpp): 1
+- Note (codex): Codex model note: the user-level default model (gpt-6.1-sol) is rejected for a ChatGPT account, so the run used model gpt-6-sol through a temporary change of the user-level codex configuration, restored afterwards; the earlier failed attempts of phase 5 produced no model output.
 - Note (llama-cpp): Exams stage: attempt 1 failed its contract (5 calls, 1 retry); the figures are those of the successful rerun.
 - Note (llama-cpp): Flashcards stage: attempts 1 and 2 at the default deck floor of 12 failed (9 calls with 4 retries, then 3 calls with 1 retry); the successful run used a floor of 5 by operator decision, so it made one request and no supplemental ones.
 
@@ -16,6 +18,8 @@ The demo lecture fixes one evidence pack per adapter (ADR 0047), so each critic 
 
 | Adapter | Lecture id | Condition | WER before dictionary | WER after dictionary | Corrections applied |
 | --- | --- | --- | --- | --- | --- |
+| codex | 925101 | pipeline (vocabulary prompt on) | 2.3% (14 of 620 words) | 0.5% (3 of 620 words) | 11 |
+| codex | 925101 | ablation (vocabulary prompt off) | 3.1% (19 of 620 words) | 0.0% (0 of 620 words) | 19 |
 | llama-cpp | 925100 | pipeline (vocabulary prompt on) | 2.3% (14 of 620 words) | 0.5% (3 of 620 words) | 11 |
 | llama-cpp | 925100 | ablation (vocabulary prompt off) | 3.1% (19 of 620 words) | 0.0% (0 of 620 words) | 19 |
 
@@ -23,6 +27,36 @@ The demo lecture fixes one evidence pack per adapter (ADR 0047), so each critic 
 
 | Adapter | Lecture id | Condition | Term | In reference | Before dictionary | After dictionary |
 | --- | --- | --- | --- | --- | --- | --- |
+| codex | 925101 | pipeline (vocabulary prompt on) | biópsia excisional | 4 | 4 | 4 |
+| codex | 925101 | pipeline (vocabulary prompt on) | histopatológico | 8 | 8 | 8 |
+| codex | 925101 | pipeline (vocabulary prompt on) | camada fascial | 5 | 0 | 5 |
+| codex | 925101 | pipeline (vocabulary prompt on) | plano fascial | 3 | 0 | 3 |
+| codex | 925101 | pipeline (vocabulary prompt on) | margem fascial | 3 | 0 | 3 |
+| codex | 925101 | pipeline (vocabulary prompt on) | margem profunda | 5 | 5 | 5 |
+| codex | 925101 | pipeline (vocabulary prompt on) | margem lateral | 6 | 6 | 6 |
+| codex | 925101 | pipeline (vocabulary prompt on) | mastocitoma | 1 | 1 | 1 |
+| codex | 925101 | pipeline (vocabulary prompt on) | sarcoma de tecidos moles | 1 | 1 | 1 |
+| codex | 925101 | pipeline (vocabulary prompt on) | citologia aspirativa | 1 | 1 | 1 |
+| codex | 925101 | pipeline (vocabulary prompt on) | tecido subcutâneo | 2 | 2 | 2 |
+| codex | 925101 | pipeline (vocabulary prompt on) | linfonodo regional | 2 | 2 | 2 |
+| codex | 925101 | pipeline (vocabulary prompt on) | formalina | 2 | 2 | 2 |
+| codex | 925101 | pipeline (vocabulary prompt on) | hemostasia | 3 | 3 | 3 |
+| codex | 925101 | pipeline (vocabulary prompt on) | nervo facial | 1 | 1 | 1 |
+| codex | 925101 | ablation (vocabulary prompt off) | biópsia excisional | 4 | 4 | 4 |
+| codex | 925101 | ablation (vocabulary prompt off) | histopatológico | 8 | 0 | 8 |
+| codex | 925101 | ablation (vocabulary prompt off) | camada fascial | 5 | 0 | 5 |
+| codex | 925101 | ablation (vocabulary prompt off) | plano fascial | 3 | 0 | 3 |
+| codex | 925101 | ablation (vocabulary prompt off) | margem fascial | 3 | 0 | 3 |
+| codex | 925101 | ablation (vocabulary prompt off) | margem profunda | 5 | 5 | 5 |
+| codex | 925101 | ablation (vocabulary prompt off) | margem lateral | 6 | 6 | 6 |
+| codex | 925101 | ablation (vocabulary prompt off) | mastocitoma | 1 | 1 | 1 |
+| codex | 925101 | ablation (vocabulary prompt off) | sarcoma de tecidos moles | 1 | 1 | 1 |
+| codex | 925101 | ablation (vocabulary prompt off) | citologia aspirativa | 1 | 1 | 1 |
+| codex | 925101 | ablation (vocabulary prompt off) | tecido subcutâneo | 2 | 2 | 2 |
+| codex | 925101 | ablation (vocabulary prompt off) | linfonodo regional | 2 | 2 | 2 |
+| codex | 925101 | ablation (vocabulary prompt off) | formalina | 2 | 2 | 2 |
+| codex | 925101 | ablation (vocabulary prompt off) | hemostasia | 3 | 3 | 3 |
+| codex | 925101 | ablation (vocabulary prompt off) | nervo facial | 1 | 1 | 1 |
 | llama-cpp | 925100 | pipeline (vocabulary prompt on) | biópsia excisional | 4 | 4 | 4 |
 | llama-cpp | 925100 | pipeline (vocabulary prompt on) | histopatológico | 8 | 8 | 8 |
 | llama-cpp | 925100 | pipeline (vocabulary prompt on) | camada fascial | 5 | 0 | 5 |
@@ -56,6 +90,17 @@ The demo lecture fixes one evidence pack per adapter (ADR 0047), so each critic 
 
 ## LLM stages
 
+### codex (925101)
+
+| Stage | Record status | First-attempt schema pass rate | Retries | Wall time | Model call time | Model | Engine |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| semantic | succeeded | 100.0% (1 of 1 requests) | 0 | 48.1 s | 48.1 s | codex-cli | n/a |
+| drafting | succeeded | 100.0% (1 of 1 requests) | 0 | 19.7 s | 19.7 s | codex-cli | n/a |
+| critic | succeeded | 100.0% (1 of 1 requests) | 0 | 21.1 s | 21.1 s | codex-cli | n/a |
+| exams | succeeded | 100.0% (16 of 16 requests) | 0 | 222.7 s | 222.7 s | codex-cli | n/a |
+| podcast | succeeded | 100.0% (1 of 1 requests) | 0 | 19.9 s | 19.9 s | codex-cli | n/a |
+| flashcards | succeeded | 100.0% (8 of 8 requests) | 0 | 98.4 s | 98.4 s | codex-cli | n/a |
+
 ### llama-cpp (925100)
 
 | Stage | Record status | First-attempt schema pass rate | Retries | Wall time | Model call time | Model | Engine |
@@ -73,9 +118,28 @@ For the exams, podcast and flashcards stages the first-attempt contract also inc
 
 | Adapter | Record status | Rejection rate | Units | Redrafts | Finally rejected units |
 | --- | --- | --- | --- | --- | --- |
+| codex | succeeded | 0.0% (0 of 1 reviews) | 1 | 0 | 0 |
 | llama-cpp | succeeded | 0.0% (0 of 1 reviews) | 1 | 0 | 0 |
 
 ## Per-stage wall time
+
+### codex (925101)
+
+| Phase | Name | Wall time |
+| --- | --- | --- |
+| 2 | extraction | skipped (resumed) |
+| 3 | transcription | skipped (resumed) |
+| 4 | evidence | skipped (resumed) |
+| 5 | semantic | 48.2 s |
+| 6 | drafting | 19.9 s |
+| 7 | critic | 21.2 s |
+| 8 | assembly | 0.0 s |
+| 9 | metadata | 0.0 s |
+| 10 | quality-certification | refused by design (no certificate is issued) |
+| 13 | exams | 222.9 s |
+| 14 | podcast | 20.1 s |
+| 15 | tts | 23.3 s |
+| 18 | flashcards | 98.4 s |
 
 ### llama-cpp (925100)
 
@@ -96,10 +160,6 @@ For the exams, podcast and flashcards stages the first-attempt contract also inc
 | 18 | flashcards | 21.9 s |
 
 Phase 10 (quality-certification) refuses the lecture by design: publication certification stays fail-closed because authoritative evidence is unavailable, so no certificate is issued and the phase has no wall time (ADR 0024).
-
-## Adapters not run
-
-- codex: The codex adapter was not run for lecture 925101: the operator confirmed remote egress at the 07-07 checkpoint on 2026-10-15, but both attempts of phase 5 (semantic) failed in under 7 seconds with a non-zero exit of the codex CLI, before any model output. A content-free diagnostic showed the cause: the codex CLI default model configured outside the repository (model "gpt-6.1-sol" in the user-level codex configuration) is rejected with HTTP 400, "The 'gpt-6.1-sol' model is not supported when using Codex with a ChatGPT account". The adapter passes no model argument, so the run cannot succeed until the codex configuration names a model the account supports.
 
 ## Blocked-lecture recovery
 

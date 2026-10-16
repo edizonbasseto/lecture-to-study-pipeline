@@ -1,8 +1,390 @@
 {
-  "measured_on": "2026-10-15",
+  "measured_on": "2026-10-16",
   "video_seconds": 243.647656,
   "reference_words": 620,
   "adapters": [
+    {
+      "adapter": "codex",
+      "lecture_id": "925101",
+      "asr": [
+        {
+          "condition": "pipeline_prompt_on",
+          "before": {
+            "reference_words": 620,
+            "substitutions": 12,
+            "deletions": 2,
+            "insertions": 0
+          },
+          "after": {
+            "reference_words": 620,
+            "substitutions": 1,
+            "deletions": 2,
+            "insertions": 0
+          },
+          "corrections_applied": 11,
+          "planted_terms": [
+            {
+              "term": "biópsia excisional",
+              "reference_occurrences": 4,
+              "before_occurrences": 4,
+              "after_occurrences": 4
+            },
+            {
+              "term": "histopatológico",
+              "reference_occurrences": 8,
+              "before_occurrences": 8,
+              "after_occurrences": 8
+            },
+            {
+              "term": "camada fascial",
+              "reference_occurrences": 5,
+              "before_occurrences": 0,
+              "after_occurrences": 5
+            },
+            {
+              "term": "plano fascial",
+              "reference_occurrences": 3,
+              "before_occurrences": 0,
+              "after_occurrences": 3
+            },
+            {
+              "term": "margem fascial",
+              "reference_occurrences": 3,
+              "before_occurrences": 0,
+              "after_occurrences": 3
+            },
+            {
+              "term": "margem profunda",
+              "reference_occurrences": 5,
+              "before_occurrences": 5,
+              "after_occurrences": 5
+            },
+            {
+              "term": "margem lateral",
+              "reference_occurrences": 6,
+              "before_occurrences": 6,
+              "after_occurrences": 6
+            },
+            {
+              "term": "mastocitoma",
+              "reference_occurrences": 1,
+              "before_occurrences": 1,
+              "after_occurrences": 1
+            },
+            {
+              "term": "sarcoma de tecidos moles",
+              "reference_occurrences": 1,
+              "before_occurrences": 1,
+              "after_occurrences": 1
+            },
+            {
+              "term": "citologia aspirativa",
+              "reference_occurrences": 1,
+              "before_occurrences": 1,
+              "after_occurrences": 1
+            },
+            {
+              "term": "tecido subcutâneo",
+              "reference_occurrences": 2,
+              "before_occurrences": 2,
+              "after_occurrences": 2
+            },
+            {
+              "term": "linfonodo regional",
+              "reference_occurrences": 2,
+              "before_occurrences": 2,
+              "after_occurrences": 2
+            },
+            {
+              "term": "formalina",
+              "reference_occurrences": 2,
+              "before_occurrences": 2,
+              "after_occurrences": 2
+            },
+            {
+              "term": "hemostasia",
+              "reference_occurrences": 3,
+              "before_occurrences": 3,
+              "after_occurrences": 3
+            },
+            {
+              "term": "nervo facial",
+              "reference_occurrences": 1,
+              "before_occurrences": 1,
+              "after_occurrences": 1
+            }
+          ]
+        },
+        {
+          "condition": "ablation_prompt_off",
+          "before": {
+            "reference_words": 620,
+            "substitutions": 19,
+            "deletions": 0,
+            "insertions": 0
+          },
+          "after": {
+            "reference_words": 620,
+            "substitutions": 0,
+            "deletions": 0,
+            "insertions": 0
+          },
+          "corrections_applied": 19,
+          "planted_terms": [
+            {
+              "term": "biópsia excisional",
+              "reference_occurrences": 4,
+              "before_occurrences": 4,
+              "after_occurrences": 4
+            },
+            {
+              "term": "histopatológico",
+              "reference_occurrences": 8,
+              "before_occurrences": 0,
+              "after_occurrences": 8
+            },
+            {
+              "term": "camada fascial",
+              "reference_occurrences": 5,
+              "before_occurrences": 0,
+              "after_occurrences": 5
+            },
+            {
+              "term": "plano fascial",
+              "reference_occurrences": 3,
+              "before_occurrences": 0,
+              "after_occurrences": 3
+            },
+            {
+              "term": "margem fascial",
+              "reference_occurrences": 3,
+              "before_occurrences": 0,
+              "after_occurrences": 3
+            },
+            {
+              "term": "margem profunda",
+              "reference_occurrences": 5,
+              "before_occurrences": 5,
+              "after_occurrences": 5
+            },
+            {
+              "term": "margem lateral",
+              "reference_occurrences": 6,
+              "before_occurrences": 6,
+              "after_occurrences": 6
+            },
+            {
+              "term": "mastocitoma",
+              "reference_occurrences": 1,
+              "before_occurrences": 1,
+              "after_occurrences": 1
+            },
+            {
+              "term": "sarcoma de tecidos moles",
+              "reference_occurrences": 1,
+              "before_occurrences": 1,
+              "after_occurrences": 1
+            },
+            {
+              "term": "citologia aspirativa",
+              "reference_occurrences": 1,
+              "before_occurrences": 1,
+              "after_occurrences": 1
+            },
+            {
+              "term": "tecido subcutâneo",
+              "reference_occurrences": 2,
+              "before_occurrences": 2,
+              "after_occurrences": 2
+            },
+            {
+              "term": "linfonodo regional",
+              "reference_occurrences": 2,
+              "before_occurrences": 2,
+              "after_occurrences": 2
+            },
+            {
+              "term": "formalina",
+              "reference_occurrences": 2,
+              "before_occurrences": 2,
+              "after_occurrences": 2
+            },
+            {
+              "term": "hemostasia",
+              "reference_occurrences": 3,
+              "before_occurrences": 3,
+              "after_occurrences": 3
+            },
+            {
+              "term": "nervo facial",
+              "reference_occurrences": 1,
+              "before_occurrences": 1,
+              "after_occurrences": 1
+            }
+          ]
+        }
+      ],
+      "phases": [
+        {
+          "number": 2,
+          "name": "extraction",
+          "status": "skipped",
+          "seconds": null
+        },
+        {
+          "number": 3,
+          "name": "transcription",
+          "status": "skipped",
+          "seconds": null
+        },
+        {
+          "number": 4,
+          "name": "evidence",
+          "status": "skipped",
+          "seconds": null
+        },
+        {
+          "number": 5,
+          "name": "semantic",
+          "status": "ran",
+          "seconds": 48.245
+        },
+        {
+          "number": 6,
+          "name": "drafting",
+          "status": "ran",
+          "seconds": 19.853
+        },
+        {
+          "number": 7,
+          "name": "critic",
+          "status": "ran",
+          "seconds": 21.231
+        },
+        {
+          "number": 8,
+          "name": "assembly",
+          "status": "ran",
+          "seconds": 0.0
+        },
+        {
+          "number": 9,
+          "name": "metadata",
+          "status": "ran",
+          "seconds": 0.001
+        },
+        {
+          "number": 10,
+          "name": "quality-certification",
+          "status": "incomplete",
+          "seconds": null
+        },
+        {
+          "number": 13,
+          "name": "exams",
+          "status": "ran",
+          "seconds": 222.87
+        },
+        {
+          "number": 14,
+          "name": "podcast",
+          "status": "ran",
+          "seconds": 20.118
+        },
+        {
+          "number": 15,
+          "name": "tts",
+          "status": "ran",
+          "seconds": 23.338
+        }
+      ],
+      "llm_stages": [
+        {
+          "script_stage": "critic",
+          "adapter_name": "codex",
+          "model_identifier": "codex-cli",
+          "engine_version": null,
+          "record_status": "succeeded",
+          "superseded": false,
+          "requests": 1,
+          "retries": 0,
+          "wall_seconds": 21.076443958038,
+          "call_seconds": 21.075823666004
+        },
+        {
+          "script_stage": "drafting",
+          "adapter_name": "codex",
+          "model_identifier": "codex-cli",
+          "engine_version": null,
+          "record_status": "succeeded",
+          "superseded": false,
+          "requests": 1,
+          "retries": 0,
+          "wall_seconds": 19.70848874998046,
+          "call_seconds": 19.707952707947697
+        },
+        {
+          "script_stage": "exams",
+          "adapter_name": "codex",
+          "model_identifier": "codex-cli",
+          "engine_version": null,
+          "record_status": "succeeded",
+          "superseded": false,
+          "requests": 16,
+          "retries": 0,
+          "wall_seconds": 222.71170450001955,
+          "call_seconds": 222.70277649897616
+        },
+        {
+          "script_stage": "flashcards",
+          "adapter_name": "codex",
+          "model_identifier": "codex-cli",
+          "engine_version": null,
+          "record_status": "succeeded",
+          "superseded": false,
+          "requests": 8,
+          "retries": 0,
+          "wall_seconds": 98.43778795801336,
+          "call_seconds": 98.43512220901903
+        },
+        {
+          "script_stage": "podcast",
+          "adapter_name": "codex",
+          "model_identifier": "codex-cli",
+          "engine_version": null,
+          "record_status": "succeeded",
+          "superseded": false,
+          "requests": 1,
+          "retries": 0,
+          "wall_seconds": 19.934172834036872,
+          "call_seconds": 19.932104250008706
+        },
+        {
+          "script_stage": "semantic",
+          "adapter_name": "codex",
+          "model_identifier": "codex-cli",
+          "engine_version": null,
+          "record_status": "succeeded",
+          "superseded": false,
+          "requests": 1,
+          "retries": 0,
+          "wall_seconds": 48.08454745798372,
+          "call_seconds": 48.07796274998691
+        }
+      ],
+      "critic": {
+        "record_status": "succeeded",
+        "reviews": 1,
+        "redrafts": 0,
+        "units": 1,
+        "final_rejected_units": 0,
+        "rejected_reviews": 0
+      },
+      "evidence_packs": 1,
+      "notes": [
+        "Codex model note: the user-level default model (gpt-6.1-sol) is rejected for a ChatGPT account, so the run used model gpt-6-sol through a temporary change of the user-level codex configuration, restored afterwards; the earlier failed attempts of phase 5 produced no model output."
+      ]
+    },
     {
       "adapter": "llama-cpp",
       "lecture_id": "925100",
@@ -387,12 +769,7 @@
       ]
     }
   ],
-  "adapters_not_run": [
-    {
-      "adapter": "codex",
-      "reason": "The codex adapter was not run for lecture 925101: the operator confirmed remote egress at the 07-07 checkpoint on 2026-10-15, but both attempts of phase 5 (semantic) failed in under 7 seconds with a non-zero exit of the codex CLI, before any model output. A content-free diagnostic showed the cause: the codex CLI default model configured outside the repository (model \"gpt-6.1-sol\" in the user-level codex configuration) is rejected with HTTP 400, \"The 'gpt-6.1-sol' model is not supported when using Codex with a ChatGPT account\". The adapter passes no model argument, so the run cannot succeed until the codex configuration names a model the account supports."
-    }
-  ],
+  "adapters_not_run": [],
   "recovery": {
     "lecture_id": "925100",
     "adapter": "llama-cpp",
