@@ -878,9 +878,8 @@ async def _read_bounded_body(
     """Read the request body, or None when the caller sends more than the
     form at hand could possibly need."""
     declared_length = request.headers.get("content-length")
-    if declared_length is not None and declared_length.isdigit():
-        if int(declared_length) > max_bytes:
-            return None
+    if _declares_more_than(declared_length, max_bytes):
+        return None
     body = b""
     async for chunk in request.stream():
         body += chunk
@@ -889,12 +888,27 @@ async def _read_bounded_body(
     return body
 
 
+def _declares_more_than(declared_length: str | None, max_bytes: int) -> bool:
+    """A malformed Content-Length declares nothing; the streamed byte count
+    in the caller still enforces the bound."""
+    if declared_length is None:
+        return False
+    if not (declared_length.isascii() and declared_length.isdigit()):
+        return False
+    try:
+        return int(declared_length) > max_bytes
+    except ValueError:
+        return False
+
+
 def _parse_basic_auth(header: str | None) -> tuple[str, str] | None:
     if header is None or not header.startswith("Basic "):
         return None
     try:
         decoded = base64.b64decode(header.removeprefix("Basic ")).decode("utf-8")
-    except (binascii.Error, UnicodeDecodeError):
+    except ValueError:
+        # binascii.Error and UnicodeDecodeError are both ValueErrors; so is
+        # the error b64decode raises for a non-ASCII header value.
         return None
     email, separator, password = decoded.partition(":")
     if not separator:

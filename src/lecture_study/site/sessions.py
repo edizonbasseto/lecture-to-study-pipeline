@@ -84,9 +84,22 @@ def _parse_token(token: str | None) -> tuple[str, int, str] | None:
     if not first_separator or not second_separator:
         return None
     email = _decode_email(encoded_email)
-    if email is None or not expiry_text.isdigit():
+    expires_at = _parse_expiry(expiry_text)
+    if email is None or expires_at is None:
         return None
-    return email, int(expiry_text), signature
+    return email, expires_at, signature
+
+
+def _parse_expiry(expiry_text: str) -> int | None:
+    """ASCII digits only: `str.isdigit` also accepts characters such as
+    superscripts that `int` rejects, and `int` itself refuses absurdly long
+    digit strings; both must read as a forged cookie, never raise."""
+    if not (expiry_text.isascii() and expiry_text.isdigit()):
+        return None
+    try:
+        return int(expiry_text)
+    except ValueError:
+        return None
 
 
 def _encode_email(email: str) -> str:

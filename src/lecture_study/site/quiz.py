@@ -203,9 +203,12 @@ def _parsed_question_index(field_name: str) -> int | None:
     if not field_name.startswith("q"):
         return None
     digits = field_name[1:]
-    if not digits.isdigit():
+    if not (digits.isascii() and digits.isdigit()):
         return None
-    return int(digits)
+    try:
+        return int(digits)
+    except ValueError:
+        return None
 
 
 QUIZ_STYLE = """

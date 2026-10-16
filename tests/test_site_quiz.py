@@ -161,6 +161,13 @@ class TestParseSubmittedAnswers:
 
         assert answers == {}
 
+    def test_ignores_an_index_that_is_not_plain_ascii_digits(self) -> None:
+        answers = quiz.parse_submitted_answers(
+            {"q\u00b2": "A", "q\u0663": "B", "q" + "9" * 5000: "C"}
+        )
+
+        assert answers == {}
+
     def test_ignores_a_value_that_is_not_a_declared_letter(self) -> None:
         answers = quiz.parse_submitted_answers({"q0": "Z", "q1": "correct_answer"})
 

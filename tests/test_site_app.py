@@ -2036,3 +2036,50 @@ def test_exempt_methods_still_answer_without_credentials(
     assert client.get("/entrar").status_code == 200
     assert client.post("/entrar", data=_with_csrf({})).status_code == 200
     assert client.get("/sair").status_code == 303
+
+
+class TestMalformedCredentialsNeverRaise:
+    """T-09-12: attacker-controlled headers must be refused, never crash."""
+
+    @pytest.mark.parametrize(
+        "authorization",
+        ["Basic éé", "Basic !!!", "Basic /w==", "Basic "],
+    )
+    def test_a_malformed_basic_header_is_unauthorized(
+        self, site_directory: Path, credentials_path: Path, authorization: str
+    ):
+        client = _client(site_directory, credentials_path)
+
+        response = client.get(
+            "/index.html", headers={"authorization": authorization.encode("utf-8")}
+        )
+
+        assert response.status_code == 401
+
+    @pytest.mark.parametrize("expiry", ["²", "٣٣", "9" * 5000, "-1", "1_0"])
+    def test_a_session_cookie_with_a_malformed_expiry_is_unauthorized(
+        self, site_directory: Path, credentials_path: Path, expiry: str
+    ):
+        client = _client(site_directory, credentials_path)
+        forged = f"YWx1bmFAZXhhbXBsZS5jb20.{expiry}.deadbeef"
+
+        response = client.get(
+            "/index.html",
+            headers={"cookie": f"{COOKIE_NAME}={forged}".encode("utf-8")},
+        )
+
+        assert response.status_code == 401
+
+    @pytest.mark.parametrize("declared", ["²", "9" * 5000, "abc"])
+    def test_a_malformed_content_length_does_not_crash_the_login(
+        self, site_directory: Path, credentials_path: Path, declared: str
+    ):
+        client = _client(site_directory, credentials_path)
+
+        response = client.post(
+            "/entrar",
+            data=_with_csrf({"email": "aluna@example.com", "password": "errada"}),
+            headers={"content-length": declared.encode("utf-8")},
+        )
+
+        assert response.status_code < 500
