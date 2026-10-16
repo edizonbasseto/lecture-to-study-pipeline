@@ -18,8 +18,8 @@ actuals:
   tokens: 2515
   tasks: 2
   commits: 2
-plan_head_before: 2790d2b809a5510a34eac324281fed2bf5841493
-plan_head_after: 4b5659877c7aae815aae6204f05f7df9f09fd0fd
+plan_head_before: 8e3c918770dd6d228be8d952f6c4d7861ffe3eef
+plan_head_after: 14bf1ce45261f46089b917bf5c3f99eaaaf8e359
 
 tech-stack:
   added: []
@@ -86,8 +86,8 @@ status: complete
 
 ## Task Commits
 
-1. **Task 1 (tracer): argument handling, binary verification, tests** - `4d85fa2` (feat)
-2. **Task 2: opt-in example model download, pinned-value tests** - `4b56598` (feat)
+1. **Task 1 (tracer): argument handling, binary verification, tests** - `2cff230` (feat)
+2. **Task 2: opt-in example model download, pinned-value tests** - `14bf1ce` (feat)
 
 The tracer gate was satisfied by re-running Task 1's `<verify>` end to end (bash -n, shellcheck baseline of exactly the two SC2034 warnings, pytest) before expansion.
 
@@ -150,4 +150,4 @@ None. The network surface introduced (HTTPS download behind an explicit flag) is
 ## Self-Check: PASSED
 
 - `scripts/01_provision_engines.sh` and `tests/test_provision_engines.py` exist.
-- Commits `4d85fa2` and `4b56598` are ancestors of HEAD.
+- Commits `2cff230` and `14bf1ce` are ancestors of HEAD.

@@ -18,7 +18,7 @@ Full text, provenance and traceability: `.planning/REQUIREMENTS.md`.
 
 ### Validated
 
-Built, with an Accepted ADR and implementing code present; baseline checks green at commit `4bfbe46` on 2026-10-14 (2262 tests passed, ruff check and format clean, mypy strict clean on 112 source files). Per-requirement re-verification is not claimed.
+Built, with an Accepted ADR and implementing code present; baseline checks green at commit `4a90b61` on 2026-10-14 (2262 tests passed, ruff check and format clean, mypy strict clean on 112 source files). Per-requirement re-verification is not claimed.
 
 - Pipeline spine and media-to-evidence (SPINE-01..06, INGEST-01..07) - Phase 1
 - Codex-driven grounded generation and critic review (GEN-01..07) - Phase 2
@@ -93,7 +93,7 @@ The Route column describes the built baseline. Phase 6 routes stages 5, 6, 7, 13
 
 **Entry points.** `python -m lecture_study.cli.main` (`run-all`, `run-phase`, `run-personal-study`); `lecture_study.site.app:app` (`make site`); operator scripts under `scripts/`. `run-all` stops at stage 10 on the certified path; `run-personal-study` (stages 8, 9, 13, 14, 15) is the operable path.
 
-**Source of this setup.** 42 ADRs (0001-0016, 0020-0045; 0017-0019 absent by design, ADR 0044), all Accepted. Intel: `.planning/intel/`. Conflict report: `.planning/INGEST-CONFLICTS.md` (0 blockers, 3 warnings resolved by the operator-approved readings below, 19 informational). Codebase map: `.planning/codebase/` (mapped at commit `98206c1`).
+**Source of this setup.** 42 ADRs (0001-0016, 0020-0045; 0017-0019 absent by design, ADR 0044), all Accepted. Intel: `.planning/intel/`. Conflict report: `.planning/INGEST-CONFLICTS.md` (0 blockers, 3 warnings resolved by the operator-approved readings below, 19 informational). Codebase map: `.planning/codebase/` (mapped at commit `0256659`).
 
 **Open items stated in the ADRs.** Pre-ADR 0045 derivative material must be regenerated or deleted and deployed pages keep the old notice until regeneration (ADR 0045); both concern the private source deployment and are tracked outside this repository (former ROLL-01, ROLL-02). Assembly has not run on real data (ADR 0024, ADR 0045); in this repository stages 8 and 9 first run on the synthetic demo lecture (DEMO-02, Phase 7). ADR 0045 section 2 names a planned local adapter of the LLM gateway that no record defines; Phase 6 delivers it and a new ADR closes that section (GW-03, GW-05). Deferred or conditional: podcast prompt size check (ADR 0037), re-transcription of 25 transcripts (ADR 0028), re-extraction at 37.5 seconds (ADR 0025), critic rerun after re-draft and the critic/drafts script coupling (ADR 0045, ADR 0036). The README still carries a placeholder awaiting the portfolio README (Phase 8).
 

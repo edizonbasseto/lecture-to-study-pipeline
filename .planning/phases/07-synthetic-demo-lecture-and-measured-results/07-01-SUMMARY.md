@@ -32,8 +32,8 @@ metrics:
   completed: 2026-10-15
 status: complete
 commits: 2
-plan_head_before: b8cf64cf716c300f732a9cce5bdef01c869c684c
-plan_head_after: 46c9d29a171d56e20ebb24986d465ba8db345ffc
+plan_head_before: f7b9d51d301bd2b0f89638e68e7b210773eed6be
+plan_head_after: da394fb277d8043b19468c8a4cc205cdb51e78fd
 actuals:
   tokens: 7500
   tasks: 2
@@ -49,8 +49,8 @@ One public `synthesize_kokoro_wav` helper now serves both the podcast stage and 
 
 | Task | Name | Commit |
 | ---- | ---- | ------ |
-| 1 | Tracer: YAML slide to Kokoro wav through the shared helper | aefe717 |
-| 2 | Narration lint and the authored pt-BR demo lecture | 46c9d29 |
+| 1 | Tracer: YAML slide to Kokoro wav through the shared helper | ed8089a |
+| 2 | Narration lint and the authored pt-BR demo lecture | da394fb |
 
 ## What was built
 
@@ -72,15 +72,15 @@ One public `synthesize_kokoro_wav` helper now serves both the podcast stage and 
 **1. [Rule 3 - Blocking] Branch created because main is protected**
 - **Found during:** Task 1 commit
 - **Issue:** the pre-commit guard (`gsd_run query git.base-branch --is-protected main` returned `true`) forbids committing on main, and no `.planning/config.json` override exists. The prompt asked for work on main.
-- **Fix:** created branch `gsd/phase-07-synthetic-demo` from main HEAD `b8cf64c` and committed both tasks there; no configuration was changed. Main can be fast-forwarded to it by the operator or orchestrator.
-- **Commits:** aefe717, 46c9d29
+- **Fix:** created branch `gsd/phase-07-synthetic-demo` from main HEAD `f7b9d51` and committed both tasks there; no configuration was changed. Main can be fast-forwarded to it by the operator or orchestrator.
+- **Commits:** ed8089a, da394fb
 
 ### Plan details adjusted
 
 **2. [Rule 1 - Bug] Duplicate-background validator moved to a field validator**
 - **Issue:** a model-level validator reported the error at `<root>`, hiding the cause; the plan asks for field locations.
 - **Fix:** `@field_validator("slides")` so the error names `slides`.
-- **Commit:** aefe717
+- **Commit:** ed8089a
 
 Otherwise the plan was executed as written. `gsd_run` is not on PATH in this shell, so the SDK was invoked by its full path.
 

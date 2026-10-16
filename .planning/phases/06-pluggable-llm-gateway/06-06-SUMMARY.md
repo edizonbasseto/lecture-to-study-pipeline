@@ -17,8 +17,8 @@ actuals:
   tokens: 15000
   tasks: 3
   commits: 3
-plan_head_before: e3dec0a484a0e2bfa45dbd5554864b1cae0bd291
-plan_head_after: c80e465183d60332ec77c3c3505f2754a2be6c21
+plan_head_before: 145b916ab6026c77ce13828cd517a13ea1758056
+plan_head_after: a10d3a85f586fefb3c31134f50da18e10bd417fe
 
 tech-stack:
   added: []
@@ -106,9 +106,9 @@ status: complete
 
 ## Task Commits
 
-1. **Task 1 (tracer): stage 6 end to end through the gateway** - `cf9399f` (feat)
-2. **Task 2: stage 7 critic with two gateways and the repair loop** - `448ac94` (feat)
-3. **Task 3: critic repair loop through both adapters (GW-06)** - `c80e465` (test)
+1. **Task 1 (tracer): stage 6 end to end through the gateway** - `3b4ede1` (feat)
+2. **Task 2: stage 7 critic with two gateways and the repair loop** - `643132f` (feat)
+3. **Task 3: critic repair loop through both adapters (GW-06)** - `a10d3a8` (test)
 
 Tracer gate (auto mode): after Task 1 the `<verify>` command (9 passed), `tests/test_cli.py -k StageRoots` (5 passed) and the full suite were green before expanding. Between Task 1 and Task 2 the critic script still called the old `_generate_draft` signature; its legacy unit tests patched that call, so the suite stayed green, but the script itself was not runnable at the Task 1 commit. It is fixed in Task 2 as the plan sequences.
 
@@ -154,4 +154,4 @@ None. T-06-25 (two gateways via `open_stage_gateway`, routing test), T-06-26 (lo
 
 ## Self-Check: PASSED
 
-All five key files exist on disk; commits `cf9399f`, `448ac94` and `c80e465` are ancestors of HEAD; `commits: 3` measured from the persisted ledger.
+All five key files exist on disk; commits `3b4ede1`, `643132f` and `a10d3a8` are ancestors of HEAD; `commits: 3` measured from the persisted ledger.

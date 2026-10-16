@@ -60,7 +60,7 @@ re_verification:
   gaps_closed:
     - "DEMO-04 recovery shortfall: carried as an accepted override (not as a fix); numbers unchanged and kept honest"
     - "DEMO-03 codex warning: the Codex adapter was measured on lecture 925101 and is now in the committed report"
-    - "Review mediums MD-01 to MD-04: fixed in commit 9a11be7"
+    - "Review mediums MD-01 to MD-04: fixed in commit 0134ab4"
   gaps_remaining: []
   regressions: []
 gaps: []
@@ -78,7 +78,7 @@ advisory:
 **Verified:** 2026-10-16T04:00:00Z
 **Status:** passed (the two human checks were replaced by automated equivalents on 2026-10-16: ffprobe of the video, 1920x1080 h264 plus aac, 243.6 s, narration intelligible by the 0.5% ASR word error rate; HTTP signed-in checks for both lectures)
 **Re-verification:** Yes (source digest refresh after ADR 0047 changed), after the Codex measurement, the MD-01 to MD-04 fixes and the operator acceptance of the partial DEMO-04 result
-**Branch:** gsd/phase-07-synthetic-demo (HEAD a2b2c8c)
+**Branch:** gsd/phase-07-synthetic-demo (HEAD c8988ec)
 
 ## Goal Achievement
 
@@ -89,7 +89,7 @@ advisory:
 | 1 | A make target rebuilds the demo lecture video from versioned sources (script, slides, Kokoro narration, ffmpeg), with no third-party content and no patient data | VERIFIED | `Makefile` `demo-video` runs `scripts/build_demo_lecture.py`; versioned sources `demo/lecture/script.yaml`, `demo/lecture/slides.typ`; `src/lecture_study/demo/media_build.py` (`BUILD_SUMMARY_PATH` = `workspace/demo/build/build-summary.json`, present) and `script.py`; `workspace/demo/aula-demo.mp4` present; ffprobe (2026-10-16): 1920x1080 h264 video plus aac audio, 243.6 s (inside the 200 to 290 s band); narration intelligibility evidenced by the 0.5% (3 of 620 words) ASR word error rate in the committed report; build acceptance (OCR of every heading, 200 to 290 s band) covered by `tests/demo/test_demo_build.py`, which now also covers the MD-01 fix (promotion only after acceptance). Scans for debt markers in the phase files found none. |
 | 2 | The demo lecture runs through `run-all` and `run-personal-study`, stages 8 and 9 included, and a signed-in session views its page on the locally served site | VERIFIED | Both ids: `workspace/demo/logs/925100/` and `925101/` `run-all.log` show phase 8 and 9 done, phase 10 refused by design (ADR 0024); personal-study and flashcards logs; `workspace/data/14_mock_exams/925101/{exam.json,simulado.md}` and `18_personal_study_flashcards/925101/deck.json` exist (and the 925100 equivalents). Signed-in HTTP checks (`scripts/demo_site.py check`): `workspace/demo/logs/925100/signed-in-check.txt` (`anonymous_status=401 login_status=303 page_status=200 notice_present=True`) and `workspace/demo/logs/925101/signed-in-check.txt` (`anonymous_status=401 login_status=303 page_status=200 notice_present=True`), corroborated for 925101 by `workspace/demo/logs/serve.log` (GET 401, POST /entrar 303, GET 200). Disclosed deviation: 925100 flashcards at the operator-approved floor of 5. |
 | 3 | A results report gives ASR WER before and after the dictionary, schema pass rate per LLM stage, critic rejection rate and per-stage wall time, for each adapter that was run | VERIFIED for both adapters (codex and llama-cpp) | `docs/results/demo-results.md` and `.json` (committed): adapters `codex:925101` (model gpt-6-sol, named in the note) and `llama-cpp:925100`; WER 2.3% (14 of 620) to 0.5% (3 of 620) pipeline and 3.1% (19 of 620) to 0.0% (0 of 620) ablation, per adapter; schema pass rates per stage with denominators (codex 100% in all six stages, 16 of 16 exams and 8 of 8 flashcards; llama-cpp exams 87.5%, 14 of 16); critic rejection 0.0% (0 of 1) per adapter; per-phase wall times. The codex harvest exists (`workspace/demo/runs/codex/harvest.json`, six `llm_runs` records, `logs/archive/NOT_RUN.txt` kept as the record of the failed gpt-6.1-sol attempts). `make demo-report` was re-run: `git status --porcelain` shows no change to `docs/results`, so the report is deterministic and matches the harvest. The JSON has `adapters_not_run: []`. Every `%` carries its denominator. |
-| 4 | With a rejected or stale unit, the four derivative scripts write nothing for the demo lecture; after the ADR 0045 recovery they produce exam, podcast, flashcards and study guide | PASSED (override) for the recovery half; blocking half VERIFIED | Blocking: all four scripts exit 1 with an unchanged output-root snapshot in all five runs and both scenarios; critic rerun exit 0; `git diff b8cf64c HEAD` over `src/lecture_study/{assembly,llm,study_materials}` and `scripts/generate_*.py` is empty (gate and scripts untouched). Recovery: partial, operator-accepted, see below. |
+| 4 | With a rejected or stale unit, the four derivative scripts write nothing for the demo lecture; after the ADR 0045 recovery they produce exam, podcast, flashcards and study guide | PASSED (override) for the recovery half; blocking half VERIFIED | Blocking: all four scripts exit 1 with an unchanged output-root snapshot in all five runs and both scenarios; critic rerun exit 0; `git diff f7b9d51 HEAD` over `src/lecture_study/{assembly,llm,study_materials}` and `scripts/generate_*.py` is empty (gate and scripts untouched). Recovery: partial, operator-accepted, see below. |
 
 **Score:** 4/4 truths verified (3 VERIFIED, 1 PASSED by override); 0 present-behavior-unverified.
 
@@ -164,7 +164,7 @@ No `probe-*.sh` declared by any plan; none found for this phase. SKIPPED.
 | DEMO-03 | 07-03, 07-06, 07-07, 07-08 | Measured quality numbers for each adapter run | SATISFIED for both adapters | Truth 3 |
 | DEMO-04 | 07-05, 07-08 | Blocked-lecture recovery demonstrated; four scripts produce material after recovery | SATISFIED as partial, operator-accepted override | Blocking 5 of 5; podcast and guide 10 of 10; flashcards 6 of 6 at floor 5; exam 1 of 10 |
 
-No orphaned requirements. `.planning/REQUIREMENTS.md` (committed in a2b2c8c) marks DEMO-01 to DEMO-04 complete and labels DEMO-04 "partial, operator-accepted 2026-10-15" with the same numbers as this report; ADR 0047 Consequences also records the operator acceptance. Consistent with this verdict.
+No orphaned requirements. `.planning/REQUIREMENTS.md` (committed in c8988ec) marks DEMO-01 to DEMO-04 complete and labels DEMO-04 "partial, operator-accepted 2026-10-15" with the same numbers as this report; ADR 0047 Consequences also records the operator acceptance. Consistent with this verdict.
 
 ### Anti-Patterns Found
 
@@ -182,7 +182,7 @@ None. Per the operator instruction that the agent performs all checks itself, th
 
 ### Gaps Summary
 
-No gaps. All four ROADMAP criteria hold: 1 to 3 verified against code and artifacts (criterion 3 now for both the Codex and the local adapter), criterion 4 holds for the blocking half and carries the recovery half as an operator-accepted override with the numbers stated unchanged (exam recovered in 1 of 10 scenario runs; the last run did not pass). The tests, lint, types and report determinism are green on HEAD a2b2c8c (re-run 2026-10-16: 2916 passed, 1 skipped; ruff clean; mypy clean; `make demo-report` leaves `docs/results` unchanged). The source digest was refreshed after ADR 0047 and the results files changed in a2b2c8c (operator-acceptance sentence). Status is `passed`; no human verification items remain.
+No gaps. All four ROADMAP criteria hold: 1 to 3 verified against code and artifacts (criterion 3 now for both the Codex and the local adapter), criterion 4 holds for the blocking half and carries the recovery half as an operator-accepted override with the numbers stated unchanged (exam recovered in 1 of 10 scenario runs; the last run did not pass). The tests, lint, types and report determinism are green on HEAD c8988ec (re-run 2026-10-16: 2916 passed, 1 skipped; ruff clean; mypy clean; `make demo-report` leaves `docs/results` unchanged). The source digest was refreshed after ADR 0047 and the results files changed in c8988ec (operator-acceptance sentence). Status is `passed`; no human verification items remain.
 
 ---
 

@@ -18,8 +18,8 @@ actuals:
   tokens: 7448
   tasks: 3
   commits: 2
-plan_head_before: 976c3b58d00b99d827f2913426eaba1875021362
-plan_head_after: 0bf1f1592e62e8c33cc77c66906166600aeb6b61
+plan_head_before: 36fcfca5bcca00ce26c85389f2744542eb096f1d
+plan_head_after: d161f02e3f12a32613b68a2f90fc774276530479
 
 tech-stack:
   added: []
@@ -97,9 +97,9 @@ status: complete
 
 ## Task Commits
 
-1. **Task 1 (tracer): ADR 0046 Accepted and the amendment chain** - `5e78649` (docs)
+1. **Task 1 (tracer): ADR 0046 Accepted and the amendment chain** - `fed7004` (docs)
 2. **Task 2: OPEN-1 checkpoint** - no commit; resolved by the operator's recorded answer, so no checkpoint was returned
-3. **Task 3: OPEN-1 wording and the D-07 run record** - `0bf1f15` (docs)
+3. **Task 3: OPEN-1 wording and the D-07 run record** - `d161f02` (docs)
 
 Tracer gate: Task 1 `<verify>` (four rg checks) re-run end to end and green before Task 3; the checks are fully automated, so no human checkpoint applies.
 
@@ -163,4 +163,4 @@ None. T-06-41 (decision 4 states what "no network egress" does and does not mean
 
 ## Self-Check: PASSED
 
-`docs/decisions/0046-pluggable-llm-gateway-and-local-adapter.md` exists; commits `5e78649` and `0bf1f15` are ancestors of HEAD; `commits: 2` measured from the persisted ledger.
+`docs/decisions/0046-pluggable-llm-gateway-and-local-adapter.md` exists; commits `fed7004` and `d161f02` are ancestors of HEAD; `commits: 2` measured from the persisted ledger.

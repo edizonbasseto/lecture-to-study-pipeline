@@ -37,8 +37,8 @@ duration: 40 min
 completed: 2026-10-15
 status: complete
 commits: 2
-plan_head_before: 999703b18b3fc2302de45bd8754843b2ca044d35
-plan_head_after: 3f682943134b853931f5408bf6990d52e9f1c195
+plan_head_before: dbaec70f1067f25841c09e1a09cbb35175b5a0ca
+plan_head_after: 8ca6191319ad56e99532171e31f5260daa41eeb5
 actuals:
   tokens: 8400
   tasks: 2
@@ -53,8 +53,8 @@ Stages 8 and 9, the study-guide script and the site generator ran once on schema
 
 | Task | Name | Commit |
 | ---- | ---- | ------ |
-| 1 | Tracer: dry run from fixtures through stage 8, stage 9, the guide and the site to a signed-in page view | 8c6220b |
-| 2 | Demo site access material and the prepare-access, generate and check commands | 3f68294 |
+| 1 | Tracer: dry run from fixtures through stage 8, stage 9, the guide and the site to a signed-in page view | 92eadca |
+| 2 | Demo site access material and the prepare-access, generate and check commands | 8ca6191 |
 
 The `commits: 2` value counts this plan's own commits. Plans 07-02, 07-03 and 07-05 committed concurrently on the same branch, so the raw `plan_head_before..HEAD` count is higher; the two hashes above are the only ones authored by this plan.
 
@@ -76,23 +76,23 @@ None found. Stage 8 (`DocumentAssembler`), stage 9 (`MetadataAggregator`), the s
 - **Issue:** the plan asked for the repository root as cwd, but `_compile_typst_atomically` passes `--root` equal to the working directory. With the staged sources under `tmp_path` (outside the repository), Typst refuses the source (exit 1), reproduced by switching cwd back to the repository root.
 - **Fix:** the child runs with `cwd=tmp_path`; config and schedule paths are passed as absolute paths. This is a property of the test location only: the live run (07-06) stages under `workspace/` inside the repository, where the repository root remains the right cwd.
 - **Files modified:** `tests/demo/test_demo_dry_run.py`
-- **Commit:** 8c6220b
+- **Commit:** 92eadca
 
 **2. [Rule 2 - Correctness] Redirects disabled on every request of the sign-in check**
 - **Found during:** Task 1 design
 - **Issue:** `TestClient` follows redirects by default, which would turn a redirecting anonymous refusal into a 200 login form and break the "anonymous request is refused" criterion.
 - **Fix:** `follow_redirects=False` on all four requests. The live app answers the anonymous request with 401.
-- **Commit:** 8c6220b
+- **Commit:** 92eadca
 
 **3. [Rule 3 - Blocking] Shared test fixture for loading `scripts/demo_site.py`**
 - **Issue:** both new test files needed the same by-path script loader.
 - **Fix:** one `demo_site` fixture in `tests/demo/conftest.py` instead of two loader copies.
-- **Commit:** 3f68294
+- **Commit:** 8ca6191
 
 **4. [Rule 2 - Hardening] Certificate trust through an `ssl` context**
 - **Issue:** httpx 0.28 deprecates passing a path string as `verify`.
 - **Fix:** the `check` subcommand builds `ssl.create_default_context(cafile=certificate)`.
-- **Commit:** 3f68294
+- **Commit:** 8ca6191
 
 Otherwise the plan was executed as written.
 

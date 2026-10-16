@@ -28,7 +28,7 @@ overrides_applied: 0
 **Status:** passed
 **Re-verification:** No, initial verification (no previous VERIFICATION.md existed)
 
-All checks below were run by the verifier itself in this session against HEAD 4e2f435 (branch gsd/phase-08-portfolio-readme). The SUMMARY.md claims were not relied on. Per operator instruction there are no human verification items; the single check that cannot run offline (Mermaid visual rendering) is recorded under Limitations and is not a gate.
+All checks below were run by the verifier itself in this session against HEAD cda1e19 (branch gsd/phase-08-portfolio-readme). The SUMMARY.md claims were not relied on. Per operator instruction there are no human verification items; the single check that cannot run offline (Mermaid visual rendering) is recorded under Limitations and is not a gate.
 
 ## Goal Achievement
 

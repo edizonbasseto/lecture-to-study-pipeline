@@ -18,8 +18,8 @@ actuals:
   tokens: 8879
   tasks: 2
   commits: 2
-plan_head_before: 1ac6ae1551223422cb8f10cb4ec58b4c6c3f1a7d
-plan_head_after: 2d8aa7f1b9eebc945dc3018a928eda3d72c04dc2
+plan_head_before: 95670aacc58d019964f64a76a7d9843f0986b5f6
+plan_head_after: 03ab5311f3a6dab550404798c957521013fa0e58
 
 tech-stack:
   added: []
@@ -102,8 +102,8 @@ status: complete
 
 ## Task Commits
 
-1. **Task 1 (tracer): configuration resolution end to end** - `f744e69` (feat)
-2. **Task 2: metadata-only atomic run record** - `2d8aa7f` (feat)
+1. **Task 1 (tracer): configuration resolution end to end** - `7d335ac` (feat)
+2. **Task 2: metadata-only atomic run record** - `03ab531` (feat)
 
 Tracer gate: `<verify>` re-run end to end after the Task 1 commit (26 passed, local copy ignored) before expanding.
 
@@ -151,4 +151,4 @@ None. Mitigations T-06-12 to T-06-16 are covered by tests: `safe_load` with stri
 
 ## Self-Check: PASSED
 
-All five key files exist on disk; commits `f744e69` and `2d8aa7f` are ancestors of HEAD; `commits: 2` measured from the persisted ledger.
+All five key files exist on disk; commits `7d335ac` and `03ab531` are ancestors of HEAD; `commits: 2` measured from the persisted ledger.

@@ -17,8 +17,8 @@ actuals:
   tokens: 9000
   tasks: 2
   commits: 2
-plan_head_before: ac0598e3bb317c465b37ac4a29da7f76fb660301
-plan_head_after: c37e3c0a87af562994e5bf0eaf53a6ab53cb7cd9
+plan_head_before: 99e933db9a570e540eb0aedf84c610d378803b8a
+plan_head_after: 6af56cca57f1a0c7cccc1f73452928c2f4e5a193
 
 tech-stack:
   added: []
@@ -101,8 +101,8 @@ status: complete
 
 ## Task Commits
 
-1. **Task 1 (tracer): stage 14 end to end through the gateway** - `84e2453` (feat)
-2. **Task 2: typed call errors without retry, oversized prompt refusal, timeout override** - `c37e3c0` (test)
+1. **Task 1 (tracer): stage 14 end to end through the gateway** - `c8ca799` (feat)
+2. **Task 2: typed call errors without retry, oversized prompt refusal, timeout override** - `6af56cc` (test)
 
 Tracer gate: `uv run pytest tests/test_generate_codex_podcast.py -q` passed (23 tests at the Task 1 commit) before the Task 2 tests landed; the same tests were re-run end to end through `main()` with the scripted gateway.
 
@@ -115,7 +115,7 @@ Tracer gate: `uv run pytest tests/test_generate_codex_podcast.py -q` passed (23 
 - **Issue:** `LlmRequest` raises `ValueError` for a non-positive or non-finite timeout; with a plain `type=float` a value such as `0` or `nan` would surface as a traceback instead of `error:` exit 1.
 - **Fix:** `_positive_seconds` argparse type rejects them with a usage error (exit 2); parametrized test covers `0`, `-5`, `nan`, `inf`, `abc`.
 - **Files modified:** `scripts/generate_codex_podcast.py`, `tests/test_generate_codex_podcast.py`
-- **Commit:** `84e2453`, `c37e3c0`
+- **Commit:** `c8ca799`, `6af56cc`
 
 Otherwise the plan executed as written. The module docstring was updated beyond the process-failure mention to also reflect that the adapters now refuse an oversized prompt.
 
@@ -148,4 +148,4 @@ All six LLM-backed scripts (stages 5, 6, 7, 13, 14, 18) are on the gateway. ADR 
 
 ## Self-Check: PASSED
 
-Both key files exist on disk; commits `84e2453` and `c37e3c0` are ancestors of HEAD; `commits: 2` measured from the persisted ledger.
+Both key files exist on disk; commits `c8ca799` and `6af56cc` are ancestors of HEAD; `commits: 2` measured from the persisted ledger.

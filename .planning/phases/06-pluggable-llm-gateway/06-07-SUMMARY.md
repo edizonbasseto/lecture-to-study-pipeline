@@ -17,8 +17,8 @@ actuals:
   tokens: 15450
   tasks: 2
   commits: 2
-plan_head_before: ddc9f41159d764831049f69f6b75b65c5cc17252
-plan_head_after: 2a6e9ba6ff92115be1e25c1f5d93b5ec86388e7c
+plan_head_before: 7a6e32353ee0c7e5d2e49884a5b416b68e6e2568
+plan_head_after: a7df02844cd2cd01ed0a497964c2300913bd1dc0
 
 tech-stack:
   added: []
@@ -123,8 +123,8 @@ status: complete
 
 ## Task Commits
 
-1. **Task 1 (tracer): stage 13 mock exam on the gateway behind the critic gate** - `89e2240` (feat)
-2. **Task 2: stage 18 personal-study flashcards on the gateway, standalone validation included** - `2a6e9ba` (feat)
+1. **Task 1 (tracer): stage 13 mock exam on the gateway behind the critic gate** - `3f8d7c9` (feat)
+2. **Task 2: stage 18 personal-study flashcards on the gateway, standalone validation included** - `a7df028` (feat)
 
 Tracer gate: Task 1 `<verify>` plus `tests/test_cli.py` and `tests/test_llm_layering.py` passed (92 passed) before expanding to Task 2.
 
@@ -160,4 +160,4 @@ Student-facing generators except the podcast are on the gateway. Stage 18 has no
 
 ## Self-Check: PASSED
 
-All four modified files exist on disk; commits `89e2240` and `2a6e9ba` are ancestors of HEAD; `commits: 2` measured from the persisted ledger.
+All four modified files exist on disk; commits `3f8d7c9` and `a7df028` are ancestors of HEAD; `commits: 2` measured from the persisted ledger.

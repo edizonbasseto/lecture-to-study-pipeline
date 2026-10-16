@@ -19,8 +19,8 @@ actuals:
   tokens: 9063
   tasks: 3
   commits: 3
-plan_head_before: 4cc2324526bbe898ec6de544284539fdefc9cdd4
-plan_head_after: 163a00d35e467ecf393b78c18fbd04eaed98aa41
+plan_head_before: 9466ceb0ce42c45e1e4a64ddc4aada22a0cc3a0d
+plan_head_after: abb5070fe4e26b99225e0878305e0738a5ea4cc6
 
 tech-stack:
   added: []
@@ -120,9 +120,9 @@ status: complete
 
 ## Task Commits
 
-1. **Task 1 (tracer): tokenize preflight, llama-completion spawn, shared bounded call** - `5d53e2d` (feat)
-2. **Task 2: no-egress guards, model-path validation, retry-only repeat penalty, size refusal tests** - `1f30046` (test)
-3. **Task 3: shared contract suite over both adapters** - `163a00d` (test)
+1. **Task 1 (tracer): tokenize preflight, llama-completion spawn, shared bounded call** - `6f1d22d` (feat)
+2. **Task 2: no-egress guards, model-path validation, retry-only repeat penalty, size refusal tests** - `1c801e5` (test)
+3. **Task 3: shared contract suite over both adapters** - `abb5070` (test)
 
 The tracer gate was satisfied by re-running Task 1's `<verify>` plus mypy, ruff and the layering test end to end before expansion.
 
@@ -183,4 +183,4 @@ None. The surface introduced is the local process boundary already covered by T-
 ## Self-Check: PASSED
 
 - `src/lecture_study/llm/bounded_call.py`, `src/lecture_study/llm/llama_cpp_adapter.py` and `tests/llm_gateway/test_llama_cpp_adapter.py` exist.
-- Commits `5d53e2d`, `1f30046` and `163a00d` are ancestors of HEAD; measured commit count 3.
+- Commits `6f1d22d`, `1c801e5` and `abb5070` are ancestors of HEAD; measured commit count 3.

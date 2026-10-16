@@ -17,8 +17,8 @@ actuals:
   tokens: 9500
   tasks: 2
   commits: 2
-plan_head_before: 1acfc39efc703ebc9c8f58b4a32c70367d564f59
-plan_head_after: 795898441c4ab4cc08ac205489f8e41dd6c22273
+plan_head_before: 027c15d69f1c3636d5a97ffa91c22b17af7332ed
+plan_head_after: e69021738da2160457074a9c52fd70fd338ba145
 
 tech-stack:
   added: []
@@ -94,8 +94,8 @@ status: complete
 
 ## Task Commits
 
-1. **Task 1: Tracer, fenced make command to exit code** - `2d07ee3` (feat)
-2. **Task 2: Script, module, path, link, ADR, quote and hygiene rules, docs-check, real-repository test** - `7958984` (feat)
+1. **Task 1: Tracer, fenced make command to exit code** - `0d97f28` (feat)
+2. **Task 2: Script, module, path, link, ADR, quote and hygiene rules, docs-check, real-repository test** - `e690217` (feat)
 
 **Plan metadata:** recorded in the final docs commit (docs: complete plan)
 
@@ -122,7 +122,7 @@ status: complete
 - **Issue:** argparse provides `--help` without it occurring in the source; the textual flag rule would raise false `flag-missing` findings for documented `--help` usage.
 - **Fix:** `IMPLICIT_FLAGS` constant exempting `--help`; covered by `test_the_implicit_help_flag_passes`.
 - **Files modified:** scripts/check_documentation.py, tests/test_check_documentation.py
-- **Committed in:** 7958984
+- **Committed in:** e690217
 
 ### Other notes
 
@@ -169,4 +169,4 @@ Plans 08-02 and 08-03 can run `make docs-check` to gate the README and `docs/ope
 ## Self-Check: PASSED
 
 - FOUND: scripts/check_documentation.py, tests/test_check_documentation.py
-- FOUND commits: 2d07ee3, 7958984
+- FOUND commits: 0d97f28, e690217

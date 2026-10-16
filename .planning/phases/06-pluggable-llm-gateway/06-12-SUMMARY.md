@@ -17,8 +17,8 @@ actuals:
   tokens: 1800
   tasks: 2
   commits: 2
-plan_head_before: cc59c2867f92bcde8051a2d7652123b37b2c50f4
-plan_head_after: 38d3801012e211985c1c7337c5d0be12068ba2a7
+plan_head_before: 4270584873b3de98097f0518756a3940fcbcbb8f
+plan_head_after: 973abe0e8e3b2d993de1df8c1c2381a7487f4eef
 
 tech-stack:
   added: []
@@ -80,8 +80,8 @@ status: complete
 
 ## Task Commits
 
-1. **Task 1 (tracer): forward notes on ADRs 0020, 0022, 0034** - `130303b` (docs)
-2. **Task 2: forward notes on ADRs 0035, 0036, 0037 and PROJECT.md revision notes** - `38d3801` (docs)
+1. **Task 1 (tracer): forward notes on ADRs 0020, 0022, 0034** - `ab2a766` (docs)
+2. **Task 2: forward notes on ADRs 0035, 0036, 0037 and PROJECT.md revision notes** - `973abe0` (docs)
 
 Tracer gate: the automated verify (`rg -l "ADR 0046"` on the three files, three paths printed) and the numstat check (6/0, 6/0, 4/0) passed before Task 2.
 
@@ -118,4 +118,4 @@ All plans of Phase 6 now have a SUMMARY. The phase-level Code Review and Code Se
 
 ## Self-Check: PASSED
 
-All seven modified files exist; commits `130303b` and `38d3801` are ancestors of HEAD; `commits: 2` measured from the persisted ledger.
+All seven modified files exist; commits `ab2a766` and `973abe0` are ancestors of HEAD; `commits: 2` measured from the persisted ledger.

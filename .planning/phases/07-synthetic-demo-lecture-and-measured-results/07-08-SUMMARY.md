@@ -40,8 +40,8 @@ duration: 150 min
 completed: 2026-10-15
 status: complete
 commits: 5
-plan_head_before: 8ad7658a0b1c7d2f5b72e70a703880b58fd67e2d
-plan_head_after: f87bf5c2e5c1e3d0332f5a5a3e6ffc062e5cf769
+plan_head_before: 0b3bd9c96705ba2668789874491f27e06b3917a9
+plan_head_after: 8aaf3e530e8f6289daebb7b32361f1d36f69929c
 actuals:
   tokens: 24700
   tasks: 3
@@ -56,9 +56,9 @@ The ADR 0045 recovery was run five times on the local-adapter lecture 925100 and
 
 | Task | Name | Commits |
 | ---- | ---- | ------- |
-| 1 | Live blocked-then-recovered demonstration on 925100 | 29724a4 (Makefile targets), 0dea4f9 (driver deck floor); evidence stays in gitignored `workspace/demo/recovery/` |
-| 2 | Render and commit the results report | 8437e4b (recovery section, `report` subcommand), 662bc5a (attempts list), f87bf5c (report files) |
-| 3 | ADR 0047 | f87bf5c |
+| 1 | Live blocked-then-recovered demonstration on 925100 | 99804af (Makefile targets), 151c103 (driver deck floor); evidence stays in gitignored `workspace/demo/recovery/` |
+| 2 | Render and commit the results report | 575d461 (recovery section, `report` subcommand), b13c641 (attempts list), 8aaf3e5 (report files) |
+| 3 | ADR 0047 | 8aaf3e5 |
 
 ## DEMO-04 evidence (lecture 925100, local adapter, `workspace/demo/recovery/attempt-N/`)
 
@@ -76,11 +76,11 @@ Exam recovered in 1 of 10 scenario runs; flashcards in 0 of 4 at floor 12 and 6 
 
 ## Deviations from Plan
 
-**1. [Operator decision] Recovery driver deck floor.** Added `--flashcards-minimum-total-cards` to `scripts/demo_blocked_recovery.py` and forwarded `FLASHCARDS_MINIMUM_TOTAL_CARDS` in `make demo-recovery`, with two tests (`script_command` extracted as a pure function). Outside the plan's `files_modified`. Commit 0dea4f9.
+**1. [Operator decision] Recovery driver deck floor.** Added `--flashcards-minimum-total-cards` to `scripts/demo_blocked_recovery.py` and forwarded `FLASHCARDS_MINIMUM_TOTAL_CARDS` in `make demo-recovery`, with two tests (`script_command` extracted as a pure function). Outside the plan's `files_modified`. Commit 151c103.
 
-**2. [Rule 2 - Honesty of evidence] `DemoResults.recovery_notes` and the Attempts list.** The plan's report had no place for the attempts, and the operator required their disclosure. Notes come from the gitignored `workspace/demo/recovery/notes.txt`, mirroring the harvest operator notes. Commit 662bc5a.
+**2. [Rule 2 - Honesty of evidence] `DemoResults.recovery_notes` and the Attempts list.** The plan's report had no place for the attempts, and the operator required their disclosure. Notes come from the gitignored `workspace/demo/recovery/notes.txt`, mirroring the harvest operator notes. Commit b13c641.
 
-**3. [Rule 1 - Wording] Stage 10 explanation** added under the wall-time tables, taken from the run log ("publication certification remains fail-closed") and ADR 0024. Commit 8437e4b.
+**3. [Rule 1 - Wording] Stage 10 explanation** added under the wall-time tables, taken from the run log ("publication certification remains fail-closed") and ADR 0024. Commit 575d461.
 
 **4. Second recovery run before the decision.** After the first failure (non-critic cause) a second identical run was made; the plan said to stop. Disclosed in the checkpoint and in the report.
 
@@ -102,4 +102,4 @@ None. The report and ADR contain counters, identifiers and exit codes only; the 
 
 ## Self-Check: PASSED
 
-Commits 29724a4, 8437e4b, 0dea4f9, 662bc5a, f87bf5c are ancestors of HEAD; `docs/results/demo-results.md`, `docs/results/demo-results.json` and `docs/decisions/0047-demo-lecture-measurement-method.md` exist.
+Commits 99804af, 575d461, 151c103, b13c641, 8aaf3e5 are ancestors of HEAD; `docs/results/demo-results.md`, `docs/results/demo-results.json` and `docs/decisions/0047-demo-lecture-measurement-method.md` exist.

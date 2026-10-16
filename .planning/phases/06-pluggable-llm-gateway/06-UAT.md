@@ -271,14 +271,14 @@ result: pass
 evidence: PROJECT.md GW-05 line, Egress constraint and D-READ-01 carry ADR 0046 revision notes
 
 ### 45. R0.4 review/secure coverage of the Round 3 delta
-expected: Reviews re-run on c1196dc..HEAD with no new blocking finding, or operator acceptance explicitly recorded (AR-06-01, AR-06-02 in b2e5f06).
+expected: Reviews re-run on ea7e4f1..HEAD with no new blocking finding, or operator acceptance explicitly recorded (AR-06-01, AR-06-02 in 040c532).
 result: pass
-evidence: AR-06-01 and AR-06-02 accepted by operator in 06-SECURITY.md (b2e5f06); a review re-run on c1196dc..HEAD was not independently evidenced, acceptance path used
+evidence: AR-06-01 and AR-06-02 accepted by operator in 06-SECURITY.md (040c532); a review re-run on ea7e4f1..HEAD was not independently evidenced, acceptance path used
 
 ### 46. CI green on the pushed phase-final commit
 expected: After push to origin, CI test job (macos-15: pytest, ruff check, ruff format --check, mypy src) is green, tests/llm_gateway and tests/test_llm_layering.py included.
 result: pass
-evidence: CI run 38789108169 (ci, push, main) succeeded on HEAD b2e5f06 = origin/main; per-test job contents not inspected
+evidence: CI run 38789108169 (ci, push, main) succeeded on HEAD 040c532 = origin/main; per-test job contents not inspected
 
 ## Summary
 

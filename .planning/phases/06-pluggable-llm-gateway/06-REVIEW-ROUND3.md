@@ -23,7 +23,7 @@ status: issues_found
 # Phase 6: Round 3 Delta Code Review Report
 
 **Reviewed:** 2026-10-14
-**Depth:** deep (scoped to `git diff c1196dc..HEAD` over the listed files)
+**Depth:** deep (scoped to `git diff ea7e4f1..HEAD` over the listed files)
 **Files Reviewed:** 8
 **Status:** issues_found
 

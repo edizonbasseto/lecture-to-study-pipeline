@@ -8,7 +8,7 @@ threats_closed: 16
 threats_open: 0
 asvs_level: 1
 block_on: high
-audited_head: 8456753
+audited_head: b4dea35
 audited_diff: "main..HEAD"
 created: "2026-10-16"
 ---
@@ -21,7 +21,7 @@ Verdict: **SECURED**. All 16 register entries are closed (14 mitigations verifie
 
 Configuration: no `.planning/config.json` exists, so the GSD defaults apply (`asvs_level: 1`, `block_on: high`). The four threats named for re-verification (T-08-01, T-08-03, T-08-05, T-08-07) were verified at L3 depth (data-flow trace, adversarial probes, edge cases); the remaining threats at L1/L2 depth.
 
-Audited object: `git diff main..HEAD` at HEAD 8456753 (12 commits, 11 files) plus the untracked `08-REVIEW.md`. Implementation files were not modified by the audit.
+Audited object: `git diff main..HEAD` at HEAD b4dea35 (12 commits, 11 files) plus the untracked `08-REVIEW.md`. Implementation files were not modified by the audit.
 
 ---
 
@@ -108,7 +108,7 @@ Status vocabulary: closed (mitigation verified, or acceptance logged) / open. Li
 | Audit Date | Threats Total | Closed | Open | Run By |
 |------------|---------------|--------|------|--------|
 | 2026-10-16 (earlier run; verdict OPEN_THREATS as reported by the requester, counts not recorded in this file; T-08-07 named, including the `README.md` line 25 overclaim and the ADR 0039 quotation) | 16 | not recorded | not recorded | gsd-security-auditor |
-| 2026-10-16 (re-run on the corrected phase-final diff, HEAD 8456753) | 16 | 16 | 0 | gsd-security-auditor |
+| 2026-10-16 (re-run on the corrected phase-final diff, HEAD b4dea35) | 16 | 16 | 0 | gsd-security-auditor |
 
 ---
 

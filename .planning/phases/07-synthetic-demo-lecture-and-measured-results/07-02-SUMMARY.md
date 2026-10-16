@@ -31,8 +31,8 @@ metrics:
   completed: 2026-10-15
 status: complete
 commits: 3
-plan_head_before: 999703b18b3fc2302de45bd8754843b2ca044d35
-plan_head_after: d45c34353383ec445dde1db83ee5c2ac6698da2e
+plan_head_before: dbaec70f1067f25841c09e1a09cbb35175b5a0ca
+plan_head_after: 4635bbd7e8cb9f7d0fe5023bbab6879f424e7342
 actuals:
   tokens: 9000
   tasks: 2
@@ -48,8 +48,8 @@ requirements: [DEMO-01]
 
 | Task | Name | Commits |
 | ---- | ---- | ------- |
-| 1 | Tracer: `make demo-video` composes the video | ec0162a |
-| 2 | Accept the build through extraction and OCR (TDD) | edcd5c5 (RED), d45c343 (GREEN) |
+| 1 | Tracer: `make demo-video` composes the video | 93086cc |
+| 2 | Accept the build through extraction and OCR (TDD) | 75fb64b (RED), 4635bbd (GREEN) |
 
 ## What was built
 
@@ -64,8 +64,8 @@ requirements: [DEMO-01]
 
 ## TDD Gate Compliance (Task 2)
 
-- RED (edcd5c5): tests plus neutral stubs; six target tests failed on assertions for the planned behavior (`missing_headings`, `require_duration_in_band`, `midpoint_slide_number`), 21 others passed. An earlier collection-time import error was discarded as INVALID_RED before stubs were added. Semantic assessment: failures were assertion mismatches on the intended behavior, not import, fixture or syntax faults. The machine classifier `check tdd-red-evidence` was not run (pytest output is not one of its supported report formats), so the assessment is manual.
-- GREEN (d45c343): implementation of the three helpers plus the driver acceptance step; 27 tests pass. One test input was corrected at GREEN (the half-way point of the first midpoint case sat exactly on a slide boundary); the expected slide for the corrected input is unambiguous.
+- RED (75fb64b): tests plus neutral stubs; six target tests failed on assertions for the planned behavior (`missing_headings`, `require_duration_in_band`, `midpoint_slide_number`), 21 others passed. An earlier collection-time import error was discarded as INVALID_RED before stubs were added. Semantic assessment: failures were assertion mismatches on the intended behavior, not import, fixture or syntax faults. The machine classifier `check tdd-red-evidence` was not run (pytest output is not one of its supported report formats), so the assessment is manual.
+- GREEN (4635bbd): implementation of the three helpers plus the driver acceptance step; 27 tests pass. One test input was corrected at GREEN (the half-way point of the first midpoint case sat exactly on a slide boundary); the expected slide for the corrected input is unambiguous.
 - REFACTOR: none needed.
 
 ## Verification
@@ -96,4 +96,4 @@ None. T-07-04 (argument-list builders, trusted executables, bounded runs, grep-c
 
 ## Self-Check: PASSED
 
-Files found: `demo/lecture/slides.typ`, `src/lecture_study/demo/media_build.py`, `scripts/build_demo_lecture.py`, `tests/demo/test_demo_build.py`, `Makefile` target. Commits ec0162a, edcd5c5, d45c343 are ancestors of HEAD.
+Files found: `demo/lecture/slides.typ`, `src/lecture_study/demo/media_build.py`, `scripts/build_demo_lecture.py`, `tests/demo/test_demo_build.py`, `Makefile` target. Commits 93086cc, 75fb64b, 4635bbd are ancestors of HEAD.

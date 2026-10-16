@@ -19,8 +19,8 @@ actuals:
   tokens: 9100
   tasks: 2
   commits: 2
-plan_head_before: 68167005fc5c53da26337e8e4849d21548b1fdfc
-plan_head_after: 3439dda9686c27a8a88588b7ea9fdb9f0df0efc1
+plan_head_before: 85ddc35ea23729395b3ba00f3d4482d2252d7878
+plan_head_after: f096167b284859d685e611af8b07a1a4378e2d24
 
 tech-stack:
   added: []
@@ -125,8 +125,8 @@ status: complete
 
 ## Task Commits
 
-1. **Task 1 (tracer): orchestrator preflight, env forwarding and stages 5-7 without codex** - `387b4ea` (feat)
-2. **Task 2: criterion 2 through cli main and the six-script boundary** - `3439dda` (test)
+1. **Task 1 (tracer): orchestrator preflight, env forwarding and stages 5-7 without codex** - `dfc3687` (feat)
+2. **Task 2: criterion 2 through cli main and the six-script boundary** - `f096167` (test)
 
 Tracer gate: the Task 1 `<verify>` and the acceptance suites (`tests/test_personal_study_mode.py`, `tests/test_cli.py`, `tests/llm_gateway`, `tests/test_llm_layering.py`) passed (268 tests) before Task 2. Two mutation checks confirmed the tests are not vacuous: removing the two names from the allowlist failed both integration tests, and removing the `run_all` preflight call failed four of the criterion 2 tests.
 
@@ -163,4 +163,4 @@ None. T-06-34 (explicit two-name allowlist plus negative forwarding test), T-06-
 
 ## Self-Check: PASSED
 
-All six key files exist on disk; commits `387b4ea` and `3439dda` are ancestors of HEAD; `commits: 2` measured from the persisted ledger.
+All six key files exist on disk; commits `dfc3687` and `f096167` are ancestors of HEAD; `commits: 2` measured from the persisted ledger.

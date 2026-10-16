@@ -247,7 +247,7 @@ The first successful run leaves exam/podcast/flashcards/guide outputs on disk. A
 | Slide images | Raster drawing code, ffmpeg `drawtext` chains | Typst `compile ... 'slide-{p}.png' --ppi 72` | Layout engine, diacritics, repository-provisioned; OCR on its PNGs verified |
 | Speech synthesis | `say`, a new TTS subprocess wrapper | Public helper extracted from `PodcastAudioGenerator._synthesize_chunks` (same argv, `run_bounded_process`, `AudioGenerationError`) | ADR 0032/0015 discipline; avoids a duplicate subprocess implementation (R0.2) |
 | Subprocess control | `subprocess.run(..., shell=True)` | `run_bounded_process(args, env=..., timeout_seconds=..., maximum_stdout_bytes=..., maximum_stderr_bytes=..., check=True)` | SPINE-03 |
-| Config parsing | `yaml.safe_load` in new code | `load_strict_yaml` | Phase 6 refuses aliases and explicit tags (commit `3eb1d60`) |
+| Config parsing | `yaml.safe_load` in new code | `load_strict_yaml` | Phase 6 refuses aliases and explicit tags (commit `b908cb3`) |
 | Run-record parsing | Ad hoc `json.load` | `LlmRunRecord.model_validate_json(text, strict=False)` | Extra-forbid strict model; identical to `_read_record` |
 | Password hashes for the demo allowlist | Custom hashing | `hash_password` from `site/access.py` | PBKDF2-SHA256, 240000 iterations, existing format `email:hash` |
 | Sign-in for the check | Basic Auth shortcut or a forged cookie | Real `GET /entrar` then `POST /entrar` with the CSRF field | The requirement says "signed-in session"; proves the cookie path |

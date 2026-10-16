@@ -18,8 +18,8 @@ actuals:
   tokens: 14000
   tasks: 3
   commits: 3
-plan_head_before: ffad9eabb616f09105e179bdb5d554defa9b6168
-plan_head_after: 87b98bc327165dd083f7e57445b37a41e0005145
+plan_head_before: 080efaed5e4357fab9899be8f457ba908b707abb
+plan_head_after: 43cc850bd1a0ae771b1d12e9659a6fbba2e35705
 
 tech-stack:
   added: []
@@ -111,9 +111,9 @@ status: complete
 
 ## Task Commits
 
-1. **Task 1 (tracer): end-to-end stage 5 through factory, wiring, complete_json and run record** - `c6a04e7` (feat)
-2. **Task 2: fail-closed factory paths, preflight and script re-validation** - `cb50ad9` (test)
-3. **Task 3: ScriptedGateway double and semantic unit tests on the gateway shape** - `87b98bc` (test)
+1. **Task 1 (tracer): end-to-end stage 5 through factory, wiring, complete_json and run record** - `dd32bc9` (feat)
+2. **Task 2: fail-closed factory paths, preflight and script re-validation** - `e4dbf67` (test)
+3. **Task 3: ScriptedGateway double and semantic unit tests on the gateway shape** - `43cc850` (test)
 
 Tracer gate: `<verify>` plus the acceptance suites (`tests/test_cli.py`, `tests/test_llm_layering.py`) passed after Task 1 (94 passed) before expanding. Between Task 1 and Task 3 the legacy `tests/test_generate_codex_semantic_ledgers.py` still referenced the removed helper; it is rewritten in Task 3 as the plan sequences, and the full suite is green at the plan head.
 
@@ -126,7 +126,7 @@ Tracer gate: `<verify>` plus the acceptance suites (`tests/test_cli.py`, `tests/
 - **Issue:** wrapping `settings.model_path` in `Path(...)` collapses `://` and would defeat the adapter's URL rejection (D-09).
 - **Fix:** pass the configured string through unchanged; covered by the `model-url` factory test.
 - **Files modified:** `src/lecture_study/llm/factory.py`
-- **Commit:** `c6a04e7`
+- **Commit:** `dd32bc9`
 
 Additions inside plan scope: `require_consistent_sources()` is invoked by the composition helper for codex stages (06-04 hand-off); the script creates its output directory only after the gateway opens.
 
@@ -158,4 +158,4 @@ None. T-06-21 (egress before resolution, resolver spy), T-06-22 (script exit 1 w
 
 ## Self-Check: PASSED
 
-All seven key files exist on disk; commits `c6a04e7`, `cb50ad9` and `87b98bc` are ancestors of HEAD; `commits: 3` measured from the persisted ledger.
+All seven key files exist on disk; commits `dd32bc9`, `e4dbf67` and `43cc850` are ancestors of HEAD; `commits: 3` measured from the persisted ledger.

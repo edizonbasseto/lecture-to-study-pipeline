@@ -19,8 +19,8 @@ actuals:
   tokens: 9916
   tasks: 3
   commits: 3
-plan_head_before: 861094659443363e79a8783e0f9f7c9884344a5c
-plan_head_after: 8e8283c7bb15a3ee48ed336c23127cd7463e1e33
+plan_head_before: cc586fa8c1f826840b02c70596d84597d1df65db
+plan_head_after: 31455c46a01cd3ba0221a2c986f27a8b02983d9c
 
 tech-stack:
   added: []
@@ -116,9 +116,9 @@ status: complete
 
 ## Task Commits
 
-1. **Task 1 (tracer): port and Codex adapter end to end** - `c02383b` (feat)
-2. **Task 2: failure modes and argv budget guard tests** - `c57c477` (test)
-3. **Task 3: complete_json, contract suite, layering guard** - `8e8283c` (feat)
+1. **Task 1 (tracer): port and Codex adapter end to end** - `d4f3eba` (feat)
+2. **Task 2: failure modes and argv budget guard tests** - `d5db945` (test)
+3. **Task 3: complete_json, contract suite, layering guard** - `31455c4` (feat)
 
 ## Verification
 
@@ -135,7 +135,7 @@ None.
 
 ### Scope notes
 
-- **Task 1/2 split.** The complete adapter (all failure mappings and the argv budget guard) was written during Task 1, so commit `c02383b` contains the production code described by Task 2 and `c57c477` contains only Task 2's tests. The coordinator approved this split. The 7 Task 2 behaviours are all asserted (10 adapter tests in total, Task 1 contributed 3).
+- **Task 1/2 split.** The complete adapter (all failure mappings and the argv budget guard) was written during Task 1, so commit `d4f3eba` contains the production code described by Task 2 and `d5db945` contains only Task 2's tests. The coordinator approved this split. The 7 Task 2 behaviours are all asserted (10 adapter tests in total, Task 1 contributed 3).
 - **Extra stub log key.** The stub call log also records `cwd_entries` (directory listing at start) so the contract suite can prove the child starts in an empty directory; the plan listed four keys.
 - **Extra tests.** A missing-executable case (`OSError` start failure) and a zero-exit-without-response-file case were added to cover two reason strings the plan specifies but did not enumerate as tests; scanner self-tests were added to the layering file so the guard cannot pass vacuously.
 
@@ -161,4 +161,4 @@ Plan 06-02 can register a `llama_cpp` param in `gateway_harness` and reuse `Stub
 
 ## Self-Check: PASSED
 
-All nine key files exist on disk; commits `c02383b`, `c57c477` and `8e8283c` are ancestors of HEAD; `commits: 3` measured from the persisted ledger.
+All nine key files exist on disk; commits `d4f3eba`, `d5db945` and `31455c4` are ancestors of HEAD; `commits: 3` measured from the persisted ledger.

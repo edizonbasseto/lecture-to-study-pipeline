@@ -8,15 +8,15 @@ threats_closed: 41
 threats_open: 0
 asvs_level: 2
 block_on: high
-diff_base: b8cf64c
-audited_head: 55f8665
+diff_base: f7b9d51
+audited_head: 00db9ee
 audited_on: 2026-10-15
 ---
 
 # Phase 07 - Security Verification
 
 Verification of the `<threat_model>` registers of plans 07-01 to 07-08 against the
-implemented code on branch `gsd/phase-07-synthetic-demo` (diff `b8cf64c..HEAD`, 29 commits).
+implemented code on branch `gsd/phase-07-synthetic-demo` (diff `f7b9d51..HEAD`, 29 commits).
 
 - `threats_open` counts OPEN threats at or above `block_on: high`. No threat is open.
 - No `.planning/config.json` exists; `block_on: high` is taken from the audit request and
@@ -34,14 +34,14 @@ implemented code on branch `gsd/phase-07-synthetic-demo` (diff `b8cf64c..HEAD`, 
 | `--adapter llama-cpp --lecture-id 925100 --preflight-only` | `preflight=ok`, exit 0 |
 | local registry (gitignored) | 925100 `remote_llm_allowed: false`; 925101 `remote_llm_allowed: true`; no other row |
 | `reset_build_dir()` with `BUILD_DIR` pointed outside `workspace/demo` (probe in scratchpad) | `DemoBuildError: build directory is outside workspace/demo`; sentinel file survived |
-| `gitleaks git --log-opts=b8cf64c..HEAD --redact` | 29 commits scanned, no leaks |
+| `gitleaks git --log-opts=f7b9d51..HEAD --redact` | 29 commits scanned, no leaks |
 | range diff scan for `/Users/`, `/home/`, private-key blocks, operator name or e-mail | no matches |
 | `docs/results/*` and ADR 0047: absolute paths, private keys, `DEMO_SITE_PASSWORD`, passwords, tokens | no matches |
 | every `%` line in `docs/results/demo-results.md` carries ` of N` | yes (awk check, no exceptions) |
 | generated site material (stat only, contents not read) | directory `drwx------`; `cert.pem`, `key.pem`, credentials, session key and the env file all `-rw-------` |
 | `git ls-files` for pem, key, env, credentials, session-key | only `.env.example` (template) tracked |
 | `git log --all` on `config/site-credentials.txt`, `*.pem`, `*.key`, `config/secrets`, `config/session-key` | no commit ever touched them |
-| `git diff b8cf64c..HEAD` on `pyproject.toml`, `uv.lock` | empty |
+| `git diff f7b9d51..HEAD` on `pyproject.toml`, `uv.lock` | empty |
 | `git diff` on `src/lecture_study/assembly`, `llm`, `study_materials` and the five `generate_*` scripts | empty (only `tts/generator.py` and the new `demo/` package changed under `src/`) |
 
 ## Threat verification
@@ -55,7 +55,7 @@ Severity is the register value. Status is CLOSED unless stated.
 | T-07-01 | Tampering (Kokoro argv) | medium | mitigate | `src/lecture_study/tts/generator.py:219-259` (`synthesize_kokoro_wav`), `:262-` `_kokoro_command` returns an argument list with narration as one `--text` element; `run_bounded_process` with `sanitized_child_process_environment()`, `_TTS_TIMEOUT_SECONDS`, output caps (`:237-244`); `tests/test_tts.py:195-225` asserts the exact argv shape (`--voice`, `--text`, `--join_audio`) and `TestSynthesizeKokoroWav` covers failure and non-wav paths. No shell construct anywhere in phase code (no `shell=True`, `os.system`, `subprocess.run/Popen`) | CLOSED |
 | T-07-02 | Information disclosure (script content) | high | mitigate | `demo/lecture/script.yaml:1-12` provenance header (synthetic, no patient/owner/case data); lint `src/lecture_study/demo/script.py:182-192` (digit, abbreviation, unit, dosage-word rules) enforced at `scripts/build_demo_lecture.py:117-118`; manual scan of the file finds no digit, e-mail or URL in content; hooks installed in `.git/hooks` run `.githooks/pre-commit` (denylist + gitleaks); gitleaks over the range clean | CLOSED |
 | T-07-03 | Tampering (YAML parse) | low | mitigate | `script.py:110` `load_strict_yaml`; `src/lecture_study/ops/strict_yaml.py:83-93` refuses aliases and tagged scalars; `script.py:59-60` strict, `extra="forbid"`, frozen; errors expose field locations only (`:116-122`) | CLOSED |
-| T-07-SC | Tampering (installs) | low | accept | Accepted; acceptance condition holds: `pyproject.toml` and `uv.lock` unchanged in `b8cf64c..HEAD` | CLOSED (accepted) |
+| T-07-SC | Tampering (installs) | low | accept | Accepted; acceptance condition holds: `pyproject.toml` and `uv.lock` unchanged in `f7b9d51..HEAD` | CLOSED (accepted) |
 
 ### 07-02
 
@@ -91,7 +91,7 @@ Severity is the register value. Status is CLOSED unless stated.
 
 | Threat | Category | Sev | Disp | Evidence | Status |
 |--------|----------|-----|------|----------|--------|
-| T-07-16 | Tampering (ADR 0045 gate) | high | mitigate | Empty `git diff b8cf64c..HEAD` for `src/lecture_study/assembly` (gate in `assembler.py`, `domain/errors.py`), `llm/`, `study_materials/` and the four derivative scripts plus the critic script; inductions only newer-draft (`src/lecture_study/demo/recovery.py:104-109`) and failed-review (`:112-118`); verdict `_follows_adr_0045` (`:253-262`) requires exit 1 on all four scripts and unchanged filesystem snapshot (`tree_snapshot.py`, symlinks not followed) | CLOSED |
+| T-07-16 | Tampering (ADR 0045 gate) | high | mitigate | Empty `git diff f7b9d51..HEAD` for `src/lecture_study/assembly` (gate in `assembler.py`, `domain/errors.py`), `llm/`, `study_materials/` and the four derivative scripts plus the critic script; inductions only newer-draft (`src/lecture_study/demo/recovery.py:104-109`) and failed-review (`:112-118`); verdict `_follows_adr_0045` (`:253-262`) requires exit 1 on all four scripts and unchanged filesystem snapshot (`tree_snapshot.py`, symlinks not followed) | CLOSED |
 | T-07-17 | Tampering (stale-check bypass) | medium | mitigate | `recovery.py:109` `os.utime(..., ns=...)`; `:141-144` temp file + `replace`; no plain copy in the module | CLOSED |
 | T-07-18 | Information disclosure (remote egress) | high | mitigate | `scripts/demo_run.py:176-179` `child_environment` forces `LECTURE_STUDY_LLM_ADAPTER`; `scripts/demo_blocked_recovery.py:45,93` forces `llama-cpp`; `llm/config.py:93-100,165-170` override replaces every stage; all stage scripts obtain gateways through `open_stage_gateway`, the only `CodexCliAdapter` construction is `llm/factory.py:55`; 925100 unflagged (registry stat above, `Makefile:37-46`). Live probe: codex on 925100 refused | CLOSED |
 | T-07-19 | Repudiation (critic record loss) | medium | mitigate | `demo_blocked_recovery.py:128-130` exits 2 unless the harvested critic record exists; `tests/demo/test_demo_recovery.py:293`; harvested record present | CLOSED |
@@ -133,7 +133,7 @@ Severity is the register value. Status is CLOSED unless stated.
 
 | Threat | Plans | Risk accepted | Acceptance condition | Verified |
 |--------|-------|---------------|----------------------|----------|
-| T-07-SC | 07-01 to 07-08 | No package is installed by the phase; supply-chain tampering through new dependencies is out of scope | `pyproject.toml` and `uv.lock` unchanged | yes, empty diff over `b8cf64c..HEAD` |
+| T-07-SC | 07-01 to 07-08 | No package is installed by the phase; supply-chain tampering through new dependencies is out of scope | `pyproject.toml` and `uv.lock` unchanged | yes, empty diff over `f7b9d51..HEAD` |
 
 ## Unregistered flags
 

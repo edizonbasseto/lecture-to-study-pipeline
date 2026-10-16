@@ -20,8 +20,8 @@ actuals:
   tokens: 6100
   tasks: 3
   commits: 3
-plan_head_before: 11bdb2a08655becca55a8183eaaca1eaa7358d58
-plan_head_after: b089de16327ebe2c7938b9c7d8f308d39aa8fdd7
+plan_head_before: 969ac8bc0878f797fdc0354340a8a904843c9803
+plan_head_after: bcbfcb64d4cd9ccfe7a6eca28ed491638024f6c5
 
 tech-stack:
   added: []
@@ -93,9 +93,9 @@ status: complete
 
 ## Task Commits
 
-1. **Task 1: README spine with quick start and end-to-end demo (tracer)** - `d1e10b5` (docs)
-2. **Task 2: Problem, architecture, stage map, decisions, results, boundaries, layout** - `6d8d51f` (docs)
-3. **Task 3: Walkthrough executed, verification status in README** - `b089de1` (docs)
+1. **Task 1: README spine with quick start and end-to-end demo (tracer)** - `f247202` (docs)
+2. **Task 2: Problem, architecture, stage map, decisions, results, boundaries, layout** - `249a59d` (docs)
+3. **Task 3: Walkthrough executed, verification status in README** - `bcbfcb6` (docs)
 
 **Plan metadata:** recorded in the final docs commit.
 
@@ -147,14 +147,14 @@ Date of execution: 2026-10-16. Outputs were kept outside the repository; only ex
 - **Issue:** "ADRs 0017 to 0019 are absent by design" made the checker report ADR 0017 as a missing record.
 - **Fix:** reworded to "the records numbered 17 to 19".
 - **Files modified:** README.md
-- **Committed in:** 6d8d51f
+- **Committed in:** 249a59d
 
 **2. [Rule 1 - Bug] Two statements stronger than their source**
 - **Found during:** Task 2 review against the ADR text
 - **Issue:** a causal claim for identical WER figures and a cost claim for resume that the sources do not make.
 - **Fix:** reworded to what the report and ADR 0016 state.
 - **Files modified:** README.md
-- **Committed in:** 6d8d51f
+- **Committed in:** 249a59d
 
 ### Other notes
 
@@ -190,4 +190,4 @@ None.
 
 ## Self-Check: PASSED
 
-- README.md exists; commits d1e10b5, 6d8d51f and b089de1 are ancestors of HEAD.
+- README.md exists; commits f247202, 249a59d and bcbfcb6 are ancestors of HEAD.

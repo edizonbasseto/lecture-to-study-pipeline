@@ -28,7 +28,7 @@ status: issues_found
 
 ## Summary
 
-Scope: `git diff main..HEAD -- scripts tests Makefile README.md docs .github` at HEAD 816db5d.
+Scope: `git diff main..HEAD -- scripts tests Makefile README.md docs .github` at HEAD c5d626a.
 
 Baseline at HEAD: `make docs-check` exits 0 (2 documents, 21 command lines, 0 findings), 72 checker tests pass (was 55), `ruff check` and `ruff format --check` are clean, and `mypy src scripts/check_documentation.py` reports no issues. The working tree has no source modifications (only the two untracked planning artifacts).
 
@@ -51,7 +51,7 @@ Every claimed fix of CR-01 and WR-01 to WR-04, WR-09 to WR-12 was verified as re
 | IN-01 mypy gap | Resolved | `Makefile:22` and `.github/workflows/ci.yml:76` run `mypy src scripts/check_documentation.py`; the command passes. |
 | IN-04 uncited inference | Resolved | `docs/operations.md:196` labels the multi-process statement "Inference of this document, not an ADR statement". |
 | IN-06 argument confinement | Resolved | `_read_document` applies `_inside_root`; probes with `/etc/hosts` and `../x.md` exit 2. |
-| Local adapter no-egress wording (new fix in 816db5d) | Verified | `README.md:46` and `docs/operations.md:61` now say the adapter "passes no network flags (by construction, no OS sandbox)" and "records no OS sandbox and a trusted pinned binary"; ADR 0046 (lines 232-241 and 536) states exactly that. |
+| Local adapter no-egress wording (new fix in c5d626a) | Verified | `README.md:46` and `docs/operations.md:61` now say the adapter "passes no network flags (by construction, no OS sandbox)" and "records no OS sandbox and a trusted pinned binary"; ADR 0046 (lines 232-241 and 536) states exactly that. |
 | Walkthrough verification wording | Verified | `README.md:258` now says `make -n` prints commands without running them, so the egress statement is accurate. |
 
 The new code paths introduced by the fixes were also checked for regressions: `_without_uv_options` handles `--` and value-taking options without an index overrun, `_is_descriptor_of_redirection` cannot index past the end (slice), the unterminated block is checked once per rule (no double reporting of commands), the `main` handler maps `OSError` and `ValueError` to exit 2, and the bounded link pattern (`TestLinkBound`) keeps ordinary links matching.

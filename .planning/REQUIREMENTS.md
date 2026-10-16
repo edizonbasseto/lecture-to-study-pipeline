@@ -7,7 +7,7 @@
 
 **Provenance.** No PRD or SPEC exists: `intel/requirements.md` holds 0 requirements. Every ID below was assigned by the roadmapper from ADR-stated behaviors and cites its source in parentheses (ADR number and section). Items that come from the repository README or the codebase map instead of an ADR say so. The Phase 6-9 requirements come from the operator-approved restructure of milestone v1.0 and cite "Operator decision 2026-10-14", plus any ADR they act on.
 
-**Status.** `[x]` means built: the ADR is Accepted, the implementing code is present, and the baseline checks were green at commit `4bfbe46` on 2026-10-14 (2262 tests passed; `ruff check` and `ruff format --check` clean; `mypy src` strict clean on 112 files). It does not claim per-requirement re-verification. `[ ]` means open work, planned in Phases 6-9.
+**Status.** `[x]` means built: the ADR is Accepted, the implementing code is present, and the baseline checks were green at commit `4a90b61` on 2026-10-14 (2262 tests passed; `ruff check` and `ruff format --check` clean; `mypy src` strict clean on 112 files). It does not claim per-requirement re-verification. `[ ]` means open work, planned in Phases 6-9.
 
 **Terminology.** "Stage N" is the pipeline stage numbered "Phase N" in ADRs and code. "Phase N" in this file means a roadmap phase. The prefix `WEB` is used for the site instead of `SITE` to avoid colliding with the external `SITE-0x` identifiers cited in ADR 0029 and in test docstrings.
 

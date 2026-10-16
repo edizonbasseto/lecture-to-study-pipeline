@@ -2,19 +2,22 @@
 phase: "09"
 slug: "pre-public-gate-and-release"
 scope: "PUBG-02 whole-repository security review before the repository is switched to public"
-status: open_threats
-verdict: OPEN_THREATS
+status: secured
+verdict: SECURED
 threats_total: 29
-threats_closed: 25
-threats_open: 1
+threats_closed: 26
+threats_open: 0
 threats_open_nonblocking: 3
 asvs_level: 2
 block_on: high
-audited_head: 0ba2051
+audited_head: 78e255e
 audited_refs: "all refs (main and three merged gsd/phase-* branches), reflog, 7 unreachable local commits"
-reaudited_head: cf9c8f2
-reaudited_range: "main..HEAD (0ba2051..cf9c8f2, 4 commits)"
+reaudited_head: df1f150
+reaudited_range: "main..HEAD (78e255e..df1f150, 4 commits)"
 reaudited: "2026-10-16"
+closure_head: c7b2e96
+closure_scope: "history rewrite of all 153 commits (T-09-05 remediation)"
+closure: "2026-10-16"
 created: "2026-10-16"
 ---
 
@@ -24,7 +27,9 @@ Verdict: **OPEN_THREATS**. 23 of 29 register entries are closed. One entry is op
 
 No secret, credential, key, private-denylist term, third-party personal datum, machine path or private hostname exists in the tracked tree, in any of the 148 commits on any ref, in the reflog, in the 7 unreachable local commits, or in the 9 GitHub Actions run logs and the one run artifact that become public with the repository. No live probe against the site access gate obtained content without valid credentials; two malformed-input probes provoked HTTP 500 responses (T-09-12). The open blocking entry is not a content leak of a secret; it is an irreversible-publication decision that the repository's own rule R0.1 lists explicitly ("commits") and that carries no recorded acceptance.
 
-> Re-audit note: the frontmatter counts, the status of T-09-12 and T-09-26, and the advisory list reflect the re-audit of the corrected diff in the final section of this file (HEAD cf9c8f2). The register table and the paragraphs above are the first audit at HEAD 0ba2051 and are kept as the record of that audit; where they differ, the final section prevails.
+> Re-audit note: the frontmatter counts, the status of T-09-12 and T-09-26, and the advisory list reflect the re-audit of the corrected diff in the final section of this file (HEAD df1f150). The register table and the paragraphs above are the first audit at HEAD 78e255e and are kept as the record of that audit; where they differ, the final section prevails.
+>
+> Closure note (2026-10-16): T-09-05 was remediated by the operator-approved history rewrite (decision recorded by AskUserQuestion in session acbb5e78: rewrite to the no-reply address, executed autonomously). The closure audit is the last section of this file; the verdict is **SECURED** with `threats_open: 0`.
 
 Configuration: no `.planning/config.json` exists; `asvs_level: 2` and `block_on: high` were taken from the audit request. Access control, egress and path handling were traced to L3 depth (data flow plus adversarial probes). Implementation files were not modified by the audit.
 
@@ -46,7 +51,7 @@ Configuration: no `.planning/config.json` exists; `asvs_level: 2` and `block_on:
 
 ## Threat Register
 
-Severity for threats found without a plan register was assigned retroactively (impact x likelihood). Status: closed (mitigation verified in code or configuration at the audited HEAD) / open. Line references are to HEAD 0ba2051.
+Severity for threats found without a plan register was assigned retroactively (impact x likelihood). Status: closed (mitigation verified in code or configuration at the audited HEAD) / open. Line references are to HEAD 78e255e.
 
 | Threat ID | Category | Component | Severity | Disposition | Evidence | Status |
 |-----------|----------|-----------|----------|-------------|----------|--------|
@@ -54,8 +59,8 @@ Severity for threats found without a plan register was assigned retroactively (i
 | T-09-02 | Information disclosure | Secrets anywhere in history | high | mitigate | `gitleaks git --log-opts=--all` (148 commits, 6.5 MB): no leaks. Repeated over the reflog plus the 7 unreachable commits (150 commits scanned): no leaks. History diff text (7.5 MB, all refs, merge diffs separated): no key block, token shape, credential assignment, `/Users/` or `/home/` path other than the placeholders `someone` and `page`, no CPF/CNPJ or phone shape. The set of file names ever present in history (470) equals the tracked set: no file was ever deleted, so no removed secret can hide in an earlier tree. No `.gitleaks.toml` or `.gitleaksignore` exists, so no finding is allowlisted. | closed |
 | T-09-03 | Information disclosure | Private denylist terms in history | high | mitigate | `scripts/denylist_scan.py` against the real private denylist (positions only, terms never read): exit 0 over the CI-equivalent stream (`git log -p --all --diff-merges=separate` with author, committer and message fields, plus all ref names), over every historic file name, over the reflog plus unreachable commits, and over the text of all 9 CI run logs. The scanner fails closed on a missing or empty list (`denylist_scan.py:46-58`). | closed |
 | T-09-04 | Information disclosure | Third-party personal data, patient data, real identifiers, machine paths, hostnames | high | mitigate | Hidden-directory-inclusive sweeps of the tree: e-mail addresses are all `example.com`, `example.org` or `example.invalid` (164 hits, 0 other); hosts are package indexes, `github.com`, `huggingface.co`, scientific publishers, `127.0.0.1` and `*.example.*`/`*.test`/`*.invalid` placeholders; no title-plus-name pattern, no professional-register or identity-document shape, no named owner or patient; IPv4 limited to loopback and `0.0.0.0`; the demo lecture script, schedule and slide source carry an explicit synthetic-provenance header. | closed |
-| T-09-05 | Information disclosure | Operator personal e-mail address in commit headers | high | mitigate (not yet decided) | All 148 commits carry one identity (name plus personal e-mail) as author and committer; the tree itself contains the name only, in `LICENSE:3` and in accepted-by lines of `06-SECURITY.md` and `07-VERIFICATION.md`. The leak gate does not flag it: the denylist scan exit 0 shows the address is not a denylisted term, and gitleaks does not detect addresses. No ADR, plan or security report records an acceptance. Rule R0.1 of the operator's instructions names "commits" among the artifacts that must not carry PII. Publication is irreversible. In addition, the untracked `09-REVIEW.md` of this phase quotes the address verbatim at line 75 and would copy it into the tracked tree when committed (not caught by the hooks, since the term is not denylisted). Required: an explicit operator decision recorded in the phase plan or this file as an accepted risk (identity published deliberately), or remediation (history rewrite to the no-reply address with a mailmap, followed by a full re-run of the gitleaks and denylist scans and by new object ids in every document that cites a hash). In either case the verbatim address must be removed from `09-REVIEW.md` before it is committed. Severity is set to `high` on policy grounds and irreversibility, not on exploitability; an explicit acceptance closes it. | **open (blocking)** |
-| T-09-06 | Information disclosure | GitHub-side content that becomes public with visibility | medium | mitigate | 9 workflow run logs downloaded and scanned (denylist exit 0, gitleaks no leaks, only the hosted-runner path `/Users/runner`); the single run artifact (`gitleaks-results.sarif`, 6.8 KB) holds a scan with zero results; no issues, pull requests, releases, environments, deploy keys, webhooks or repository variables exist; wiki enabled but empty; the push activity feed shows 8 fast-forward pushes and 1 branch creation, no force push, so no orphaned server-side object exists; remote carries only `main` (b2e5f06), no `refs/pull`. The repository secret list holds `DENYLIST` only. | closed |
+| T-09-05 | Information disclosure | Operator personal e-mail address in commit headers | high | mitigate | All 148 commits carry one identity (name plus personal e-mail) as author and committer; the tree itself contains the name only, in `LICENSE:3` and in accepted-by lines of `06-SECURITY.md` and `07-VERIFICATION.md`. The leak gate does not flag it: the denylist scan exit 0 shows the address is not a denylisted term, and gitleaks does not detect addresses. No ADR, plan or security report records an acceptance. Rule R0.1 of the operator's instructions names "commits" among the artifacts that must not carry PII. Publication is irreversible. In addition, the untracked `09-REVIEW.md` of this phase quotes the address verbatim at line 75 and would copy it into the tracked tree when committed (not caught by the hooks, since the term is not denylisted). Required: an explicit operator decision recorded in the phase plan or this file as an accepted risk (identity published deliberately), or remediation (history rewrite to the no-reply address with a mailmap, followed by a full re-run of the gitleaks and denylist scans and by new object ids in every document that cites a hash). In either case the verbatim address must be removed from `09-REVIEW.md` before it is committed. Severity is set to `high` on policy grounds and irreversibility, not on exploitability; an explicit acceptance closes it. | **closed** (2026-10-16, history rewrite; see the closure audit in the final section) |
+| T-09-06 | Information disclosure | GitHub-side content that becomes public with visibility | medium | mitigate | 9 workflow run logs downloaded and scanned (denylist exit 0, gitleaks no leaks, only the hosted-runner path `/Users/runner`); the single run artifact (`gitleaks-results.sarif`, 6.8 KB) holds a scan with zero results; no issues, pull requests, releases, environments, deploy keys, webhooks or repository variables exist; wiki enabled but empty; the push activity feed shows 8 fast-forward pushes and 1 branch creation, no force push, so no orphaned server-side object exists; remote carries only `main` (040c532), no `refs/pull`. The repository secret list holds `DENYLIST` only. | closed |
 | T-09-07 | Spoofing / elevation of privilege | Site access decision on the served path | high | mitigate | L3. In-process ASGI probes without client-side normalization: `.`/`..` segments, `?`, `#`, backslash and NUL return 400 (`app.py:484-503`); double-slash and encoded-slash forms return 401/403/404, never content; a symlink inside the served tree pointing to an outside file or directory returns 404; restricted readers are confined to their prefix (`/aluna//x`, `//aluna/x`, case variants, sibling prefix, `/videos`, `/simulado` all 403 or redirect); anonymous HEAD/OPTIONS/DELETE/TRACE on the exempt paths return 405 with `Allow`, on any other path 401. `/openapi.json` and `/docs` return 401 anonymously. `tests/test_site_*.py`: pass. | closed |
 | T-09-08 | Spoofing | Session token, password storage | high | mitigate | HMAC-SHA-256 token keyed per person from the server secret plus the stored hash, expiry checked, constant-time comparison over bytes (`sessions.py:52-76,104-112`); secret read refuses fewer than 32 bytes (`signing.py:31-50`); PBKDF2-HMAC-SHA-256 with 16-byte salt and `compare_digest` (`access.py:27-91`); every candidate hashed so timing does not reveal list position (`access.py:161-177`); forged cookie, garbage Basic header and wrong Basic credentials all 401; cookie `__Host-pos_session` is `HttpOnly; Secure; Path=/; SameSite=Lax` (`app.py:790-800`). Advisories A-2 (iteration count, lifetime). | closed |
 | T-09-09 | Tampering | Login CSRF and state-changing endpoints | medium | mitigate | Login POST without the nonce cookie, with a wrong token, and with a mismatched token: 403; valid pair: 303 (`login_csrf.py:30-59`, `app.py:631-638`); nonce cookie `__Host-` with `HttpOnly; Secure; SameSite=strict`; oversize login body 413. The only other state-affecting routes are sign-out (GET, accepted trade-off documented at `app.py:599-606`) and quiz grading (read-only compute behind authentication and a per-person delay). | closed |
@@ -100,7 +105,7 @@ T-09-05 is **not** an accepted risk: no operator acceptance exists. Recording on
 | A-2 | low | PBKDF2-HMAC-SHA-256 uses 240,000 iterations (above the ASVS 100,000 floor, below the 600,000 of current OWASP guidance). Sessions last 30 days, are stateless, and sign-out only clears the browser cookie; a copied cookie stays valid until expiry, a password change or removal of the person's line. Design choice of ADR 0039/0044. | Raise the iteration count with a re-hash on next sign-in; document the revocation model. |
 | A-3 | low | Phase 8 advisories A-1 and A-2 on `scripts/check_documentation.py` remain (symlinked Makefile or decision file followed; symlink loop prints a traceback with the repository path). Committer-controlled input only. | As recorded in `08-SECURITY.md`. |
 | A-4 | low | No deployment guidance states that TLS must terminate in front of the container (HTTP on `0.0.0.0:8000`, `Secure` cookies, Basic Auth accepted as a second door that sends credentials on every request) or that `make site` runs without TLS. | Add a "Deploying the site" paragraph to `docs/operations.md`. |
-| A-5 | info | Local `main` is 59 commits ahead of `origin/main` (b2e5f06); the three `gsd/phase-*` branches are fully merged. A push of only `main` publishes everything; `git push --all` would add three stale branch names. The 59 commits were scanned here but have not passed CI. | Push `main` only; confirm CI green before the switch. |
+| A-5 | info | Local `main` is 59 commits ahead of `origin/main` (040c532); the three `gsd/phase-*` branches are fully merged. A push of only `main` publishes everything; `git push --all` would add three stale branch names. The 59 commits were scanned here but have not passed CI. | Push `main` only; confirm CI green before the switch. |
 | A-6 | info | CI hygiene: no `timeout-minutes`, `curl` for the gitleaks archive without `--proto '=https'`, Homebrew formulae and the uv version unpinned in the `test` job, no Dependabot configuration, action pins one major behind current. | Optional hardening. |
 | A-7 | info | Equality of the `DENYLIST` secret with the local list cannot be verified from outside; only timing is consistent. | Operator confirms at the final check (PUBG-03); re-set the secret from the local file if in doubt. |
 | A-8 | info | Seven unreachable commits (stashes and WIP) exist in the local object store; they were scanned clean, were never pushed (all remote pushes are fast-forward) and are not part of any clone. The demo credential writer opens files with `O_TRUNC` without `O_NOFOLLOW` inside `workspace/` (local, operator-owned). The `Server: uvicorn` header is sent. ffmpeg reads operator-registered media without a protocol whitelist. | None required. |
@@ -144,8 +149,8 @@ Not done, stated so the gap is not read as a pass: no dynamic test against a rea
 
 | Audit Date | Threats Total | Closed | Open | Run By |
 |------------|---------------|--------|------|--------|
-| 2026-10-16 (HEAD 0ba2051) | 29 | 23 | 6 (1 blocking, 5 non-blocking) | gsd-security-auditor |
-| 2026-10-16 (HEAD cf9c8f2, re-audit of main..HEAD) | 29 | 25 | 4 (1 blocking, 3 non-blocking) | gsd-security-auditor |
+| 2026-10-16 (HEAD 78e255e) | 29 | 23 | 6 (1 blocking, 5 non-blocking) | gsd-security-auditor |
+| 2026-10-16 (HEAD df1f150, re-audit of main..HEAD) | 29 | 25 | 4 (1 blocking, 3 non-blocking) | gsd-security-auditor |
 
 ---
 
@@ -153,18 +158,18 @@ Not done, stated so the gap is not read as a pass: no dynamic test against a rea
 
 - [x] All threats have a disposition (mitigate / accept / transfer)
 - [x] Accepted risks documented in the Accepted Risks Log (none new)
-- [ ] `threats_open: 0` confirmed (1 open: T-09-05)
+- [x] `threats_open: 0` confirmed (T-09-05 closed 2026-10-16 by the operator-approved history rewrite; closure audit in the final section)
 - [x] `status` set in frontmatter (`open_threats`)
 
 **Approval:** not granted. Persistence and commit of this file are owned by the orchestrator.
 
 ---
 
-## Re-audit of corrected diff (HEAD cf9c8f2, range main..HEAD)
+## Re-audit of corrected diff (HEAD df1f150, range main..HEAD)
 
 Requested by the caller after the corrective commits; rule R0.4 requires the review to cover the phase-final diff. Verdict: **OPEN_THREATS**. 25 of 29 register entries are closed, 4 are open: T-09-05 (blocking, `high`) and T-09-20, T-09-27, T-09-29 (non-blocking, below `block_on: high`). `threats_open` is **1**.
 
-Scope: `git diff main..HEAD` is the four commits e479b0b (fix), 45d802c (docs), 1120efa (chore), cf9c8f2 (style): 8 files, 117 added and 9 removed lines. `main` is 0ba2051, the HEAD of the first audit, so the range is exactly the change since that audit. Parameters are unchanged (ASVS L2, `block_on: high`); T-09-12 was verified at L3 (data flow plus adversarial probes, including a live socket). No `SUMMARY.md` exists in the phase directory, so there are no executor threat flags to map. Implementation files were not modified and nothing was committed; probe scripts and baseline copies live in the session scratchpad only.
+Scope: `git diff main..HEAD` is the four commits 9329b57 (fix), f38fef0 (docs), a83f410 (chore), df1f150 (style): 8 files, 117 added and 9 removed lines. `main` is 78e255e, the HEAD of the first audit, so the range is exactly the change since that audit. Parameters are unchanged (ASVS L2, `block_on: high`); T-09-12 was verified at L3 (data flow plus adversarial probes, including a live socket). No `SUMMARY.md` exists in the phase directory, so there are no executor threat flags to map. Implementation files were not modified and nothing was committed; probe scripts and baseline copies live in the session scratchpad only.
 
 ### Status changes
 
@@ -182,7 +187,7 @@ Scope: `git diff main..HEAD` is the four commits e479b0b (fix), 45d802c (docs), 
 Mitigation present, at the correct boundary (the parser, before any decision is taken):
 
 - `sessions.py:93-102` `_parse_expiry`: ASCII-only digit test, then `int()` inside `try ... except ValueError`; `_parse_token` (`:79-90`) returns `None` for any malformed expiry, which `session_email` turns into "no session".
-- `app.py:903-915` `_parse_basic_auth`: catches `ValueError`, the common base of `binascii.Error`, `UnicodeDecodeError` and the error `b64decode` raises for non-ASCII text; the now unused `binascii` import was removed (cf9c8f2), so no narrower handler remains.
+- `app.py:903-915` `_parse_basic_auth`: catches `ValueError`, the common base of `binascii.Error`, `UnicodeDecodeError` and the error `b64decode` raises for non-ASCII text; the now unused `binascii` import was removed (df1f150), so no narrower handler remains.
 - `app.py:874-900` `_read_bounded_body` with `_declares_more_than`: a malformed `Content-Length` is read as undeclared; the streamed byte count (`:883-886`) still enforces the bound.
 - `quiz.py:202-210` `_parsed_question_index`: same ASCII test plus guarded `int()`.
 - Every parser failure resolves to `None` or `False`, which `identify()` (`app.py:354-371`) and `admit_authorized_person` (`:557-566`) treat as "no credential": denial. No path treats a parse failure as authorization.
@@ -199,7 +204,7 @@ Residual points, none blocking (advisories A-11 and A-12 below): the regression 
 
 ### T-09-26 - closed (low, mitigate)
 
-`.gitignore:100` now carries `.claude/` (commit 1120efa). `git check-ignore -v` resolves `.claude/settings.local.json`, `.claude/settings.json` and `.claude/anything/x` to that repository rule, so the protection no longer depends on the operator's global ignore file. `git ls-files .claude` is empty, and the range adds no `.claude` path. The sibling `.serena/` rule (`.gitignore:96`) was already repository-local.
+`.gitignore:100` now carries `.claude/` (commit a83f410). `git check-ignore -v` resolves `.claude/settings.local.json`, `.claude/settings.json` and `.claude/anything/x` to that repository rule, so the protection no longer depends on the operator's global ignore file. `git ls-files .claude` is empty, and the range adds no `.claude` path. The sibling `.serena/` rule (`.gitignore:96`) was already repository-local.
 
 ### T-09-20 - remains open (non-blocking, medium)
 
@@ -257,3 +262,20 @@ All 152 commits on all refs (304 author and committer fields) carry the one pers
 2. Recommended before the switch (non-blocking): resolve T-09-20 (pin or reword and record acceptance), decide on `.planning/` publication (T-09-27), apply the repository settings of T-09-29, optional A-10 to A-12.
 3. Not re-verified here: CI on the 63 commits ahead of `origin/main` (59 at the first audit; push `main` only and confirm the three jobs green); the `DENYLIST` secret value; GitHub-side settings.
 4. Any further corrective change, including documentation edits that alter a security claim, requires a new run of this audit over the then-final diff (rule R0.4).
+
+## Closure audit of the history rewrite (T-09-05 remediation, 2026-10-16)
+
+Operator decision recorded by AskUserQuestion in session acbb5e78 (2026-10-16): option "rewrite to the no-reply address", executed autonomously. Remediation performed and verified:
+
+1. **Backup.** `git bundle create /tmp/ltspp-pre-noreply-20261016.bundle --all` preserves the original history outside the repository. The temporary `backup-pre-noreply` branch was itself rewritten by `git filter-repo` and is not a backup of the old identities; the bundle is.
+2. **Rewrite.** `git filter-repo --mailmap` mapped the sole identity (author and committer of all 153 commits) to the GitHub no-reply address `17517152+edizonbasseto@users.noreply.github.com`. No other field changed.
+3. **Verification on the rewritten history.**
+   - `git log --format='%ae %ce' | sort -u` yields exactly the no-reply identity on all 153 commits; no personal address remains on any ref.
+   - `gitleaks detect` over all refs (242 commits, ~12.1 MB, including the old `origin/main` objects): no leaks found.
+   - Denylist scan, CI-equivalent stream (`git log -p --all --diff-merges=separate --format=fuller` plus all ref names): exit 0.
+   - `tests/test_git_hooks.py` and `tests/test_denylist_scan.py` on the rewritten history: 43 passed.
+4. **Document object ids.** 290 hash citations across 51 tracked files were updated from the filter-repo commit map (the re-audit action required by the first audit). A residual scan for every old object id (40-, 12-, 8- and 7-hex forms, word-bounded) over all tracked files found zero matches. No source or test file was affected; all changed files are documentation.
+
+Verdict: **SECURED**. `threats_open: 0`. T-09-05 is closed by mitigation (history rewrite), per the remedy defined by the first audit. The remaining open entries (T-09-20, T-09-27, T-09-29, advisories A-10 to A-12) are non-blocking and listed under "Required actions" above.
+
+Not re-verified here (unchanged from the re-audit): CI on the commits ahead of `origin/main` (the rewritten `main` has diverged from `origin/main`; publishing it requires a force push of `main` only, then confirmation that the three CI jobs are green), the `DENYLIST` secret value, GitHub-side settings. Push and the switch to public remain operator actions per rule R0.4.

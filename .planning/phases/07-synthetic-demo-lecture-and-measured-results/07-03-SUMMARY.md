@@ -42,8 +42,8 @@ duration: 25 min
 completed: 2026-10-15
 status: complete
 commits: 3
-plan_head_before: ec0162ad619a45ad6db415359a0c3995e77d7d90
-plan_head_after: 199fcc7413e0da1046aa4e869c510ef18249082d
+plan_head_before: 93086ccea42907f89864d5924c687e9c65aa0288
+plan_head_after: b4031d630952556829e2af45556257cfb9bd802c
 actuals:
   tokens: 15200
   tasks: 3
@@ -58,9 +58,9 @@ Pure, typed DEMO-03 measurement in `lecture_study.demo`: stdlib word error rate,
 
 | Task | Name | Commit |
 | ---- | ---- | ------ |
-| 1 | Tracer: transcript, corrections and reference to a rendered WER before/after section | 6d36119 |
-| 2 | Stage metrics from run records and per-stage wall time from orchestrator logs | 01f38d6 |
-| 3 | Complete report: LLM stages, critic, wall time, adapters not run, N beside every rate | 199fcc7 |
+| 1 | Tracer: transcript, corrections and reference to a rendered WER before/after section | da1c22a |
+| 2 | Stage metrics from run records and per-stage wall time from orchestrator logs | 96d1995 |
+| 3 | Complete report: LLM stages, critic, wall time, adapters not run, N beside every rate | b4031d6 |
 
 `plan_head_before` is the parent of the first plan commit. Plans 07-02, 07-04 and 07-05 committed concurrently on the same branch, so `git rev-list --count plan_head_before..plan_head_after` is higher than 3; `commits: 3` counts the three `(07-03)` commits only.
 
@@ -102,11 +102,11 @@ No deviation found, so the formulas were not adapted.
 
 **2. [Rule 2 - Missing validation] Inconsistent counters are refused**
 - **Fix:** `stage_metrics` raises when retries exceed requests; `critic_metrics` raises when rejections exceed reviews; `require_stopped_at_certification` also raises when phase 10 never started. These guard against reporting an impossible rate.
-- **Commit:** 01f38d6
+- **Commit:** 96d1995
 
 **3. [Plan detail] `AdapterResults` and `DemoResults` new fields are required**
 - Task 3 fields (`phases`, `llm_stages`, `critic`, `evidence_packs`, `notes`, `video_seconds`, `reference_words`, `adapters_not_run`) have no defaults so a caller cannot omit them silently; the Task 1 tracer test was updated accordingly.
-- **Commit:** 199fcc7
+- **Commit:** b4031d6
 
 Otherwise the plan was executed as written. A full-repo `ruff format --check` briefly flagged `scripts/demo_site.py`, an uncommitted file of a concurrent plan; it was not touched.
 
@@ -120,4 +120,4 @@ None. T-07-08: strict extra-forbid models and typed errors with field locations 
 
 ## Self-Check: PASSED
 
-All ten files exist and commits 6d36119, 01f38d6 and 199fcc7 are ancestors of HEAD.
+All ten files exist and commits da1c22a, 96d1995 and b4031d6 are ancestors of HEAD.

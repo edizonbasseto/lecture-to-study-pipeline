@@ -1,7 +1,7 @@
 ---
 phase: 07
 slug: synthetic-demo-lecture-and-measured-results
-scope: uncommitted working tree on top of HEAD 2eaa505 (MD-01..MD-04 fixes plus the codex results regeneration)
+scope: uncommitted working tree on top of HEAD dc15c6d (MD-01..MD-04 fixes plus the codex results regeneration)
 status: secured-with-nonblocking-findings
 verdict: SECURED
 asvs_level: 2
@@ -9,7 +9,7 @@ block_on: high
 threats_open: 0
 threats_open_nonblocking: 2
 audited_on: 2026-10-16
-baseline: .planning/phases/07-synthetic-demo-lecture-and-measured-results/07-SECURITY.md (41/41 closed at 55f8665)
+baseline: .planning/phases/07-synthetic-demo-lecture-and-measured-results/07-SECURITY.md (41/41 closed at 00db9ee)
 ---
 
 # Phase 07 - Security Verification of the Uncommitted Fixes
@@ -39,7 +39,7 @@ handling, egress, containment or destructive operations.
 | `demo_results.py report --output-dir <scratchpad>`; `--output-dir .` | `report refused: ... is outside <repository>`, exit 1, nothing written (the root itself is refused) |
 | `demo_site.py prepare-access --directory <scratchpad>`; `--directory workspace` | `ValueError ... is outside .../workspace`, exit 1, nothing written (the workspace root itself is refused) |
 | local registry (gitignored `config/local-lectures.local.yaml`) | 925100 `remote_llm_allowed: false`, 925101 `remote_llm_allowed: true` |
-| `git diff b8cf64c` over `src/lecture_study/{assembly,llm,study_materials}`, the five `generate_*` scripts, `pyproject.toml`, `uv.lock`, `.gitignore` | empty; the only changed file in that set is `Makefile` (phase commit, unmodified in the working tree) |
+| `git diff f7b9d51` over `src/lecture_study/{assembly,llm,study_materials}`, the five `generate_*` scripts, `pyproject.toml`, `uv.lock`, `.gitignore` | empty; the only changed file in that set is `Makefile` (phase commit, unmodified in the working tree) |
 | `git diff HEAD` on `Makefile`, `.gitignore`, `pyproject.toml`, `uv.lock`, `docs/decisions` | empty |
 | `pytest tests/demo` on the working tree | 215 passed, 1 skipped |
 | gitleaks (`dir`, redacted) on `docs/results`, `scripts`, `src/lecture_study/demo`, `tests/demo`; and on the untracked `workspace/demo/{runs/codex,logs,recovery}` | no leaks found in any of them |
@@ -169,7 +169,7 @@ Carried over unchanged from 07-SECURITY.md: UF-2 (free-text channels reach commi
 ## Accepted risks
 
 T-07-SC (no package installed): acceptance condition still holds, `pyproject.toml` and `uv.lock` have an empty
-diff against `HEAD` and against `b8cf64c`.
+diff against `HEAD` and against `f7b9d51`.
 
 ## Result
 

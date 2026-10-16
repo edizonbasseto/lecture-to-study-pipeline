@@ -4,7 +4,7 @@ reviewed: 2026-10-16T12:00:00Z
 depth: deep
 files_reviewed: 470
 files_reviewed_list:
-  - "all 470 tracked files at HEAD 0ba2051 (git ls-files); see Scope and method"
+  - "all 470 tracked files at HEAD 78e255e (git ls-files); see Scope and method"
 findings:
   critical: 2
   warning: 6
@@ -17,7 +17,7 @@ status: issues_found
 
 **Reviewed:** 2026-10-16
 **Depth:** deep (publication-oriented sweep of every tracked file, plus line-level review of the study-site access path, git hooks, CI, container, provisioning script and LLM egress factory)
-**Files Reviewed:** 470 tracked files (HEAD 0ba2051, branch main)
+**Files Reviewed:** 470 tracked files (HEAD 78e255e, branch main)
 **Status:** issues_found
 
 Severity mapping used in this report (caller scale to the GSD tiers): blocker = none found; High -> `CR-` (critical tier); Medium -> `WR-` (warning tier); Low -> `IN-` (info tier). Each finding states its caller-scale severity.
@@ -198,7 +198,7 @@ _Depth: deep_
 ## Re-review of corrected diff
 
 **Reviewed:** 2026-10-16
-**Scope:** `git diff main..HEAD` on branch `gsd/phase-09-pre-public-gate` (4 commits: `e479b0b`, `45d802c`, `1120efa`, `cf9c8f2`), 8 files: `src/lecture_study/site/app.py`, `sessions.py`, `quiz.py`, `tests/test_site_app.py`, `tests/test_site_quiz.py`, `README.md`, `docs/operations.md`, `.gitignore`.
+**Scope:** `git diff main..HEAD` on branch `gsd/phase-09-pre-public-gate` (4 commits: `9329b57`, `f38fef0`, `a83f410`, `df1f150`), 8 files: `src/lecture_study/site/app.py`, `sessions.py`, `quiz.py`, `tests/test_site_app.py`, `tests/test_site_quiz.py`, `README.md`, `docs/operations.md`, `.gitignore`.
 **Depth:** deep on the access path (call chains of `identify`, `_parse_basic_auth`, `_parse_token`, `_read_bounded_body`, `parse_submitted_answers`), standard on the documentation.
 **Verdict:** CR-01 is fixed. No authentication regression found. Two Warnings and three Info items are new; none blocks the fix.
 

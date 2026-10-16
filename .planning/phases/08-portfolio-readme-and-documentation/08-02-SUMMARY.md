@@ -17,8 +17,8 @@ actuals:
   tokens: 3700
   tasks: 2
   commits: 2
-plan_head_before: ec2a1cf3d1e7c3d20943e5339e27a780c19c2f25
-plan_head_after: 4a174aaf4e829c7c2abe59a652a3e99057c28cd4
+plan_head_before: 79559a4c36d851844acd81acdbd050cf1cc813e0
+plan_head_after: 4cf1d537f4ee519bbe067c714f79bb289738c7d7
 
 tech-stack:
   added: []
@@ -81,8 +81,8 @@ status: complete
 
 ## Task Commits
 
-1. **Task 1: Egress, uncertified status and certification boundaries (tracer)** - `2846e9f` (docs)
-2. **Task 2: Recovery, regeneration, single-worker, FileVault and summary table** - `4a174aa` (docs)
+1. **Task 1: Egress, uncertified status and certification boundaries (tracer)** - `c3b76e3` (docs)
+2. **Task 2: Recovery, regeneration, single-worker, FileVault and summary table** - `4cf1d53` (docs)
 
 **Plan metadata:** recorded in the final docs commit.
 
@@ -105,7 +105,7 @@ status: complete
 - **Issue:** the acceptance loop for ADR links reported ADR 0047 as not linked (it was named in prose only).
 - **Fix:** the mention became a link to decision 4 of ADR 0047.
 - **Files modified:** docs/operations.md
-- **Committed in:** 2846e9f
+- **Committed in:** c3b76e3
 
 ### Other notes
 
@@ -149,4 +149,4 @@ Plan 08-03 (README) can link `docs/operations.md` and rely on `make docs-check` 
 ## Self-Check: PASSED
 
 - FOUND: docs/operations.md
-- FOUND commits: 2846e9f, 4a174aa
+- FOUND commits: c3b76e3, 4cf1d53

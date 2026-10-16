@@ -19,8 +19,8 @@ actuals:
   tokens: 6200
   tasks: 3
   commits: 2
-plan_head_before: 7f92dbe1e3fb1b6f0c5173a2eea423e2f8738805
-plan_head_after: 2f9fddb4dac52bb49527dbe07ff3895d897edafe
+plan_head_before: 6075e3bc3ecc57aa7b5242ef45b0336b50fc9562
+plan_head_after: 0c65b817a343a23288797635a87d42c743bb07f0
 
 tech-stack:
   added: []
@@ -111,9 +111,9 @@ status: complete
 
 ## Task Commits
 
-1. **Task 1 (tracer): egress decision from registered flag or portal list** - `2f1b4ce` (feat)
+1. **Task 1 (tracer): egress decision from registered flag or portal list** - `00dd411` (feat)
 2. **Task 2: OPEN-2 checkpoint** - no commit; resolved by the operator's recorded answer (below), so no checkpoint was returned
-3. **Task 3: OPEN-2 option A and flag round-trip tests** - `2f9fddb` (feat)
+3. **Task 3: OPEN-2 option A and flag round-trip tests** - `0c65b81` (feat)
 
 Tracer gate: `<verify>` (egress policy, local lectures and layering tests) passed after the Task 1 commit (88 passed) before expanding.
 
@@ -162,4 +162,4 @@ None. T-06-17 to T-06-19 are covered by tests: fail-closed default, portal ids o
 
 ## Self-Check: PASSED
 
-All six key files exist on disk; commits `2f1b4ce` and `2f9fddb` are ancestors of HEAD; `commits: 2` measured from the persisted ledger.
+All six key files exist on disk; commits `00dd411` and `0c65b81` are ancestors of HEAD; `commits: 2` measured from the persisted ledger.

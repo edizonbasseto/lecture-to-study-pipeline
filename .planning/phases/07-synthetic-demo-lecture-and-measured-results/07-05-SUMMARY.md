@@ -32,8 +32,8 @@ metrics:
   completed: 2026-10-15
 status: complete
 commits: 2
-plan_head_before: 999703b18b3fc2302de45bd8754843b2ca044d35
-plan_head_after: 79f6f23ecc0082b3297e85d70c1339fe78a714d2
+plan_head_before: dbaec70f1067f25841c09e1a09cbb35175b5a0ca
+plan_head_after: bdfa37dbceec57174ae6fb1e7d3bd64a85e6f75e
 actuals:
   tokens: 14500
   tasks: 2
@@ -49,8 +49,8 @@ The ADR 0045 blocked-lecture recovery is now one scripted, typed and tested comm
 
 | Task | Name | Commit |
 | ---- | ---- | ------ |
-| 1 | Tracer: induced stale and rejected units block the real gate; snapshot proves nothing changed | 3c7f0c8 |
-| 2 | Scenario logic, evidence model and the recovery driver with its harvest guard | 79f6f23 |
+| 1 | Tracer: induced stale and rejected units block the real gate; snapshot proves nothing changed | d031f68 |
+| 2 | Scenario logic, evidence model and the recovery driver with its harvest guard | bdfa37d |
 
 ## What was built
 
@@ -88,4 +88,4 @@ None. T-07-16 (gate untouched, documented inductions, exit codes and tree diff i
 
 ## Self-Check: PASSED
 
-All five created files exist; commits 3c7f0c8 and 79f6f23 are on `gsd/phase-07-synthetic-demo`. `plan_head_after` is HEAD at write time and includes interleaved commits of the concurrent plans 07-02, 07-03 and 07-04; `commits: 2` counts only this plan's commits.
+All five created files exist; commits d031f68 and bdfa37d are on `gsd/phase-07-synthetic-demo`. `plan_head_after` is HEAD at write time and includes interleaved commits of the concurrent plans 07-02, 07-03 and 07-04; `commits: 2` counts only this plan's commits.

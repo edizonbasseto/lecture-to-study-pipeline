@@ -39,8 +39,8 @@ duration: 100 min
 completed: 2026-10-15
 status: complete
 commits: 4
-plan_head_before: ee65803eb8de2186d7ea71e04eb9c1ad80083044
-plan_head_after: 440e560e0a1d8b9fcddd83812b966a6525312052
+plan_head_before: 0e128306da08bdbbb34d3ab9571d4485209a49b4
+plan_head_after: 68af1e7644377e700c89462e95a23729ec482944
 actuals:
   tokens: 12500
   tasks: 2
@@ -55,10 +55,10 @@ The local-adapter lecture 925100 ran through every stage to a signed-in page vie
 
 | Task | Name | Commit | State |
 | ---- | ---- | ------ | ----- |
-| 1 | Tracer: local-adapter run of lecture 925100 to a signed-in page view | 139bf80, 440e560 | complete |
-| 2 | Harvest the local run's measurements with the unprompted ASR ablation | f56b81e, 440e560 | complete |
+| 1 | Tracer: local-adapter run of lecture 925100 to a signed-in page view | a614dc2, 68af1e7 | complete |
+| 2 | Harvest the local run's measurements with the unprompted ASR ablation | 4ae87c5, 68af1e7 | complete |
 
-`commits: 4` counts `plan_head_before..plan_head_after` and includes the interim blocked-state SUMMARY commit 7b24a07; the SUMMARY completion commit follows `plan_head_after`.
+`commits: 4` counts `plan_head_before..plan_head_after` and includes the interim blocked-state SUMMARY commit b29edc7; the SUMMARY completion commit follows `plan_head_after`.
 
 ## Preflight outcomes (T-07-21)
 
@@ -121,17 +121,17 @@ Options that were put to the operator:
 **1. [Rule 3 - Blocking] `demo-preflight` forwards the egress confirmation**
 - **Issue:** the plan requires `make demo-preflight ADAPTER=codex LECTURE=925100` to exit 1 on the unflagged id, but the same plan makes the driver exit 2 for codex without confirmation, before the preflight, so the two instructions contradict each other.
 - **Fix:** the target forwards `--confirm-remote-egress` when `CONFIRM_REMOTE_EGRESS=yes`; a preflight sends nothing. Both outcomes are recorded above.
-- **Commit:** 139bf80
+- **Commit:** a614dc2
 
 **2. [Rule 2 - Missing correctness] `--from-step` and log archiving**
 - **Issue:** rerunning a failed step through the full driver would have overwritten `run-all.log`, destroying the measured wall times of phases 2-7 (a rerun logs them as already done).
 - **Fix:** `--from-step` (and the `FROM_STEP` make variable) reruns from a named step; an existing log is renamed `NAME.attempt-N.log` before the new one is written. Tests added for both.
-- **Commit:** 139bf80
+- **Commit:** a614dc2
 
 **3. [Rule 3 - Sequencing] `DEMO_LOGS_ROOT` moved to the harvest module**
-- The driver defined the constant in the Task 1 commit and imports it from `harvest.py` after Task 2, so no commit is broken. **Commit:** f56b81e
+- The driver defined the constant in the Task 1 commit and imports it from `harvest.py` after Task 2, so no commit is broken. **Commit:** 4ae87c5
 
-**4. [Operator decision] Flashcards floor 5.** Option 2 above. Added `--flashcards-minimum-total-cards` to the driver (passed to the flashcards script only when given), the `FLASHCARDS_MINIMUM_TOTAL_CARDS` make variable and operator notes in the harvest (`logs/notes.txt` becomes `AdapterResults.notes`), with tests. **Commit:** 440e560
+**4. [Operator decision] Flashcards floor 5.** Option 2 above. Added `--flashcards-minimum-total-cards` to the driver (passed to the flashcards script only when given), the `FLASHCARDS_MINIMUM_TOTAL_CARDS` make variable and operator notes in the harvest (`logs/notes.txt` becomes `AdapterResults.notes`), with tests. **Commit:** 68af1e7
 
 **5. Out-of-order steps:** after the first two flashcards failures the guide, site and check were run once without the deck to see how far the page view goes; they were rerun with the deck.
 
@@ -158,4 +158,4 @@ None. T-07-21 holds (unflagged local id refused for codex, adapter variable forc
 
 ## Self-Check: PASSED
 
-Commits 139bf80, f56b81e and 440e560 are ancestors of HEAD; the five created files, the modified Makefile and `workspace/demo/runs/llama-cpp/harvest.json` exist.
+Commits a614dc2, 4ae87c5 and 68af1e7 are ancestors of HEAD; the five created files, the modified Makefile and `workspace/demo/runs/llama-cpp/harvest.json` exist.

@@ -48,7 +48,7 @@ status: issues_found
 
 ## Summary
 
-Final re-review of the phase-final diff after the Round 2 fixes (commits `f3890a2` to `c1196dc`). Every iteration-2 warning was re-checked in the source and, where behavior was claimed, by running the code. `ruff check`, `ruff format --check` and `mypy src` are green. No critical issue was found: the egress gate has no bypass, and the Round 2 changes introduce no regression in the gate, the registry loader or the configuration probe.
+Final re-review of the phase-final diff after the Round 2 fixes (commits `d1988e5` to `ea7e4f1`). Every iteration-2 warning was re-checked in the source and, where behavior was claimed, by running the code. `ruff check`, `ruff format --check` and `mypy src` are green. No critical issue was found: the egress gate has no bypass, and the Round 2 changes introduce no regression in the gate, the registry loader or the configuration probe.
 
 Two warnings remain. One is a residual of the iteration-2 provenance finding (the two-slot run record cannot represent more than one displacing attempt). The other is a macOS process-cleanup defect that surfaces through the Codex adapter as a misleading error and as a flaky test, reproduced in this review.
 

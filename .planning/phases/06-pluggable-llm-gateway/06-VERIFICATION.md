@@ -61,12 +61,12 @@ re_verification:
   previous_score: 4/4 roadmap success criteria (GW-03 engine run pending)
   gaps_closed:
     - "GW-03 engine run: ADR 0046 decision 10 record filled (2026-10-15) and UAT test 39 ran the real llama-completion/llama-tokenize at the pinned commit"
-    - "CI on the pushed phase-final commit: run 38789108169 succeeded on b2e5f06 (origin/main)"
+    - "CI on the pushed phase-final commit: run 38789108169 succeeded on 040c532 (origin/main)"
     - "R0.4 coverage of the Round 3 delta: operator recorded as acceptor in UAT test 45 (see advisory note)"
   gaps_remaining: []
   regressions: []
 advisory:
-  - finding: "The strict-YAML corrective delta (c84f0ad, 3eb1d60: ops/strict_yaml.py rewrite, local_lectures.py, llm/config.py) landed after 06-REVIEW.md, 06-REVIEW-FIX.md Round 4 and 06-SECURITY.md. Its review and security rounds are documented only in the c84f0ad commit message, not in a phase artifact. UAT test 45 passes on operator acceptance, but the cited AR-06-01 and AR-06-02 concern a registration-rerun flip and the absence of package installs, not this delta."
+  - finding: "The strict-YAML corrective delta (d6828c9, b908cb3: ops/strict_yaml.py rewrite, local_lectures.py, llm/config.py) landed after 06-REVIEW.md, 06-REVIEW-FIX.md Round 4 and 06-SECURITY.md. Its review and security rounds are documented only in the d6828c9 commit message, not in a phase artifact. UAT test 45 passes on operator acceptance, but the cited AR-06-01 and AR-06-02 concern a registration-rerun flip and the absence of package installs, not this delta."
     category: other
     reason: "Global rule R0.4 expects the review and secure runs on the phase-final diff to be evidenced. The delta is covered by 2698 passing tests (tests/test_strict_yaml.py 267 lines, extended egress and local-lecture tests), ruff and mypy clean, and fails closed. Adding a one-paragraph review note to 06-REVIEW-FIX.md (or a Round 5 entry) would close the evidence gap."
     evidence_status: "commit message only; operator acceptance recorded in UAT test 45"
@@ -87,7 +87,7 @@ advisory:
 | - | ----- | ------ | -------- |
 | 1 | Switching the configuration from codex to llama-cpp runs stages 5, 6 and 7 on a lecture with no Codex invocation | VERIFIED | `tests/llm_gateway/test_stages_without_codex.py` drives stages 5, 6, 7 through the real scripts as child processes with scripted `llama-completion`/`llama-tokenize` stubs and a tripwire `codex` first on `PATH`; two cases pass (YAML `default_adapter: llama-cpp`; env override over a codex YAML); run records report only `llama-cpp`; tripwire calls are empty. Engine-level evidence: ADR 0046 decision 10 record (2026-10-15) shows stages 5, 6, 7 exit 0, status `succeeded`, adapter `llama-cpp`, no Codex process, at the pinned commit `91d2fc3`; UAT test 39 ran the real binary (4.2 s, `--offline` in argv). Re-checked locally: `engines/llama.cpp/build/bin/{llama-completion,llama-tokenize,llama-mtmd-cli}` exist and `.built-commit` equals `LLAMA_REPO_COMMIT` in `scripts/01_provision_engines.sh`. |
 | 2 | An unknown adapter name exits non-zero before any model call | VERIFIED | `tests/llm_gateway/test_preflight.py` (cli main, `LECTURE_STUDY_LLM_ADAPTER=bogus`: `SystemExit(1)`, zero phase runs, zero spawns), second layer in `test_semantic_stage_gateway.py` and `test_configuration.py`. Orchestrator calls `_preflight_llm_gateways` in `run_all`, `run_phase`, `run_personal_study`. Part of the 257 gateway/layering tests that pass in this run. |
-| 3 | The contract tests pass for both adapters in CI | VERIFIED | `tests/llm_gateway/test_gateway_contract.py` is parametrized for `codex` and `llama_cpp` over real stub processes; `test_critic_repair_contract.py` runs the ADR 0036 loop through both. Run in this verification: `uv run pytest tests/llm_gateway tests/test_llm_layering.py` = 257 passed; full suite = 2698 passed, 1 pre-existing warning. CI evidence: `gh run list` shows `ci` run 38789108169 (push, main) completed with success on `b2e5f06`; the later commit `b8803eb` (UAT) is documentation only. |
+| 3 | The contract tests pass for both adapters in CI | VERIFIED | `tests/llm_gateway/test_gateway_contract.py` is parametrized for `codex` and `llama_cpp` over real stub processes; `test_critic_repair_contract.py` runs the ADR 0036 loop through both. Run in this verification: `uv run pytest tests/llm_gateway tests/test_llm_layering.py` = 257 passed; full suite = 2698 passed, 1 pre-existing warning. CI evidence: `gh run list` shows `ci` run 38789108169 (push, main) completed with success on `040c532`; the later commit `5cda798` (UAT) is documentation only. |
 | 4 | The new ADR is Accepted, and ADR 0038 and ADR 0045 carry amendment notes pointing to it | VERIFIED | `docs/decisions/0046-...md` line 5 `Accepted. 2026-10-14.`; ADR 0038 `Amended by ADR 0046` (line 7); ADR 0045 `Section 2 closed by ADR 0046` (line 12) plus in-body notes (lines 128, 215). |
 
 **Score:** 4/4 truths verified; 0 behavior-unverified.
@@ -139,7 +139,7 @@ End-to-end stub tests carry real data from evidence pack through prompt, stubbed
 | Full suite | `uv run pytest -q -p no:cacheprovider` | 2698 passed, 1 warning | PASS |
 | Lint, format, types | `uv run ruff check .`, `uv run ruff format --check .`, `uv run mypy src` | all clean; 236 files formatted; 126 source files | PASS |
 | Real engine present at the pin | `ls engines/llama.cpp/build/bin`, `.built-commit` | binaries present; commit equals pin | PASS |
-| CI on phase-final commit | `gh run list` | run 38789108169 success on `b2e5f06` | PASS |
+| CI on phase-final commit | `gh run list` | run 38789108169 success on `040c532` | PASS |
 
 ### Probe Execution
 
@@ -161,14 +161,14 @@ The three items of the previous report are resolved and no human item remains:
 
 | # | Finding | Why advisory |
 | - | ------- | ------------ |
-| 1 | Review and security evidence for the strict-YAML delta (`c84f0ad`, `3eb1d60`) lives only in a commit message; UAT test 45 cites AR-06-01/AR-06-02, which do not address it. | Delta is test-covered (2698 passed), static checks clean, behavior fails closed; operator accepted in UAT. Recommend a short Round 5 note in `06-REVIEW-FIX.md`. |
+| 1 | Review and security evidence for the strict-YAML delta (`d6828c9`, `b908cb3`) lives only in a commit message; UAT test 45 cites AR-06-01/AR-06-02, which do not address it. | Delta is test-covered (2698 passed), static checks clean, behavior fails closed; operator accepted in UAT. Recommend a short Round 5 note in `06-REVIEW-FIX.md`. |
 | 2 | Retry-only llama flags and the thinking-style `--reasoning off` row were not exercised on the real engine (OPEN-1 / D-25 adequacy unvalidated). | Recorded honestly in ADR 0046; the row is marked optional. |
 
 ### Documentation drift for the orchestrator to reconcile (not goal-affecting)
 
 - `.planning/REQUIREMENTS.md` still shows `- [ ] **GW-03**` (line 107) and traceability `GW-03 | Phase 6 | Pending` (line 253). The evidence above satisfies GW-03; both should be flipped to Complete at phase close.
 - `.planning/ROADMAP.md` Phase 6 checkbox (line 22) is unchecked and the section header still says "open"; update at phase completion.
-- `main` is one commit ahead of `origin/main` (`b8803eb`, documentation only).
+- `main` is one commit ahead of `origin/main` (`5cda798`, documentation only).
 
 ### Gaps Summary
 

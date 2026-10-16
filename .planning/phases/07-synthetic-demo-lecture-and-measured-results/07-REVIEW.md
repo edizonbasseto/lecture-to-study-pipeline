@@ -2,7 +2,7 @@
 phase: 07-synthetic-demo-lecture-and-measured-results
 reviewed: 2026-10-15T00:00:00Z
 depth: standard
-scope: git diff b8cf64c..HEAD -- src scripts tests Makefile demo docs/decisions/0047-demo-lecture-measurement-method.md docs/results
+scope: git diff f7b9d51..HEAD -- src scripts tests Makefile demo docs/decisions/0047-demo-lecture-measurement-method.md docs/results
 files_reviewed: 33
 files_reviewed_list:
   - Makefile
