@@ -58,7 +58,7 @@ The refusal happens before any call is made:
 > The check happens in the factory before the Codex executable is resolved, so a
 > refused run resolves nothing and spawns nothing.
 
-The local adapter is not subject to the flag. The adapter is chosen by the gateway configuration or by the `LECTURE_STUDY_LLM_ADAPTER` environment variable, which replaces the configured default and every per-stage entry for that run (ADR 0046, decision 2), so a run that selects the local adapter is entirely local.
+The local adapter is not subject to the flag. The adapter is chosen by the gateway configuration or by the `LECTURE_STUDY_LLM_ADAPTER` environment variable, which replaces the configured default and every per-stage entry for that run (ADR 0046, decision 2), so a run that selects the local adapter sends nothing to a remote service by construction (ADR 0046 records no OS sandbox and a trusted pinned binary).
 
 ### What stays procedural
 

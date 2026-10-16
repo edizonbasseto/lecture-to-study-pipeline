@@ -44,7 +44,7 @@ flowchart TB
     subgraph gateway["LLM gateway"]
         PORT["LlmGateway port"]
         CODEX["Codex adapter: remote model, per-lecture egress flag"]
-        LOCAL["llama.cpp adapter: local model, no network egress"]
+        LOCAL["llama.cpp adapter: local model, passes no network flags (by construction, no OS sandbox)"]
     end
     GATE["Critic gate: only critic-approved units pass"]
     subgraph deterministic["Deterministic stages"]
