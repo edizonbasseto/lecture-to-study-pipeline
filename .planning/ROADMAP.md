@@ -154,10 +154,10 @@ Plans:
   2. The end-to-end walkthrough of the demo lecture has been executed once, and every command in it exists as written
   3. The documentation states the egress rule and the unchecked provider terms, the uncertified status and notice, the absence of any standing toward certification, the blocked-lecture recovery, page regeneration after an inline script or style change, the single-worker site constraint and the FileVault revisit triggers
 
-**Plans**: 0/3 plans complete in 3 waves
+**Plans**: 1/3 plans executed in 3 waves
 
 Plans:
-- [ ] 08-01-PLAN.md — Documentation checker `scripts/check_documentation.py` with tests, `make docs-check` and a real-repository test: commands, options, paths, links, ADR numbers, verbatim ADR quotes, no machine paths (wave 1)
+- [x] 08-01-PLAN.md — Documentation checker `scripts/check_documentation.py` with tests, `make docs-check` and a real-repository test: commands, options, paths, links, ADR numbers, verbatim ADR quotes, no machine paths (wave 1)
 - [ ] 08-02-PLAN.md — `docs/operations.md`: the seven DOC-03 operating boundaries quoted or summarised from ADRs 0010, 0024, 0039, 0044, 0045, 0046 and 0047 (wave 2)
 - [ ] 08-03-PLAN.md — Portfolio `README.md` (problem, Mermaid diagram, stage map, design decisions, results, quick start, end-to-end demo) and the executed walkthrough with evidence (wave 3)
 
@@ -189,5 +189,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 5. Publication boundary and public repository | 0/0 | Complete (baseline) | Pre-GSD |
 | 6. Pluggable LLM gateway | 12/12 | Complete    | 2026-10-15 |
 | 7. Synthetic demo lecture and measured results | 8/8 | Complete    | 2026-10-16 |
-| 8. Portfolio README and documentation | 0/TBD | Not started | - |
+| 8. Portfolio README and documentation | 1/3 | In Progress | - |
 | 9. Pre-public gate and release | 0/TBD | Not started | - |
