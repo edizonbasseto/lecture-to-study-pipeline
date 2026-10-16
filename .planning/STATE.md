@@ -1,19 +1,20 @@
 ---
 gsd_state_version: "1.0"
 milestone: v1.0
-current_phase: 7
-current_phase_name: synthetic-demo-lecture-and-measured-results
-status: executing
-stopped_at: Completed 07-01-PLAN.md
-last_updated: "2026-10-15T20:10:46.309Z"
-last_activity: 2026-10-15
-last_activity_desc: Phase 7 execution started
-state_head: 46c9d29a171d56e20ebb24986d465ba8db345ffc
+current_phase: 8
+current_phase_name: Portfolio README and documentation
+status: planning
+stopped_at: Phase 7 complete, ready to plan Phase 8
+last_updated: "2026-10-16T03:29:11.882Z"
+last_activity: 2026-10-16
+last_activity_desc: Phase 7 complete, transitioned to Phase 8
+state_head: fe1c3ededa89514602edc85972cce7a0e2767528
 progress:
   total_phases: 9
-  completed_phases: 6
+  completed_phases: 7
   total_plans: 20
-  completed_plans: 13
+  completed_plans: 20
+  percent: 78
 ---
 
 # Project State
@@ -27,18 +28,18 @@ See: .planning/PROJECT.md (updated 2026-10-14)
 
 ## Current Position
 
-Phase: 7 (synthetic-demo-lecture-and-measured-results) — EXECUTING
-Plan: 2 of 8
-Status: Ready to execute
-Last activity: 2026-10-15 — Phase 7 execution started
+Phase: 8 — Portfolio README and documentation
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-10-16 — Phase 7 complete, transitioned to Phase 8
 Next action: `/gsd-plan-phase 6`
 
-Progress: [███████░░░] 67% (phases, 5 of 9; Phases 1-5 are complete baseline built before GSD adoption, no GSD plans yet)
+Progress: [████████░░] 78% (phases, 5 of 9; Phases 1-5 are complete baseline built before GSD adoption, no GSD plans yet)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 12 (baseline predates GSD)
+- Total plans completed: 20 (baseline predates GSD)
 - Average duration: n/a
 - Total execution time: n/a
 
@@ -53,6 +54,7 @@ Progress: [███████░░░] 67% (phases, 5 of 9; Phases 1-5 are c
 |-------|-------|-------|----------|
 | 1-5 (baseline) | 0 | - | - |
 | 6 | 12 | - | - |
+| 7 | 8 | - | - |
 **Per-Plan Metrics:**
 
 | Plan | Duration | Tasks | Files |
@@ -129,13 +131,7 @@ Items acknowledged and deferred at roadmap creation (detail in REQUIREMENTS.md v
 ## Session Continuity
 
 Last session: 2026-10-15T20:10:46.278Z
-Stopped at: Completed 07-01-PLAN.md
+Stopped at: Phase 7 complete, ready to plan Phase 8
 Resume file: None
 
-## Deferred Verification
-
-| Phase | State | Resume |
-|-------|-------|--------|
-| 7 | verification_deferred_gaps | /gsd-plan-phase 7 --gaps |
-
-Operator accepted DEMO-04 as partial on 2026-10-15 (mock exam recovered in 1 of 10 scenario runs on the local model; Codex adapter not measured because the external Codex configuration rejects its model). Open human checks: listen to the demo video and view the lecture page in a browser. Work lives on branch `gsd/phase-07-synthetic-demo` (not merged into main, not pushed).
+Phase 7 note: DEMO-04 was accepted as partial by the operator on 2026-10-15 (mock exam recovered in 1 of 10 scenario runs on the local model). The Codex adapter was measured on 2026-10-16.

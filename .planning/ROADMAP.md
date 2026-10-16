@@ -20,7 +20,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 4: Study site** - Allowlisted readers sign in, read, watch and take server-graded mock exams on a hardened site (baseline)
 - [x] **Phase 5: Publication boundary and public repository** - Local lectures stay private until published and the repository leaks no portal details, credentials or private terms (baseline)
 - [x] **Phase 6: Pluggable LLM gateway** - Every LLM-backed stage calls one `LlmGateway` port; a Codex adapter keeps current behavior and a local llama.cpp adapter runs with no network egress, chosen by configuration (completed 2026-10-15)
-- [ ] **Phase 7: Synthetic demo lecture and measured results** - A lecture authored for the repository runs end to end to a served page, and the pipeline's quality is reported with real numbers
+- [x] **Phase 7: Synthetic demo lecture and measured results** - A lecture authored for the repository runs end to end to a served page, and the pipeline's quality is reported with real numbers (completed 2026-10-16)
 - [ ] **Phase 8: Portfolio README and documentation** - A technical reader understands the problem, architecture, decisions and results, and the demo walkthrough runs as written
 - [ ] **Phase 9: Pre-public gate and release** - The full history passes the leak scans, a final whole-repository review closes, and the repository is switched to public
 
@@ -132,17 +132,17 @@ Plans:
   3. A results report gives the ASR word error rate against the known script before and after the terminology dictionary, the schema pass rate per LLM stage, the critic rejection rate and the per-stage wall time, for each adapter that was run
   4. With a rejected or stale unit, the exam, podcast, personal-study flashcard and study-guide scripts write nothing for the demo lecture; after the ADR 0045 recovery they produce the exam, podcast, flashcards and study guide
 
-**Plans**: 1/8 plans executed in 5 waves
+**Plans**: 8/8 plans complete in 5 waves
 
 Plans:
 - [x] 07-01-PLAN.md — Shared Kokoro helper, `lecture_study.demo` package, DemoScript model and lint, authored pt-BR lecture script with planted terms (wave 1)
-- [ ] 07-02-PLAN.md — Typst slides, build driver, `make demo-video`, build accepted by the pipeline's own extraction and OCR (wave 2)
-- [ ] 07-03-PLAN.md — Measurement logic: WER, ASR before/after the dictionary, run-record stage metrics, critic rejection rate, per-stage wall time, report renderer (wave 2)
-- [ ] 07-04-PLAN.md — Dry run of stages 8 and 9, the guide and the site on fixtures to a signed-in view; demo site access material and live check (wave 2)
-- [ ] 07-05-PLAN.md — Blocked-lecture recovery tooling: inductions, filesystem snapshot, scenario driver with harvest guard (wave 2)
-- [ ] 07-06-PLAN.md — Registration of both ids, local-adapter run to a signed-in page on the served site, harvest of local measurements (wave 3)
-- [ ] 07-07-PLAN.md — Codex run behind a no-egress preflight and a blocking operator egress checkpoint, harvest or not-run record (wave 4)
-- [ ] 07-08-PLAN.md — Live ADR 0045 recovery demonstration, committed results report, ADR 0047 (wave 5)
+- [x] 07-02-PLAN.md — Typst slides, build driver, `make demo-video`, build accepted by the pipeline's own extraction and OCR (wave 2)
+- [x] 07-03-PLAN.md — Measurement logic: WER, ASR before/after the dictionary, run-record stage metrics, critic rejection rate, per-stage wall time, report renderer (wave 2)
+- [x] 07-04-PLAN.md — Dry run of stages 8 and 9, the guide and the site on fixtures to a signed-in view; demo site access material and live check (wave 2)
+- [x] 07-05-PLAN.md — Blocked-lecture recovery tooling: inductions, filesystem snapshot, scenario driver with harvest guard (wave 2)
+- [x] 07-06-PLAN.md — Registration of both ids, local-adapter run to a signed-in page on the served site, harvest of local measurements (wave 3)
+- [x] 07-07-PLAN.md — Codex run behind a no-egress preflight and a blocking operator egress checkpoint, harvest or not-run record (wave 4)
+- [x] 07-08-PLAN.md — Live ADR 0045 recovery demonstration, committed results report, ADR 0047 (wave 5)
 
 ### Phase 8: Portfolio README and documentation
 
@@ -183,6 +183,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 4. Study site | 0/0 | Complete (baseline) | Pre-GSD |
 | 5. Publication boundary and public repository | 0/0 | Complete (baseline) | Pre-GSD |
 | 6. Pluggable LLM gateway | 12/12 | Complete    | 2026-10-15 |
-| 7. Synthetic demo lecture and measured results | 1/8 | In Progress | - |
+| 7. Synthetic demo lecture and measured results | 8/8 | Complete    | 2026-10-16 |
 | 8. Portfolio README and documentation | 0/TBD | Not started | - |
 | 9. Pre-public gate and release | 0/TBD | Not started | - |
