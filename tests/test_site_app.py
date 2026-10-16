@@ -16,7 +16,7 @@ from fastapi.testclient import TestClient
 from lecture_study.domain.models import MockExam, MockQuestion
 from lecture_study.site import throttle
 from lecture_study.site.access import Credential, hash_password
-from lecture_study.site.app import create_app
+from lecture_study.site.app import _parse_basic_auth, create_app
 from lecture_study.site.login_csrf import (
     LOGIN_CSRF_COOKIE,
     LOGIN_CSRF_FIELD,
@@ -2056,12 +2056,13 @@ class TestMalformedCredentialsNeverRaise:
 
         assert response.status_code == 401
 
-    def test_a_latin1_superscript_byte_basic_header_is_unauthorized(
+    def test_a_latin1_superscript_basic_header_is_unauthorized(
         self, site_directory: Path, credentials_path: Path
     ):
-        """A raw 0xb2 byte (the latin-1 superscript two) reaches the header
-        parser as one character, unlike the two-byte UTF-8 encoding the
-        other parameters send; it must be refused, never raise."""
+        """The superscript two must be refused as obs-text. The ASGI client
+        re-encodes raw header bytes as UTF-8 (starlette's TestClient), so
+        the request exercises the two-character mojibake variant and the
+        single-character vector is asserted on the parser directly."""
         client = _client(site_directory, credentials_path)
 
         response = client.get(
@@ -2069,6 +2070,7 @@ class TestMalformedCredentialsNeverRaise:
         )
 
         assert response.status_code == 401
+        assert _parse_basic_auth("Basic ²²") is None
 
     @pytest.mark.parametrize("expiry", ["²", "٣٣", "9" * 5000, "-1", "1_0"])
     def test_a_session_cookie_with_a_malformed_expiry_is_unauthorized(
