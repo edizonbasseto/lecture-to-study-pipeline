@@ -293,7 +293,7 @@ Top-level directories:
 - `demo/`: the synthetic lecture script and the demo site calendar.
 - `docs/`: architecture decision records (`docs/decisions/`), the measured results and the operating boundaries.
 - `tests/`: the test suite.
-- `infra/`: the container entrypoint and server logging configuration.
+- `infra/`: the container entrypoint, server logging configuration and the site image dependency file.
 - `.githooks/` and `.github/`: leak-gate hooks and the CI workflow.
 
 Packages under `src/lecture_study/`:
@@ -311,7 +311,7 @@ Packages under `src/lecture_study/`:
 
 ## License
 
-MIT, see [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE). Vulnerability reporting follows [SECURITY.md](SECURITY.md).
 
 ### Third-party licenses
 

@@ -26,11 +26,9 @@ last_mapped_at: 2026-10-14
 - Impact: The site cannot show where unpublished lectures belong in the course structure.
 - Fix approach: Source `expected_lecture_ids` from the discipline/topic tree in the course configuration (`config/targets.example.yaml` describes the shape), then carry that context into each pending entry.
 
-**Duplicated dependency pins:**
-- Issue: `Dockerfile.site` installs pinned versions (`fastapi==0.139.2`, `uvicorn==0.51.0`, `pyyaml==6.0.3`, `markdown-it-py==4.2.0`, `pydantic==2.13.4`) directly with `pip`, while the project dependency set is locked in `uv.lock` and `pyproject.toml`.
-- Files: `Dockerfile.site`, `pyproject.toml`, `uv.lock`
-- Impact: The container and the development environment can resolve different versions. A bump in `uv.lock` does not reach the image automatically.
-- Fix approach: Install the site image from `uv.lock` (for example with `uv export` to a requirements file, or a `uv sync --frozen` build stage), and remove the hand-maintained pin list.
+**Duplicated dependency pins (resolved 2026-10-16):**
+- Issue: `Dockerfile.site` installed pinned top-level versions directly with `pip`, so the container resolved transitive dependencies at build time, divergent from `uv.lock`.
+- Resolution: `Dockerfile.site` now pins the base image by digest and installs from `infra/site-requirements.txt` (the closure of the five top-level packages with hashes, generated from `uv.lock` by `scripts/export_site_requirements.py`) with `--require-hashes`. A `uv.lock` bump reaches the image by regenerating that file.
 
 **Stray print statements in library code:**
 - Issue: A small number of `print(` calls remain under `src/lecture_study`, where structured logging is used elsewhere.
