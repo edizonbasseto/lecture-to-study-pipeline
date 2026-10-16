@@ -382,7 +382,7 @@
       },
       "evidence_packs": 1,
       "notes": [
-        "Codex model note: the user-level default model (gpt-6.1-sol) is rejected for a ChatGPT account, so the run used model gpt-6-sol through a temporary change of the user-level codex configuration, restored afterwards; the earlier failed attempts of phase 5 produced no model output."
+        "Codex model note: the default model of the codex CLI configuration is not accepted for a ChatGPT account, so this run used the supported model gpt-6-sol; the earlier failed attempts of phase 5 produced no model output."
       ]
     },
     {

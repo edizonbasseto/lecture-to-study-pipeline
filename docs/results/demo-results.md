@@ -8,7 +8,7 @@ Measured on 2026-10-16. Every rate is printed with its denominator; the method, 
 - Reference words: 620
 - Evidence packs (codex): 1
 - Evidence packs (llama-cpp): 1
-- Note (codex): Codex model note: the user-level default model (gpt-6.1-sol) is rejected for a ChatGPT account, so the run used model gpt-6-sol through a temporary change of the user-level codex configuration, restored afterwards; the earlier failed attempts of phase 5 produced no model output.
+- Note (codex): Codex model note: the default model of the codex CLI configuration is not accepted for a ChatGPT account, so this run used the supported model gpt-6-sol; the earlier failed attempts of phase 5 produced no model output.
 - Note (llama-cpp): Exams stage: attempt 1 failed its contract (5 calls, 1 retry); the figures are those of the successful rerun.
 - Note (llama-cpp): Flashcards stage: attempts 1 and 2 at the default deck floor of 12 failed (9 calls with 4 retries, then 3 calls with 1 retry); the successful run used a floor of 5 by operator decision, so it made one request and no supplemental ones.
 

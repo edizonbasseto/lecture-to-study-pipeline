@@ -225,7 +225,8 @@ procedure of ADR 0045.
   lecture data for the first time. No code defect surfaced in them; the failures
   observed were model contract failures of the local adapter (exams on the first
   attempt, flashcards at the default floor), recorded in the report.
-- The DEMO-04 evidence is partial for the mock exam: every other step of the
+- The operator accepted this partial DEMO-04 result on 2026-10-15.
+  The DEMO-04 evidence is partial for the mock exam: every other step of the
   ADR 0045 recovery was demonstrated, and the exam recovered once in ten
   scenario runs because of local model reliability (decision 9). A stronger
   local model, a larger evidence pack or a higher retry budget would change that;

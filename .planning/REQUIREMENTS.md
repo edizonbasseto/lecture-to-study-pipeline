@@ -113,10 +113,10 @@ Committed scope. Each requirement maps to exactly one roadmap phase.
 
 Former ROLL-03 (stages 8 and 9 on lecture data) is absorbed by DEMO-02 and former ROLL-04 (blocked-lecture recovery) by DEMO-04; both IDs are retired.
 
-- [ ] **DEMO-01**: A synthetic veterinary lecture authored for the repository (own script, own slides, Kokoro narration, ffmpeg composition), containing no third-party content and no patient data, is reproducible from versioned sources by a make target. (Operator decision 2026-10-14; ADR 0032; ADR 0044 section 2)
-- [ ] **DEMO-02**: The demo lecture runs through `run-all` and `run-personal-study`, stages 8 and 9 included, to a signed-in page view on the locally served site. (Operator decision 2026-10-14; absorbs former ROLL-03; ADR 0024 Context; ADR 0045 Alternatives)
-- [ ] **DEMO-03**: The pipeline's quality is reported with measured numbers: ASR word error rate against the known script before and after the terminology dictionary, schema pass rate per LLM stage, critic rejection rate, and per-stage wall time, for each adapter that is run. (Operator decision 2026-10-14; ADR 0028; ADR 0036)
-- [ ] **DEMO-04**: The blocked-lecture recovery documented in ADR 0045 is demonstrated on the demo lecture: a rejected or stale unit blocks all four derivative scripts; after the recovery (delete the lecture's units that no longer have a draft, then run `scripts/generate_codex_critic_review.py` for the lecture directly) they produce the exam, podcast, flashcards and study guide. (Operator decision 2026-10-14; absorbs former ROLL-04; ADR 0045 section 1 and Consequences)
+- [x] **DEMO-01**: A synthetic veterinary lecture authored for the repository (own script, own slides, Kokoro narration, ffmpeg composition), containing no third-party content and no patient data, is reproducible from versioned sources by a make target. (Operator decision 2026-10-14; ADR 0032; ADR 0044 section 2)
+- [x] **DEMO-02**: The demo lecture runs through `run-all` and `run-personal-study`, stages 8 and 9 included, to a signed-in page view on the locally served site. (Operator decision 2026-10-14; absorbs former ROLL-03; ADR 0024 Context; ADR 0045 Alternatives)
+- [x] **DEMO-03**: The pipeline's quality is reported with measured numbers: ASR word error rate against the known script before and after the terminology dictionary, schema pass rate per LLM stage, critic rejection rate, and per-stage wall time, for each adapter that is run. (Operator decision 2026-10-14; ADR 0028; ADR 0036)
+- [x] **DEMO-04** (partial, operator-accepted 2026-10-15: blocking proven, podcast/guide/flashcards recovered, mock exam recovered in 1 of 10 runs): The blocked-lecture recovery documented in ADR 0045 is demonstrated on the demo lecture: a rejected or stale unit blocks all four derivative scripts; after the recovery (delete the lecture's units that no longer have a draft, then run `scripts/generate_codex_critic_review.py` for the lecture directly) they produce the exam, podcast, flashcards and study guide. (Operator decision 2026-10-14; absorbs former ROLL-04; ADR 0045 section 1 and Consequences)
 
 ### Portfolio README and Documentation (Phase 8) - open
 
@@ -254,10 +254,10 @@ Which phases cover which requirements. Each requirement maps to exactly one phas
 | GW-04 | Phase 6 | Complete |
 | GW-05 | Phase 6 | Complete |
 | GW-06 | Phase 6 | Complete |
-| DEMO-01 | Phase 7 | Pending |
-| DEMO-02 | Phase 7 | Pending |
-| DEMO-03 | Phase 7 | Pending |
-| DEMO-04 | Phase 7 | Pending |
+| DEMO-01 | Phase 7 | Complete |
+| DEMO-02 | Phase 7 | Complete |
+| DEMO-03 | Phase 7 | Complete |
+| DEMO-04 | Phase 7 | Complete (partial, operator-accepted) |
 | DOC-01 | Phase 8 | Pending |
 | DOC-02 | Phase 8 | Pending |
 | DOC-03 | Phase 8 | Pending |
