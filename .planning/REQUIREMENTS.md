@@ -120,9 +120,9 @@ Former ROLL-03 (stages 8 and 9 on lecture data) is absorbed by DEMO-02 and forme
 
 ### Portfolio README and Documentation (Phase 8) - open
 
-- [ ] **DOC-01**: An English README written for a technical reader or recruiter replaces the "under active extraction" placeholder and presents the problem, an architecture diagram (Mermaid), the stage map, the design decisions with links to their ADRs, the demo results from DEMO-03, and a quick start. (Operator decision 2026-10-14; repository README; ADR 0044 Consequences)
-- [ ] **DOC-02**: An end-to-end walkthrough of the demo lecture has been executed once, and every command in it exists as written. (Operator decision 2026-10-14; repository README "end-to-end demo"; ADR 0044 Consequences)
-- [ ] **DOC-03**: The documentation states the operating boundaries as the ADRs define them: the egress rule and the unchecked provider terms (ADR 0045 section 2), the uncertified status and notice (ADR 0024; ADR 0045 section 3), the absence of certification standing (ADR 0024), blocked-lecture recovery (ADR 0045), page regeneration after any inline script or style change (ADR 0044), the single-worker site constraint (ADR 0039), and the FileVault revisit triggers (ADR 0010).
+- [x] **DOC-01**: An English README written for a technical reader or recruiter replaces the "under active extraction" placeholder and presents the problem, an architecture diagram (Mermaid), the stage map, the design decisions with links to their ADRs, the demo results from DEMO-03, and a quick start. (Operator decision 2026-10-14; repository README; ADR 0044 Consequences)
+- [x] **DOC-02**: An end-to-end walkthrough of the demo lecture has been executed once, and every command in it exists as written. (Operator decision 2026-10-14; repository README "end-to-end demo"; ADR 0044 Consequences)
+- [x] **DOC-03**: The documentation states the operating boundaries as the ADRs define them: the egress rule and the unchecked provider terms (ADR 0045 section 2), the uncertified status and notice (ADR 0024; ADR 0045 section 3), the absence of certification standing (ADR 0024), blocked-lecture recovery (ADR 0045), page regeneration after any inline script or style change (ADR 0044), the single-worker site constraint (ADR 0039), and the FileVault revisit triggers (ADR 0010).
 
 ### Pre-Public Gate and Release (Phase 9) - open
 
@@ -258,9 +258,9 @@ Which phases cover which requirements. Each requirement maps to exactly one phas
 | DEMO-02 | Phase 7 | Complete |
 | DEMO-03 | Phase 7 | Complete |
 | DEMO-04 | Phase 7 | Complete (partial, operator-accepted) |
-| DOC-01 | Phase 8 | Pending |
-| DOC-02 | Phase 8 | Pending |
-| DOC-03 | Phase 8 | Pending |
+| DOC-01 | Phase 8 | Complete |
+| DOC-02 | Phase 8 | Complete |
+| DOC-03 | Phase 8 | Complete |
 | PUBG-01 | Phase 9 | Pending |
 | PUBG-02 | Phase 9 | Pending |
 | PUBG-03 | Phase 9 | Pending |
