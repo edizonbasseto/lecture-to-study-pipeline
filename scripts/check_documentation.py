@@ -13,7 +13,8 @@ quoted subcommand name occurs in the script or module source), not argparse
 introspection. Knowingly not checked: what a command does, the meaning of an
 option's value and programs that are not make, repository scripts or modules.
 
-Exit codes: 0 clean, 1 findings, 2 unreadable input.
+Exit codes: 0 clean, 1 findings, 2 unreadable or unprocessable input (a command
+line usage error also exits 2).
 """
 
 from __future__ import annotations
@@ -38,6 +39,7 @@ RULE_ADR_MISSING = "adr-missing"
 RULE_QUOTE_NOT_IN_ADR = "quote-not-in-adr"
 RULE_MACHINE_PATH = "machine-path"
 RULE_UNPARSEABLE_COMMAND = "unparseable-command"
+RULE_UNTERMINATED_FENCE = "unterminated-fence"
 
 EXIT_CLEAN = 0
 EXIT_FINDINGS = 1
@@ -52,13 +54,29 @@ SOURCE_DIRECTORY = Path("src")
 SHELL_FENCES = frozenset({"bash", "sh", "shell", "zsh", "console"})
 CONSOLE_FENCE = "console"
 PROMPT = "$ "
-COMMAND_SEPARATORS = frozenset({"&&", "||", ";", "|"})
+COMMAND_SEPARATORS = frozenset({"&&", "||", ";", "|", "&"})
 REDIRECTION_CHARACTERS = frozenset("<>&")
 KIND_MAKE = "make"
 KIND_SCRIPT = "script"
 KIND_MODULE = "module"
 KIND_OTHER = "other"
 PYTHON_PROGRAMS = frozenset({"python", "python3"})
+PROJECT_PACKAGE = "lecture_study"
+UV_VALUE_OPTIONS = frozenset(
+    {
+        "--group",
+        "--no-group",
+        "--with",
+        "--extra",
+        "--python",
+        "-p",
+        "--package",
+        "--project",
+        "--directory",
+        "--env-file",
+    }
+)
+OPTION_TERMINATOR = "--"
 SHELL_PROGRAMS = frozenset({"sh", "bash"})
 IMPLICIT_FLAGS = frozenset({"--help"})
 TRACKED_ROOTS = (
@@ -81,7 +99,7 @@ _VARIABLE_LINE = re.compile(r"^([A-Za-z_][\w.-]*)[ \t]*(?:\?=|:=|\+=|=)")
 _TARGET_LINE = re.compile(r"^([A-Za-z0-9][\w.-]*(?:[ \t]+[\w.-]+)*)[ \t]*:(?![=:])")
 _FENCE_LINE = re.compile(r"^\s*(`{3,}|~{3,})\s*([\w-]*)")
 _ASSIGNMENT_WORD = re.compile(r"^([A-Za-z_]\w*)=")
-_LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
+_LINK = re.compile(r"\[[^\]]{0,500}\]\(([^)\s]{1,2000})(?:\s+\"[^\"]{0,500}\")?\)")
 _URL_SCHEME = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
 _INLINE_CODE = re.compile(r"`([^`\n]+)`")
 _ADR_REFERENCE = re.compile(
@@ -118,6 +136,18 @@ class MakefileFacts:
 class CommandLine:
     line_number: int
     words: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class _FenceBlock:
+    name: str
+    opening_line: int
+    lines: tuple[tuple[int, str], ...]
+    closed: bool
+
+    @property
+    def is_shell(self) -> bool:
+        return self.name in SHELL_FENCES
 
 
 @dataclass(frozen=True, slots=True)
@@ -161,20 +191,23 @@ def read_makefile_facts(makefile_text: str) -> MakefileFacts:
 
 def fenced_command_lines(markdown_text: str) -> tuple[CommandLine, ...]:
     commands: list[CommandLine] = []
-    for fence_name, numbered_lines in _shell_blocks(markdown_text):
-        for line_number, text in _joined_continuations(numbered_lines):
-            commands.extend(_commands_of(line_number, text, fence_name))
+    for block in _fence_blocks(markdown_text):
+        if not block.is_shell:
+            continue
+        for line_number, text in _joined_continuations(block.lines):
+            commands.extend(_commands_of(line_number, text, block.name))
     return tuple(commands)
 
 
 def check_document(
     root: Path, document: Path, facts: MakefileFacts, decision_text: str
 ) -> Report:
-    text = _read_text(root / document, document)
+    text = _read_document(root, document)
     scope = _DocumentScope(root, document, facts)
     commands = fenced_command_lines(text)
     invocations = _invocations(commands)
     findings = [
+        *_unterminated_fence_findings(scope, text),
         *_unparseable_findings(scope, commands),
         *(f for pair in invocations for f in _invocation_findings(scope, *pair)),
         *_link_findings(scope, text),
@@ -200,7 +233,7 @@ def check_documents(root: Path, documents: Sequence[Path]) -> Report:
 def folded_decision_text(root: Path) -> str:
     """The decision files with blockquote markers removed and whitespace folded."""
     pages = sorted((root / DECISIONS_DIRECTORY).glob("*.md"))
-    texts = [page.read_text(encoding="utf-8", errors="replace") for page in pages]
+    texts = [_read_lenient(page, page.relative_to(root)) for page in pages]
     return QUOTE_SEPARATOR.join(_folded_quote(text) for text in texts)
 
 
@@ -216,10 +249,16 @@ def main(argv: list[str]) -> int:
     try:
         report = check_documents(root, documents)
     except UnreadableInputError as error:
-        print(f"documentation check refused: {error}", file=sys.stderr)
-        return EXIT_UNREADABLE
+        return _refused(str(error))
+    except (OSError, ValueError):
+        return _refused("an input could not be processed")
     _print_report(report)
     return EXIT_FINDINGS if report.findings else EXIT_CLEAN
+
+
+def _refused(reason: str) -> int:
+    print(f"documentation check refused: {reason}", file=sys.stderr)
+    return EXIT_UNREADABLE
 
 
 def _parse_arguments(argv: list[str]) -> argparse.Namespace:
@@ -249,6 +288,19 @@ def _read_text(path: Path, shown_as: Path) -> str:
         raise UnreadableInputError(f"{shown_as.as_posix()} is not readable") from error
 
 
+def _read_document(root: Path, document: Path) -> str:
+    if not _inside_root(root, root / document):
+        raise UnreadableInputError(f"{document.as_posix()} is outside the root")
+    return _read_text(root / document, document)
+
+
+def _read_lenient(path: Path, shown_as: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8", errors="replace")
+    except OSError as error:
+        raise UnreadableInputError(f"{shown_as.as_posix()} is not readable") from error
+
+
 def _combined(reports: Sequence[Report]) -> Report:
     programs = {program for report in reports for program in report.unchecked_programs}
     return Report(
@@ -259,21 +311,26 @@ def _combined(reports: Sequence[Report]) -> Report:
     )
 
 
-def _shell_blocks(
-    markdown_text: str,
-) -> Iterator[tuple[str, list[tuple[int, str]]]]:
-    marker, fence_name, block = "", "", []
+def _fence_blocks(markdown_text: str) -> Iterator[_FenceBlock]:
+    marker, name, opening_line = "", "", 0
+    lines: list[tuple[int, str]] = []
     for number, text in enumerate(markdown_text.splitlines(), start=1):
         fence = _FENCE_LINE.match(text)
         if not marker:
             if fence:
-                marker, fence_name, block = fence.group(1), fence.group(2).lower(), []
+                marker, name, opening_line = (
+                    fence.group(1),
+                    fence.group(2).lower(),
+                    number,
+                )
+                lines = []
         elif _closes_fence(text, marker):
-            if fence_name in SHELL_FENCES:
-                yield fence_name, block
+            yield _FenceBlock(name, opening_line, tuple(lines), closed=True)
             marker = ""
         else:
-            block.append((number, text))
+            lines.append((number, text))
+    if marker:
+        yield _FenceBlock(name, opening_line, tuple(lines), closed=False)
 
 
 def _closes_fence(text: str, marker: str) -> bool:
@@ -335,14 +392,33 @@ def _split_on_separators(tokens: Sequence[str]) -> Iterator[tuple[str, ...]]:
 def _without_redirections(words: tuple[str, ...]) -> tuple[str, ...]:
     kept: list[str] = []
     skip_next = False
-    for word in words:
+    for index, word in enumerate(words):
         if skip_next:
             skip_next = False
-        elif word and set(word) <= REDIRECTION_CHARACTERS:
+        elif _is_redirection(word):
             skip_next = True
-        else:
+        elif not _is_descriptor_of_redirection(words, index):
             kept.append(word)
     return tuple(kept)
+
+
+def _is_redirection(word: str) -> bool:
+    return bool(word) and set(word) <= REDIRECTION_CHARACTERS
+
+
+def _is_descriptor_of_redirection(words: tuple[str, ...], index: int) -> bool:
+    following = words[index + 1 : index + 2]
+    return words[index].isdigit() and any(_is_redirection(w) for w in following)
+
+
+def _unterminated_fence_findings(scope: _DocumentScope, text: str) -> Iterator[Finding]:
+    for block in _fence_blocks(text):
+        if not block.closed:
+            yield scope.finding(
+                block.opening_line,
+                RULE_UNTERMINATED_FENCE,
+                "the code fence is never closed",
+            )
 
 
 def _unparseable_findings(
@@ -371,7 +447,17 @@ def _without_launchers(words: tuple[str, ...]) -> tuple[str, ...]:
     while start < len(words) and _ASSIGNMENT_WORD.match(words[start]):
         start += 1
     rest = words[start:]
-    return rest[2:] if rest[:2] == ("uv", "run") else rest
+    return _without_uv_options(rest[2:]) if rest[:2] == ("uv", "run") else rest
+
+
+def _without_uv_options(words: tuple[str, ...]) -> tuple[str, ...]:
+    index = 0
+    while index < len(words) and words[index].startswith("-"):
+        if words[index] == OPTION_TERMINATOR:
+            return words[index + 1 :]
+        takes_value = words[index] in UV_VALUE_OPTIONS
+        index += 2 if takes_value else 1
+    return words[index:]
 
 
 def _classified(words: tuple[str, ...]) -> _Invocation | None:
@@ -381,12 +467,22 @@ def _classified(words: tuple[str, ...]) -> _Invocation | None:
     if program == "make":
         return _Invocation(KIND_MAKE, program, arguments)
     if program in PYTHON_PROGRAMS and arguments[:1] == ("-m",) and len(arguments) > 1:
-        return _Invocation(KIND_MODULE, arguments[1], arguments[2:])
+        kind = KIND_MODULE if _is_project_module(arguments[1]) else KIND_OTHER
+        return _Invocation(kind, arguments[1], arguments[2:])
     if program in PYTHON_PROGRAMS | SHELL_PROGRAMS and _starts_with_word(arguments):
         return _Invocation(KIND_SCRIPT, arguments[0], arguments[1:])
-    if "/" in program and not _is_exempt_path(program):
+    if _is_repository_script_path(program):
         return _Invocation(KIND_SCRIPT, program, arguments)
     return _Invocation(KIND_OTHER, program, arguments)
+
+
+def _is_project_module(dotted_name: str) -> bool:
+    return dotted_name.split(".", 1)[0] == PROJECT_PACKAGE
+
+
+def _is_repository_script_path(program: str) -> bool:
+    is_machine_path = program.startswith(("/", "~"))
+    return "/" in program and not is_machine_path and not _is_exempt_path(program)
 
 
 def _starts_with_word(arguments: tuple[str, ...]) -> bool:
@@ -473,7 +569,7 @@ def _source_text(root: Path, relative: Path) -> str | None:
     path = root / relative
     if not (_inside_root(root, path) and path.is_file()):
         return None
-    return path.read_text(encoding="utf-8", errors="replace")
+    return _read_lenient(path, relative)
 
 
 def _inside_root(root: Path, path: Path) -> bool:

@@ -6,6 +6,7 @@ from __future__ import annotations
 import importlib.util
 import subprocess
 import sys
+import time
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
@@ -452,3 +453,133 @@ class TestCheckerExitCodes:
         assert unreadable.returncode == 2
         assert "README.md" in unreadable.stderr
         assert str(tmp_path) not in unreadable.stderr
+
+
+class TestUnterminatedFence:
+    def test_an_unclosed_fence_is_reported_at_its_opening_line(
+        self, tmp_path: Path
+    ) -> None:
+        report = _report_for(tmp_path, "intro\n```bash\nmake nonexistent\n")
+        rules = [(f.line_number, f.rule, f.detail) for f in report.findings]
+        assert (2, "unterminated-fence", "the code fence is never closed") in rules
+        assert any(rule == "make-target" for _, rule, _ in rules)
+
+    def test_closed_fences_report_nothing(self, tmp_path: Path) -> None:
+        assert _findings_for(tmp_path, _fenced("bash", "make build")) == []
+
+
+class TestRedirectionsAndBackground:
+    def test_a_descriptor_redirection_leaves_no_stray_word(self) -> None:
+        text = _fenced("bash", "make build 2>&1 | tee out.log", "make build >out.log")
+        commands = check_documentation.fenced_command_lines(text)
+        assert _words(commands) == [
+            ("make", "build"),
+            ("tee", "out.log"),
+            ("make", "build"),
+        ]
+
+    def test_a_lone_ampersand_separates_commands(self) -> None:
+        commands = check_documentation.fenced_command_lines(
+            _fenced("bash", "make build & make demo-run")
+        )
+        assert _words(commands) == [("make", "build"), ("make", "demo-run")]
+
+    def test_a_target_after_a_background_command_is_still_checked(
+        self, tmp_path: Path
+    ) -> None:
+        text = _fenced("bash", "make build & make missing-target")
+        assert _findings_for(tmp_path, text) == ["make-target missing-target"]
+
+
+class TestProgramsOutsideTheRepository:
+    def test_a_third_party_python_module_is_not_a_repository_module(
+        self, tmp_path: Path
+    ) -> None:
+        text = _fenced("bash", "python -m pytest -q", "python3 -m pip install x")
+        report = _report_for(tmp_path, text)
+        assert report.findings == ()
+        assert report.unchecked_programs == ("pip", "pytest")
+
+    def test_absolute_and_home_commands_are_not_repository_scripts(
+        self, tmp_path: Path
+    ) -> None:
+        text = _fenced("bash", "/usr/bin/open README.md", "~/bin/tool --flag")
+        assert _findings_for(tmp_path, text) == []
+
+    def test_a_relative_repository_script_is_still_checked(
+        self, tmp_path: Path
+    ) -> None:
+        assert _findings_for(tmp_path, _fenced("bash", "./scripts/gone.sh")) == [
+            "script-missing ./scripts/gone.sh"
+        ]
+
+
+class TestUvRunOptions:
+    def test_options_before_the_command_are_skipped(self, tmp_path: Path) -> None:
+        text = _fenced("bash", "uv run --group dev python scripts/tool.py --adapter x")
+        assert _findings_for(tmp_path, text) == []
+
+    def test_the_command_after_options_is_still_checked(self, tmp_path: Path) -> None:
+        text = _fenced("bash", "uv run --group dev python scripts/missing.py")
+        assert _findings_for(tmp_path, text) == ["script-missing scripts/missing.py"]
+
+    def test_a_flag_without_value_and_the_terminator_are_skipped(
+        self, tmp_path: Path
+    ) -> None:
+        text = _fenced("bash", "uv run --frozen -- python scripts/tool.py")
+        assert _findings_for(tmp_path, text) == []
+
+    def test_the_launched_program_is_reported_as_unchecked(
+        self, tmp_path: Path
+    ) -> None:
+        report = _report_for(tmp_path, _fenced("bash", "uv run --group dev ruff ."))
+        assert report.unchecked_programs == ("ruff",)
+
+
+class TestLinkBound:
+    def test_a_long_unclosed_bracket_run_is_scanned_quickly(
+        self, tmp_path: Path
+    ) -> None:
+        started = time.perf_counter()
+        assert _findings_for(tmp_path, "[" * 20000 + "\n") == []
+        assert time.perf_counter() - started < 2.0
+
+    def test_an_ordinary_link_still_matches(self) -> None:
+        assert check_documentation._LINK.findall("[a](docs/guide.md)") == [
+            "docs/guide.md"
+        ]
+
+
+class TestUnprocessableInput:
+    def test_a_nul_byte_in_a_link_exits_two_not_one(self, tmp_path: Path) -> None:
+        (tmp_path / "Makefile").write_text("build:\n\ttrue\n", encoding="utf-8")
+        (tmp_path / "README.md").write_text("[x](a\x00b.md)\n", encoding="utf-8")
+        result = _run_checker(tmp_path)
+        assert result.returncode == 2
+        assert "could not be processed" in result.stderr
+        assert "Traceback" not in result.stderr
+
+    def test_an_unreadable_decision_file_exits_two(self, tmp_path: Path) -> None:
+        _write_repository(tmp_path, "text\n")
+        (tmp_path / "docs" / "decisions" / "0099-binary.md").mkdir()
+        result = _run_checker(tmp_path)
+        assert result.returncode == 2
+        assert "Traceback" not in result.stderr
+
+
+class TestDocumentConfinement:
+    def test_a_document_outside_the_root_is_refused(self, tmp_path: Path) -> None:
+        root = tmp_path / "repository"
+        root.mkdir()
+        (root / "Makefile").write_text("build:\n\ttrue\n", encoding="utf-8")
+        outside = tmp_path / "outside.md"
+        outside.write_text("clean\n", encoding="utf-8")
+        for argument in (str(outside), "../outside.md"):
+            result = subprocess.run(
+                [sys.executable, str(_SCRIPT), "--root", str(root), argument],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            assert result.returncode == 2
+            assert "outside the root" in result.stderr

@@ -73,5 +73,5 @@ jobs:
       - run: uv sync --group dev --locked
       - run: uv run ruff check .
       - run: uv run ruff format --check .
-      - run: uv run mypy src
+      - run: uv run mypy src scripts/check_documentation.py
       - run: uv run pytest -q -rs

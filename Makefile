@@ -22,7 +22,7 @@ test:
 lint:
 	uv run ruff check .
 	uv run ruff format --check .
-	uv run mypy src
+	uv run mypy src scripts/check_documentation.py
 
 docs-check:
 	uv run python scripts/check_documentation.py
