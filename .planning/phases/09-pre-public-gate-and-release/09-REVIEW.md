@@ -278,3 +278,69 @@ _Depth: deep_
 ## Closure addendum (CR-02, 2026-10-16)
 
 CR-02 is resolved by the same operator-approved history rewrite that closes T-09-05 in `09-SECURITY.md`: all 153 commits now carry the GitHub no-reply identity as author and committer (verified with `git log --all --format='%ae %ce'`), gitleaks and the denylist scan were re-run clean over the rewritten history, the hook tests pass (43 passed), and the hash citations in the tracked tree were updated from the filter-repo commit map (290 replacements across 51 files, no residual old object id). No critical finding remains open. The open warnings and info findings (WR-02 to WR-06 in part, IN-02 to IN-07, and the re-review residuals IN-R2, WR-R2) are unchanged and non-blocking.
+
+## Re-review of the gate-closure diff (7652f7b..HEAD, 2026-10-16)
+
+**Reviewed:** 2026-10-16
+**Scope:** `git diff 7652f7b..HEAD` on branch `main` (4 commits: `52a9f66` container digest pin + hash-verified install, `1a88889` raw-byte Basic-header and `_parse_expiry` tests, `f272055` README no-sandbox qualifier, `1e8f9ae` STATE/ROADMAP refresh + two 08 link repairs), 11 files.
+**Depth:** deep on the supply-chain files (`Dockerfile.site`, `scripts/export_site_requirements.py`, `infra/site-requirements.txt`, with `uv.lock` cross-checks, an installed-metadata closure check and a live registry digest query) and on the two test files; standard on the documentation and planning files.
+**Verdict:** T-09-20 and A-10 are resolved, every documented supply-chain claim verified independently; A-12 and the WR-02 subset are partially resolved. New findings: one Warning, two Info; no new critical finding. Status stays `issues_found` (no critical finding is open; open warnings remain, all non-blocking).
+
+### Checks executed (evidence)
+
+- Range: `git diff --stat 7652f7b..HEAD` — 11 files, +335/-22, matching the four commit messages.
+- Tests: `tests/test_site_sessions.py` plus `tests/test_site_app.py::TestMalformedCredentialsNeverRaise` — 25 passed; full suite 3003 passed, 1 skipped (3001 before the range); `ruff check` and `ruff format --check` clean on the three changed Python files; `scripts/check_documentation.py` — 2 documents, 21 command lines, 0 findings.
+- Regeneration: the export script's own pipeline (`uv export --frozen --no-dev --no-emit-project --no-header --no-annotate` plus the closure filter), run with the output path redirected outside the tree, reproduces `infra/site-requirements.txt` byte-for-byte.
+- Lock cross-check: all 17 entries match `uv.lock` on exact version and on the complete sha256 set of every recorded wheel and sdist (pydantic-core 65 hashes, pyyaml 39, the rest 2 each).
+- Independent closure check: for each of the 17 distributions installed in the virtualenv, every `Requires-Dist` whose marker is true for the container platform (Linux, CPython 3.12) names a package inside the file; nothing needed is missing, and the five roots equal the previous pip install line exactly.
+- Registry: `python:3.12-slim` resolved live on 2026-10-16 through the Docker Hub registry API (auth token, OCI index and Docker manifest-list accepts) returns `docker-content-digest: sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1` — identical to the digest pinned in `Dockerfile.site` and quoted in `docs/operations.md`.
+- Parser probes (direct module loads, no network): on the pre-fix source (archived tree of `78e255e`) `_parse_token` with a valid email segment raises `ValueError` for the `²` and 5,000-digit expiries and returns `('a@b.c', 33, 'sig')` for `٣٣` (the pre-fix acceptance of non-ASCII digits); `_parse_basic_auth` raises `ValueError` for both header shapes. On HEAD, `_parse_expiry` returns `None` for `²`, `٣٣` and `9 * 5000`, and `_parse_basic_auth` returns `None` for both `'Basic ²²'` and `'Basic Â²Â²'`.
+- Raw-byte transport probe: a FastAPI `TestClient` request with `headers={"authorization": b"Basic \xb2\xb2"}` delivers scope header bytes `b'Basic \xc2\xb2\xc2\xb2'`; the application receives `'Basic Â²Â²'`, not single-character `²` (see WR-R3).
+- Links: both repaired targets resolve from their files (`../../../docs/decisions/0045-...` and `../../../README.md` from `.planning/phases/08-portfolio-readme-and-documentation/`); a full relative-link sweep of both changed planning files reports no broken link. `docs/operations.md` has no leftover unpinned-install phrasing, and `.dockerignore` does not exclude `infra/`, so the new `COPY` is within the build context.
+
+### Resolution of the checked items
+
+| Item | Status | Evidence |
+|---|---|---|
+| A-10 — README local-adapter qualifier | **Resolved** | `README.md:168` now carries "(by construction, no OS sandbox)", consistent with `README.md:47` (diagram wording), `docs/operations.md:61` ("by construction (ADR 0046 records no OS sandbox and a trusted pinned binary)") and ADR 0046 (lines 240, 515: OS network sandbox deferred). It is the only "sends nothing" claim left in the README and it is qualified. |
+| A-12 — parser/raw-byte test gap | **Partially** | The `_parse_expiry` unit test is present, direct and discriminating (probes above; pre-fix `²` and the 5,000-digit run raise, `٣٣` silently parsed to 33). The raw-byte ASGI test exists and fails on pre-fix code, but it does not send what its docstring claims — see WR-R3. No committed ASGI-level test delivers a single-character non-ASCII header value; the fix itself is verified safe for that shape by direct probe. |
+| WR-02 subset — STATE/ROADMAP/links | **Partially** | "Current focus", "Next action", `stopped_at` and Session Continuity are coherent; the ROADMAP phase 9 row ("In progress — gate closed, public switch pending operator", 2026-10-16) matches the final 09-SECURITY verdict (SECURED, `threats_open: 0`, remaining actions non-blocking) and STATE; both previously broken links resolve. Residue: `STATE.md:37` still contradicts the frontmatter and its own progress bar ("5 of 9" beside 89% and `completed_phases: 8`), and `state_head: 7652f7b` lags HEAD by the four gate-closure commits (IN-R4); the 08-02-PLAN repair corrupts an instructional example (IN-R5). |
+| T-09-20 — supply-chain documentation accuracy | **Resolved** | Every factual claim in "Container image supply chain" verified against HEAD and the live registry: digest equality (Dockerfile, docs, registry — the tag still resolves to the pinned digest), `--require-hashes` install matches the `RUN` line, closure completeness confirmed from installed metadata, hashes provenance byte-identical to `uv.lock` via regeneration, and the regeneration command reproduces the file. The doc's "`uv export --frozen`" shorthand omits the script's additional flags (`--no-dev --no-emit-project --no-header --no-annotate`); accurate in substance. |
+| New findings in the range (Dockerfile, export script, requirements, tests) | **1 Warning, 2 Info** | No correctness defect in `Dockerfile.site`, `scripts/export_site_requirements.py` or `infra/site-requirements.txt`: the closure filter is fail-closed (a closure member missing from the export aborts with a message), markers are preserved (`colorama` stays win32-only), hashes and versions match the lock, and `--require-hashes` makes any missing transitive fail the build rather than resolve. The test defect is WR-R3. |
+
+### New Warnings
+
+#### WR-R3: The raw-byte Basic-header test does not send a raw byte; its docstring claim is false and the claimed vector stays untested at the ASGI level
+
+**Severity (caller scale):** Medium (test reliability, same class as WR-R1)
+**File:** `tests/test_site_app.py:2059-2071`
+**Issue:** The new test sends `headers={"authorization": b"Basic \xb2\xb2"}` and its docstring states that the raw 0xb2 byte "reaches the header parser as one character, unlike the two-byte UTF-8 encoding the other parameters send". It does not. starlette's TestClient rebuilds the ASGI scope headers through `request.headers.multi_items()` (string decode; httpx falls back to iso-8859-1 for non-UTF-8 raw values) and `value.encode()` (UTF-8) at `starlette/testclient.py:250`, so a lone `\xb2` always arrives as the two-character mojibake `'Â²Â²'` — the same shape class the pre-existing UTF-8 parameters deliver (observed scope bytes: `b'Basic \xc2\xb2\xc2\xb2'`; dict-bytes and raw-list header forms behave identically). The test remains a valid fix/no-fix discriminator (pre-fix `_parse_basic_auth` raises `ValueError` for the mojibake shape, so the old code returns 500), but the specific vector A-12 asked for — a single non-ASCII header character, which a real HTTP client can send as obs-text and uvicorn delivers as one latin-1 character — is exercised by no committed ASGI test. The fix itself handles that shape correctly (`_parse_basic_auth("Basic ²²")` returns `None`, verified by direct probe).
+**Fix:** Mirror the sessions unit test at the app level — `assert _parse_basic_auth("Basic ²²") is None` in `tests/test_site_app.py` — which covers the true single-character shape; and correct the docstring to state the transport limitation (the TestClient re-encodes header values to UTF-8, so a raw byte arrives as mojibake). Exercising the byte-level vector end to end requires injecting a hand-built ASGI scope with raw header bytes.
+
+### New Info
+
+#### IN-R4: STATE.md refresh leaves the cited "5 of 9" contradiction and a stale state_head
+
+**Severity (caller scale):** Low
+**File:** `.planning/STATE.md:11,37`
+**Issue:** The refresh fixes "Current focus" and "Next action" but keeps line 37: "Progress: [█████████░] 89% (phases, 5 of 9; Phases 1-5 are complete baseline built before GSD adoption...)" beside a bar showing 8/9 and against frontmatter `completed_phases: 8` / `percent: 89` — "5 of 9" was one of the three specific contradictions WR-02 cited. `state_head: 7652f7b` also lags HEAD by the four gate-closure commits (`last_updated` 11:30Z versus commits at 11:36Z), so the snapshot does not cover the commits the same update summarizes.
+**Fix:** Change the parenthetical to "8 of 9; Phases 1-5 predate GSD adoption" (or drop the count and keep the bar), and set `state_head` to the commit the state actually describes the next time the file is touched.
+
+#### IN-R5: The 08-02-PLAN link repair corrupts an instructional example to satisfy the link checker
+
+**Severity (caller scale):** Low
+**File:** `.planning/phases/08-portfolio-readme-and-documentation/08-02-PLAN.md:97`
+**Issue:** The sentence tells the author of `docs/operations.md` what to write ("a line naming the source as a relative markdown link to the ADR file (for example ...)"). The original example `[ADR 0045](decisions/0045-...)` was the correct markup from inside `docs/` and is what the created document actually uses (`docs/operations.md:18` onwards). The repair prefixes `../../../docs/`, which resolves from the plan file (so the walker passes) but, followed verbatim in the document the plan describes, escapes above the repository root. The walker's hit was a false positive on example markup destined for another file; the fix trades it for an inaccurate historical record. The parallel repair in `08-REVIEW.md:85` is benign (the probe statement remains behaviorally true and the link resolves).
+**Fix:** Revert the example to `(decisions/0045-...)` and exempt quoted example markup from the link walk, or keep the path and reword the sentence so the example is explicitly "as resolved from this plan file, not as written into the created document".
+
+### Re-review totals
+
+New findings in this diff: 0 critical, 1 warning, 2 info. Closed by this diff: T-09-20 and A-10 (both fully, with registry- and lock-level verification), WR-05's digest and hash-install items, IN-R1 (superseded by the real pin). Partially closed: A-12 (the `_parse_expiry` unit test is delivered; the raw-byte ASGI claim is false — WR-R3), WR-02 (STATE/ROADMAP/links; residue in IN-R4), WR-R1's sessions half (the `_parse_expiry` unit test covers the function-level vectors; the Content-Length assertion weakness and the vacuous cookie parameters are untouched). Status remains `issues_found`: no critical finding is open (CR-01 and CR-02 are closed), and the open warnings (WR-02 to WR-04, WR-05's remaining items, WR-R2, WR-R3, plus info items) are non-blocking. The frontmatter counts keep describing the first full report, as in the previous re-review; this section carries its own totals.
+
+_Re-reviewed: 2026-10-16_
+_Reviewer: Claude (gsd-code-reviewer)_
+_Depth: deep_
+
+## Closure addendum for the gate-closure re-review residues (b7e0d1e, 2026-10-16)
+
+WR-R3 is resolved: the superscript ASGI test's docstring now states that the client re-encodes raw bytes as UTF-8 and the request exercises the two-character mojibake variant, and the single-character vector is asserted directly (`_parse_basic_auth("Basic ²²") is None`); the selected tests pass. IN-R4 is resolved: `STATE.md` reports 8 of 9 phases beside the 89% bar and `state_head` matches the commit that precedes the planning refresh. IN-R5 is resolved by reverting the 08-02-PLAN example to its original `decisions/...` relative path, which is the correct form inside `docs/`; the re-review had established the walker hit was a false positive on example markup. No critical finding is open.

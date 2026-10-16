@@ -124,10 +124,10 @@ Former ROLL-03 (stages 8 and 9 on lecture data) is absorbed by DEMO-02 and forme
 - [x] **DOC-02**: An end-to-end walkthrough of the demo lecture has been executed once, and every command in it exists as written. (Operator decision 2026-10-14; repository README "end-to-end demo"; ADR 0044 Consequences)
 - [x] **DOC-03**: The documentation states the operating boundaries as the ADRs define them: the egress rule and the unchecked provider terms (ADR 0045 section 2), the uncertified status and notice (ADR 0024; ADR 0045 section 3), the absence of certification standing (ADR 0024), blocked-lecture recovery (ADR 0045), page regeneration after any inline script or style change (ADR 0044), the single-worker site constraint (ADR 0039), and the FileVault revisit triggers (ADR 0010).
 
-### Pre-Public Gate and Release (Phase 9) - open
+### Pre-Public Gate and Release (Phase 9) - gate closed, release pending operator
 
-- [ ] **PUBG-01**: A denylist scan and a gitleaks scan over every ref and the full history pass with no finding. (Operator decision 2026-10-14; ADR 0044 section 3)
-- [ ] **PUBG-02**: A final whole-repository code review and security review (`gsd-code-review` and `gsd-secure-phase`) close with no open blocking finding. (Operator decision 2026-10-14; operator rule R0.4)
+- [x] **PUBG-01**: A denylist scan and a gitleaks scan over every ref and the full history pass with no finding. (Operator decision 2026-10-14; ADR 0044 section 3) — passed 2026-10-16 over the no-reply rewritten history (09-SECURITY.md, closure audit)
+- [x] **PUBG-02**: A final whole-repository code review and security review (`gsd-code-review` and `gsd-secure-phase`) close with no open blocking finding. (Operator decision 2026-10-14; operator rule R0.4) — closed 2026-10-16: review 0 critical open, security SECURED with threats_open 0 (09-REVIEW.md, 09-SECURITY.md final sections)
 - [ ] **PUBG-03**: After the operator's final check, the repository visibility is switched to public; the CI `DENYLIST` secret and the leak-gate hooks stay in force. (Operator decision 2026-10-14; ADR 0044 section 3)
 
 ## v2 Requirements
@@ -261,9 +261,9 @@ Which phases cover which requirements. Each requirement maps to exactly one phas
 | DOC-01 | Phase 8 | Complete |
 | DOC-02 | Phase 8 | Complete |
 | DOC-03 | Phase 8 | Complete |
-| PUBG-01 | Phase 9 | Pending |
-| PUBG-02 | Phase 9 | Pending |
-| PUBG-03 | Phase 9 | Pending |
+| PUBG-01 | Phase 9 | Done 2026-10-16 |
+| PUBG-02 | Phase 9 | Done 2026-10-16 |
+| PUBG-03 | Phase 9 | Pending operator |
 
 Retired IDs: ROLL-01 and ROLL-02 moved to Out of Scope; ROLL-03 and ROLL-04 were absorbed by DEMO-02 and DEMO-04 (operator decision 2026-10-14).
 

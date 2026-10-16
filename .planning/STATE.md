@@ -8,7 +8,7 @@ stopped_at: Phase 9 gate items closed; the public switch (PUBG-03) awaits the op
 last_updated: "2026-10-16T11:30:00.000Z"
 last_activity: 2026-10-16
 last_activity_desc: PUBG-01 and PUBG-02 closed; history rewritten to the no-reply identity
-state_head: 7652f7b
+state_head: b7e0d1e
 progress:
   total_phases: 9
   completed_phases: 8
@@ -34,7 +34,7 @@ Status: Gate closing
 Last activity: 2026-10-16 — PUBG-01 scans and PUBG-02 reviews closed; history rewritten to the no-reply identity
 Next action: Operator confirms the switch to public (PUBG-03)
 
-Progress: [█████████░] 89% (phases, 5 of 9; Phases 1-5 are complete baseline built before GSD adoption, no GSD plans yet)
+Progress: [█████████░] 89% (8 of 9 phases complete; Phases 1-5 are complete baseline built before GSD adoption, no GSD plans yet)
 
 ## Performance Metrics
 
