@@ -21,7 +21,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 5: Publication boundary and public repository** - Local lectures stay private until published and the repository leaks no portal details, credentials or private terms (baseline)
 - [x] **Phase 6: Pluggable LLM gateway** - Every LLM-backed stage calls one `LlmGateway` port; a Codex adapter keeps current behavior and a local llama.cpp adapter runs with no network egress, chosen by configuration (completed 2026-10-15)
 - [x] **Phase 7: Synthetic demo lecture and measured results** - A lecture authored for the repository runs end to end to a served page, and the pipeline's quality is reported with real numbers (completed 2026-10-16)
-- [ ] **Phase 8: Portfolio README and documentation** - A technical reader understands the problem, architecture, decisions and results, and the demo walkthrough runs as written
+- [x] **Phase 8: Portfolio README and documentation** - A technical reader understands the problem, architecture, decisions and results, and the demo walkthrough runs as written (completed 2026-10-16)
 - [ ] **Phase 9: Pre-public gate and release** - The full history passes the leak scans, a final whole-repository review closes, and the repository is switched to public
 
 ## Phase Details
@@ -154,7 +154,7 @@ Plans:
   2. The end-to-end walkthrough of the demo lecture has been executed once, and every command in it exists as written
   3. The documentation states the egress rule and the unchecked provider terms, the uncertified status and notice, the absence of any standing toward certification, the blocked-lecture recovery, page regeneration after an inline script or style change, the single-worker site constraint and the FileVault revisit triggers
 
-**Plans**: 3/3 plans executed in 3 waves
+**Plans**: 3/3 plans complete in 3 waves
 
 Plans:
 - [x] 08-01-PLAN.md — Documentation checker `scripts/check_documentation.py` with tests, `make docs-check` and a real-repository test: commands, options, paths, links, ADR numbers, verbatim ADR quotes, no machine paths (wave 1)
@@ -189,5 +189,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 5. Publication boundary and public repository | 0/0 | Complete (baseline) | Pre-GSD |
 | 6. Pluggable LLM gateway | 12/12 | Complete    | 2026-10-15 |
 | 7. Synthetic demo lecture and measured results | 8/8 | Complete    | 2026-10-16 |
-| 8. Portfolio README and documentation | 3/3 | In Progress | - |
+| 8. Portfolio README and documentation | 3/3 | Complete    | 2026-10-16 |
 | 9. Pre-public gate and release | 0/TBD | Not started | - |

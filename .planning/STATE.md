@@ -1,19 +1,20 @@
 ---
 gsd_state_version: "1.0"
 milestone: v1.0
-current_phase: 8
-current_phase_name: Portfolio README and documentation
+current_phase: 9
+current_phase_name: Pre-public gate and release
 status: planning
-stopped_at: Completed 08-03-PLAN.md
-last_updated: "2026-10-16T04:02:35.774Z"
+stopped_at: Phase 8 complete, ready to plan Phase 9
+last_updated: "2026-10-16T04:42:08.211Z"
 last_activity: 2026-10-16
-last_activity_desc: Phase 7 complete, transitioned to Phase 8
-state_head: b089de16327ebe2c7938b9c7d8f308d39aa8fdd7
+last_activity_desc: Phase 8 complete, transitioned to Phase 9
+state_head: 225095db2ec147038a49e39ddc2eaf6c465e79dd
 progress:
   total_phases: 9
-  completed_phases: 7
+  completed_phases: 8
   total_plans: 23
   completed_plans: 23
+  percent: 89
 ---
 
 # Project State
@@ -27,18 +28,18 @@ See: .planning/PROJECT.md (updated 2026-10-14)
 
 ## Current Position
 
-Phase: 8 — Portfolio README and documentation
+Phase: 9 — Pre-public gate and release
 Plan: Not started
 Status: Ready to plan
-Last activity: 2026-10-16 — Phase 7 complete, transitioned to Phase 8
+Last activity: 2026-10-16 — Phase 8 complete, transitioned to Phase 9
 Next action: `/gsd-plan-phase 6`
 
-Progress: [████████░░] 78% (phases, 5 of 9; Phases 1-5 are complete baseline built before GSD adoption, no GSD plans yet)
+Progress: [█████████░] 89% (phases, 5 of 9; Phases 1-5 are complete baseline built before GSD adoption, no GSD plans yet)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 20 (baseline predates GSD)
+- Total plans completed: 23 (baseline predates GSD)
 - Average duration: n/a
 - Total execution time: n/a
 
@@ -54,6 +55,7 @@ Progress: [████████░░] 78% (phases, 5 of 9; Phases 1-5 are c
 | 1-5 (baseline) | 0 | - | - |
 | 6 | 12 | - | - |
 | 7 | 8 | - | - |
+| 8 | 3 | - | - |
 **Per-Plan Metrics:**
 
 | Plan | Duration | Tasks | Files |
@@ -135,7 +137,7 @@ Items acknowledged and deferred at roadmap creation (detail in REQUIREMENTS.md v
 ## Session Continuity
 
 Last session: 2026-10-16T04:02:35.715Z
-Stopped at: Completed 08-03-PLAN.md
+Stopped at: Phase 8 complete, ready to plan Phase 9
 Resume file: None
 
 Phase 7 note: DEMO-04 was accepted as partial by the operator on 2026-10-15 (mock exam recovered in 1 of 10 scenario runs on the local model). The Codex adapter was measured on 2026-10-16.
