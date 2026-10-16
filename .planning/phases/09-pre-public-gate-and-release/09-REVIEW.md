@@ -274,3 +274,7 @@ New findings in the corrected diff: 0 critical, 2 warning, 3 info. Findings from
 _Re-reviewed: 2026-10-16_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: deep_
+
+## Closure addendum (CR-02, 2026-10-16)
+
+CR-02 is resolved by the same operator-approved history rewrite that closes T-09-05 in `09-SECURITY.md`: all 153 commits now carry the GitHub no-reply identity as author and committer (verified with `git log --all --format='%ae %ce'`), gitleaks and the denylist scan were re-run clean over the rewritten history, the hook tests pass (43 passed), and the hash citations in the tracked tree were updated from the filter-repo commit map (290 replacements across 51 files, no residual old object id). No critical finding remains open. The open warnings and info findings (WR-02 to WR-06 in part, IN-02 to IN-07, and the re-review residuals IN-R2, WR-R2) are unchanged and non-blocking.
