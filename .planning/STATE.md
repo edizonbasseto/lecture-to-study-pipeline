@@ -3,18 +3,18 @@ gsd_state_version: "1.0"
 milestone: v1.0
 current_phase: 9
 current_phase_name: Pre-public gate and release
-status: executing
-stopped_at: Phase 9 gate items closed; the public switch (PUBG-03) awaits the operator
-last_updated: "2026-10-16T11:30:00.000Z"
+status: complete
+stopped_at: Phase 9 complete; milestone v1.0 complete (repository switched to public)
+last_updated: "2026-10-16T13:00:00.000Z"
 last_activity: 2026-10-16
-last_activity_desc: PUBG-01 and PUBG-02 closed; history rewritten to the no-reply identity
-state_head: b7e0d1e
+last_activity_desc: PUBG-03 done; repository public, leak gates in force
+state_head: e282eaa
 progress:
   total_phases: 9
-  completed_phases: 8
+  completed_phases: 9
   total_plans: 23
   completed_plans: 23
-  percent: 89
+  percent: 100
 ---
 
 # Project State
@@ -24,17 +24,17 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-14)
 
 **Core value:** No text the critic rejected or never reviewed reaches a reader of the study material, and everything a reader sees is labelled as uncertified.
-**Current focus:** Phase 9 — pre-public gate and release
+**Current focus:** none — milestone v1.0 complete
 
 ## Current Position
 
 Phase: 9 — Pre-public gate and release
 Plan: Gate items executed directly (PUBG-01..03); no GSD plan files
-Status: Gate closing
-Last activity: 2026-10-16 — PUBG-01 scans and PUBG-02 reviews closed; history rewritten to the no-reply identity
-Next action: Operator confirms the switch to public (PUBG-03)
+Status: Complete
+Last activity: 2026-10-16 — PUBG-03 done: repository switched to public, secret scanning and push protection enabled, 0 alerts
+Next action: Operator choice — archive the milestone (`/gsd-complete-milestone`) or plan v2 (deferred items in REQUIREMENTS.md)
 
-Progress: [█████████░] 89% (8 of 9 phases complete; Phases 1-5 are complete baseline built before GSD adoption, no GSD plans yet)
+Progress: [██████████] 100% (9 of 9 phases complete; Phases 1-5 are complete baseline built before GSD adoption, no GSD plans yet)
 
 ## Performance Metrics
 
@@ -136,8 +136,8 @@ Items acknowledged and deferred at roadmap creation (detail in REQUIREMENTS.md v
 
 ## Session Continuity
 
-Last session: 2026-10-16T11:30:00.000Z
-Stopped at: Phase 9 gate items closed; the public switch (PUBG-03) awaits the operator
+Last session: 2026-10-16T13:00:00.000Z
+Stopped at: Phase 9 complete; milestone v1.0 complete (repository switched to public)
 Resume file: None
 
 Phase 7 note: DEMO-04 was accepted as partial by the operator on 2026-10-15 (mock exam recovered in 1 of 10 scenario runs on the local model). The Codex adapter was measured on 2026-10-16.

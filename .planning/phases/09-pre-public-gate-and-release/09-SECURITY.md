@@ -5,9 +5,9 @@ scope: "PUBG-02 whole-repository security review before the repository is switch
 status: secured
 verdict: SECURED
 threats_total: 29
-threats_closed: 28
+threats_closed: 29
 threats_open: 0
-threats_open_nonblocking: 1
+threats_open_nonblocking: 0
 asvs_level: 2
 block_on: high
 audited_head: 78e255e
@@ -81,7 +81,7 @@ Severity for threats found without a plan register was assigned retroactively (i
 | T-09-24 | Tampering | Local leak-gate hooks in force | medium | mitigate | Wrappers for `pre-commit`, `commit-msg`, `pre-merge-commit` and `pre-push` exist in `.git/hooks` and execute the versioned hooks; `core.hooksPath` is deliberately unused (ADR 0044 section 3), which corrects Phase 8 advisory A-4; the private denylist file exists, mode 600; `tests/test_git_hooks.py` and `tests/test_denylist_scan.py` pass. Hooks are bypassable and absent from clones; CI is the backstop. | closed |
 | T-09-25 | Information disclosure | Gitignore coverage of workspace, credentials, keys, local configuration | high | mitigate | `git check-ignore -v` confirms an ignore rule for 40 probed paths: `workspace/`, `tmp/`, `engines/`, `config/site-credentials.txt`, `config/secrets/`, `config/session-key/`, `config/*.local.yaml` and `.json`, browser profile and cookie jars, `*.pem`, `*.key`, `*.p12`, `.netrc`, caches, graphify and GSD runtime state, and the media, document and database extensions; the environment-file patterns and the template exception are present in `.gitignore`. `git status --ignored` lists only expected local files, and nothing untracked is unignored. | closed |
 | T-09-26 | Information disclosure | Agent-tool configuration directory not ignored by the repository | low | mitigate (gap) | `.claude/settings.local.json` is ignored only by the operator's global ignore file, not by `.gitignore`; `.claude/` as a whole and `.claude/settings.json` have no rule. On another machine or account the file would be staged by `git add -A`. Currently the directory holds that one local file. Add `.claude/` to `.gitignore`. | **open (non-blocking)** |
-| T-09-27 | Information disclosure | Planning documents published wholesale | medium | mitigate (decision) | Scanned: no secret, path, host or personal datum beyond the operator's name and the purpose statement in `PROJECT.md` ("public portfolio artifact for an AI-engineering job search"); 25 plan files reference the operator's tool installation as `~/.claude-google/gsd-core/...`; `.planning/codebase/CONCERNS.md` publishes a candid list of known weaknesses (oversized modules, broad exception handlers, per-request secret read, image pin drift); `STATE.md` body contradicts its front matter. Nothing blocks publication, but the operator must decide consciously that `.planning/` ships and review `PROJECT.md:9` and `CONCERNS.md`. | **open (non-blocking)** |
+| T-09-27 | Information disclosure | Planning documents published wholesale | medium | mitigate (decision) | Scanned: no secret, path, host or personal datum beyond the operator's name and the purpose statement in `PROJECT.md` ("public portfolio artifact for an AI-engineering job search"); 25 plan files reference the operator's tool installation as `~/.claude-google/gsd-core/...`; `.planning/codebase/CONCERNS.md` publishes a candid list of known weaknesses (oversized modules, broad exception handlers, per-request secret read, image pin drift); `STATE.md` body contradicts its front matter. Nothing blocks publication, but the operator must decide consciously that `.planning/` ships and review `PROJECT.md:9` and `CONCERNS.md`. | **closed** (2026-10-16: publication review delegated to the implementer, verdict no blocking finding, and the switch ordered; see the switch record) |
 | T-09-28 | Repudiation | Accuracy of security claims in public documents | medium | mitigate | Phase 8 advisory A-5 is resolved: `README.md:47` now reads "passes no network flags (by construction, no OS sandbox)" and `docs/operations.md:61` carries the ADR 0046 qualification; the live egress refusals match the README. `.planning/codebase/INTEGRATIONS.md` still describes a retired CI layout (gitleaks action, single scan job) and a "session key" distinct from the signing secret; informational. | closed |
 | T-09-29 | Elevation of privilege | Repository settings and disclosure channel at visibility change | low | mitigate (gap) | Pending for the switch: Dependabot alerts disabled; `security_and_analysis` reports nothing for secret scanning and push protection; no branch protection on `main`; repository Actions permission allows all actions and does not require SHA pinning; no `SECURITY.md`; wiki, projects and issues enabled while unused. All are free on a public repository. | **closed** (2026-10-16, mitigation; see the repository-settings closure section) |
 
@@ -308,3 +308,13 @@ Applied over the GitHub API after the rewritten `main` was published to `origin`
 | Secret scanning and push protection | **unavailable while the repository is private** (API rejects with "Secret scanning is not available for this repository"); they become available exactly at the visibility switch and are applied as a step of PUBG-03 |
 
 T-09-29 is closed by mitigation; the secret-scanning pair is not a gap against the private state but the first action of the switch itself. T-09-27 (`.planning/` publication) remains the one open non-blocking entry and is settled by the operator's PUBG-03 confirmation.
+
+## Switch record (PUBG-03, 2026-10-16)
+
+The operator ordered the switch to public after the delegated publication review (README, docs/operations.md, SECURITY.md, LICENSE, PROJECT.md, CONCERNS.md, root tree; verdict no blocking finding, two documentation fixes committed as e282eaa with CI green). Executed over the GitHub API in this order:
+
+1. Visibility set to `public`.
+2. Secret scanning and push protection enabled immediately (both had been unavailable while private); Dependabot security updates enabled as well.
+3. Post-switch checks: secret-scanning alerts 0 on the public repository.
+
+T-09-27 closes with the switch: `.planning/` ships as a conscious operator decision, taken after the review and the scans recorded above. All 29 register entries are closed; `threats_open: 0`. The leak-gate hooks, the CI denylist and gitleaks jobs, and the branch protection on `main` remain in force, as PUBG-03 requires.

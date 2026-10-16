@@ -176,7 +176,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9. Phases 1-5 are complete baseline; the next action is planning Phase 7.
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9. All nine phases are complete; milestone v1.0 ended with the switch to public on 2026-10-16.
 
 **Phase completion gates:** a phase that changes code or executable operational artifacts runs `/gsd-code-review` and `/gsd-secure-phase` on the phase-final diff before it closes, and re-runs them after any material fix (operator rule R0.4; canonical mechanism set by operator decision 2026-10-14).
 
@@ -190,4 +190,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 6. Pluggable LLM gateway | 12/12 | Complete    | 2026-10-15 |
 | 7. Synthetic demo lecture and measured results | 8/8 | Complete    | 2026-10-16 |
 | 8. Portfolio README and documentation | 3/3 | Complete    | 2026-10-16 |
-| 9. Pre-public gate and release | 0/TBD | In progress — gate closed, public switch pending operator | 2026-10-16 |
+| 9. Pre-public gate and release | 0/TBD | Complete | 2026-10-16 |
