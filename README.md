@@ -165,6 +165,8 @@ make test
 
 The provisioning script builds whisper.cpp and llama.cpp with Metal, downloads the speech model and, with the opt-in flag, the example local text model. The example model is about 9 GB and pinned by revision and shard digests ([ADR 0046](docs/decisions/0046-pluggable-llm-gateway-and-local-adapter.md), decision 5). The first narration run downloads the Kokoro voice model once ([ADR 0032](docs/decisions/0032-kokoro-mlx-podcast-tts-engine.md)). The local gateway configuration selects the adapter; the versioned example documents every key.
 
+The example gateway configuration sets `default_adapter: codex`, the remote adapter, so a copy of it used unchanged routes stages to the remote model for lectures recorded as eligible. The local adapter (`llama-cpp`) is the choice that sends nothing off the machine; select it in the local copy of the configuration, or per run with `LECTURE_STUDY_LLM_ADAPTER=llama-cpp`, before processing any lecture whose content must not leave the machine. The remote adapter still refuses lectures not recorded as eligible ([ADR 0046](docs/decisions/0046-pluggable-llm-gateway-and-local-adapter.md)).
+
 `make docs-check` is a static check of this README and of `docs/operations.md`. It checks the commands inside shell-labelled code fences (make targets and variables, repository scripts and modules, subcommand names and long options by textual presence in the source), paths that start with a tracked directory, link targets that are files (anchors, the part after `#`, are not checked), ADR numbers, that each blockquote occurs verbatim in some ADR, and that no home-directory path appears. It does not check `make` commands written in running text, root-level files such as `Dockerfile.site` or `pyproject.toml`, bare package paths such as `ops/`, commands in unlabelled fences, or which ADR a quotation is attributed to.
 
 `make hooks` installs the leak-gate git hooks. They read a private denylist that is kept outside the repository ([ADR 0044](docs/decisions/0044-public-extraction-and-site-access-hardening.md), section 3), and no term of it is named here.
@@ -310,3 +312,19 @@ Packages under `src/lecture_study/`:
 ## License
 
 MIT, see [LICENSE](LICENSE).
+
+### Third-party licenses
+
+The project code is MIT. Dependencies and models keep their own licenses, which are not relicensed by this repository. Only what the repository files and the installed package metadata state is recorded here.
+
+| Component | Role | License as stated |
+| --- | --- | --- |
+| `phonemizer-fork` 3.3.2 | Phonemization for narration (dependency in `pyproject.toml`) | GPL-3.0-or-later (package metadata classifier) |
+| `espeakng-loader` 0.2.4 | Packages the eSpeak NG library and data for narration (dependency in `pyproject.toml`) | Package metadata declares no license; the bundled eSpeak NG (`espeak-ng`) library is a GPL component and its terms must be confirmed upstream before redistributing a build |
+| `mlx-audio` 0.5.4, `misaki` 0.9.4 | Narration runtime and text front end | MIT and Apache-2.0 respectively (package metadata) |
+| Qwen2.5-14B-Instruct GGUF | Example local text model, opt-in download | Apache-2.0 (`scripts/01_provision_engines.sh`, ADR 0046) |
+| Kokoro-82M (`mlx-community/Kokoro-82M-bf16`) | Narration voice model, downloaded on first use | Not recorded in this repository; see the model card |
+| Whisper `large-v3-turbo` model and whisper.cpp | Transcription | Not recorded in this repository; see the upstream repositories |
+| llama.cpp | Local inference engine, built from source by the provisioning script | Not recorded in this repository; see the upstream repository |
+
+The GPL components are used as installed Python dependencies and are not vendored or copied into this repository. Whether and how that affects distribution of a combined build is not decided here; confirm it before distributing one.

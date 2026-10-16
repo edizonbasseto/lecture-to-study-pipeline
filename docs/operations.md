@@ -212,3 +212,7 @@ The acceptance has stated limits and stated triggers for a new review:
 > that leaves the disk FileVault protects.
 
 `make docs-check` checks the commands in shell-labelled fences, paths that start with a tracked directory, link files (not anchors), ADR numbers and that each blockquote occurs verbatim in some ADR (not that it comes from the ADR cited). `make` commands in running text and root-level files are not checked.
+
+## Known limitation: container base image not pinned by digest
+
+`Dockerfile.site` builds from the tag `python:3.12-slim`, and its Python dependencies are pinned by version. The base image is not pinned by digest, because resolving a digest requires querying the registry and this repository change was made without network access. A rebuild can therefore pick up a newer base image under the same tag. Mitigation until a digest is recorded: resolve the digest of `python:3.12-slim` at build time with the registry client, replace the tag by `python:3.12-slim@sha256:<digest>`, and refresh it deliberately.
