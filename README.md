@@ -252,6 +252,15 @@ make demo-preflight ADAPTER=codex LECTURE=925101
 make demo-run ADAPTER=codex LECTURE=925101 CONFIRM_REMOTE_EGRESS=yes
 ```
 
+### Walkthrough verification
+
+The walkthrough was checked on 2026-10-16 as follows.
+
+- Static check: `make docs-check` verifies every command, make target, make variable, script, option, repository path, link and ADR number of this README and of `docs/operations.md`.
+- Executed on 2026-10-16: `make docs-check` (exit code 0); a dry run (`make -n`) of every demo target and of the variable forms shown above, each expanding to the expected script and adapter; `make demo-preflight` with the local adapter (`preflight=ok`); the refusal path `make demo-preflight ADAPTER=codex LECTURE=925101` without the confirmation variable (refused by design, exit code 2, nothing sent); `make demo-report` (exit code 0, the regenerated results report equal to the committed one); `make demo-site` (one line per demo lecture); and the served page, with `make demo-serve` started, `make demo-check` run for both lectures (anonymous request refused with status 401, sign-in redirected with status 303, lecture page status 200, uncertified notice present) and the server stopped afterwards.
+- Not re-executed, cited to the Phase 7 run and to [the results report](docs/results/demo-results.md): the provisioning script, `make demo-video`, `make demo-register`, `make demo-run` (both adapters), `make demo-harvest`, `make demo-recovery` and `make demo-site-access` (the throwaway certificate was still valid, so the sign-in material was not regenerated). No executed command passed the egress confirmation variable.
+- The Mermaid diagram is checked structurally (header, quoted labels, declared node ids) and renders on the hosting platform; visual rendering was not verified offline.
+
 ## Operating boundaries
 
 [docs/operations.md](docs/operations.md) states each boundary in the ADRs' own words. In short:
