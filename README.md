@@ -22,7 +22,7 @@ Terminology: this README says "stage N" for the numbered pipeline stages. The ar
 
 ## The problem
 
-Lecture recordings are long, and model-generated study material is only useful if every statement is grounded in the lecture and a reviewer has accepted it. The pipeline's guarantee is narrow and mechanical: no text that the critic rejected, or never reviewed, reaches a reader, and everything a reader sees is labelled as uncertified. The audience of the study site is an allowlist of signed-in people.
+Lecture recordings are long, and model-generated study material is only useful if every statement is grounded in the lecture and a reviewer has accepted it. The pipeline's guarantee is narrow and mechanical: the four scripts that write student-facing material (mock exam, podcast, personal-study flashcards and study guide) read only critic-approved, post-repair units and refuse the whole lecture otherwise, and every site page that renders study material carries the uncertified notice. The site does not re-check how a file was produced, and material generated before the gate existed was not gated; it must be regenerated or deleted ([ADR 0045](docs/decisions/0045-critic-gate-for-derivative-material-egress-and-audience.md), section 1 and Consequences). Files served unchanged (PDF, audio, video) cannot carry the notice. The audience of the study site is an allowlist of signed-in people.
 
 ## Architecture
 
@@ -118,11 +118,11 @@ The ADRs and the code call stages "Phase N". The ADR sequence skips the records 
 
 | Decision | Why | ADR |
 | --- | --- | --- |
-| Critic gate; a blocked lecture is never published partially | Derivative scripts load only post-repair units of `09_validated_units`; a rejected, missing, stale or mismatched unit blocks the whole lecture, because a reader could not tell that partial material was incomplete. | [0045](docs/decisions/0045-critic-gate-for-derivative-material-egress-and-audience.md), section 1 |
+| Critic gate; a blocked lecture is never published partially | The four derivative-material scripts load only post-repair units of `09_validated_units`; a rejected, missing, stale or mismatched unit blocks the whole lecture, because a reader could not tell that partial material was incomplete. The site does not re-check provenance, and material generated before the gate was not gated. | [0045](docs/decisions/0045-critic-gate-for-derivative-material-egress-and-audience.md), section 1 |
 | Uncertified by design | Stage 10 keeps refusing, no artifact may be presented as certified or clinically approved, and every site page that renders study material says so. | [0024](docs/decisions/0024-uncertified-personal-study-execution-mode.md), [0045](docs/decisions/0045-critic-gate-for-derivative-material-egress-and-audience.md), section 3 |
 | One LLM port, two adapters, egress enforced as code | The remote adapter runs only for lectures recorded as eligible, and the refusal happens before the executable is resolved; detecting patient-identifying data stays with the operator. | [0046](docs/decisions/0046-pluggable-llm-gateway-and-local-adapter.md) |
 | ASR vocabulary prompt plus deterministic terminology correction | The prompt prevents meaning inversions at the source; a deterministic rewrite handles terms the prompt cannot fix, and its audit record is written before the transcript. | [0028](docs/decisions/0028-asr-vocabulary-prompt-and-terminology-correction.md) |
-| Student-facing text guard | A prompt fix alone still produced referring phrases in six of twelve questions, so a mechanical guard sits inside the bounded retry and no defective artifact is written. | [0027](docs/decisions/0027-student-facing-text-guard.md) |
+| Student-facing text guard | The critic cannot catch language or referring-phrase defects, so a mechanical guard sits inside the bounded retry and no defective artifact is written; the prompt alone was rejected because the first run after the prompt fix still produced six questions with a referring phrase. | [0027](docs/decisions/0027-student-facing-text-guard.md) |
 | Filesystem-artifact resume in the orchestrator | Stages communicate through files, a stage whose output artifact exists is skipped on rerun, and stages 5 to 7 are scoped to the requested lecture. | [0016](docs/decisions/0016-master-cli-orchestrator.md) |
 | Server-graded mock exam | The answer key is stripped before any response and the exam file is read from disk, never mounted as a static tree. | [0041](docs/decisions/0041-server-graded-interactive-mock-exam.md) |
 | Site access with per-person revocation and a hash-based Content-Security-Policy | Session tokens are signed with a key that mixes a server secret with one person's password hash, so removing a line revokes exactly that person; inline code is admitted only by its hash. | [0029](docs/decisions/0029-study-site-scope-and-access.md), [0039](docs/decisions/0039-phone-sessions-and-edge-cache-isolation.md), [0044](docs/decisions/0044-public-extraction-and-site-access-hardening.md) |
@@ -153,7 +153,7 @@ Requirements, as the repository files state them:
 
 - Apple Silicon macOS. OCR uses Apple Vision and narration uses MLX ([ADR 0001](docs/decisions/0001-apple-silicon-quartz.md), and the macOS job of the CI workflow).
 - Python 3.12, managed by [uv](https://docs.astral.sh/uv/) (`.python-version`).
-- Homebrew. The provisioning script installs `ffmpeg`, `typst` and `huggingface-cli`; the CI job additionally installs `poppler` and `gitleaks`.
+- Homebrew, `git` and `cmake`, plus a C/C++ toolchain (Xcode command line tools). The provisioning script installs `ffmpeg`, `typst` and `huggingface-cli`, then clones and builds whisper.cpp and llama.cpp with `git` and `cmake`, which it does not install; the CI job additionally installs `poppler` and `gitleaks`.
 
 ```bash
 uv sync --group dev
@@ -165,7 +165,7 @@ make test
 
 The provisioning script builds whisper.cpp and llama.cpp with Metal, downloads the speech model and, with the opt-in flag, the example local text model. The example model is about 9 GB and pinned by revision and shard digests ([ADR 0046](docs/decisions/0046-pluggable-llm-gateway-and-local-adapter.md), decision 5). The first narration run downloads the Kokoro voice model once ([ADR 0032](docs/decisions/0032-kokoro-mlx-podcast-tts-engine.md)). The local gateway configuration selects the adapter; the versioned example documents every key.
 
-`make docs-check` verifies that every command, make target, make variable, script, option, repository path, link and ADR number written in this README and in `docs/operations.md` exists as written.
+`make docs-check` is a static check of this README and of `docs/operations.md`. It checks the commands inside shell-labelled code fences (make targets and variables, repository scripts and modules, subcommand names and long options by textual presence in the source), paths that start with a tracked directory, link targets that are files (anchors, the part after `#`, are not checked), ADR numbers, that each blockquote occurs verbatim in some ADR, and that no home-directory path appears. It does not check `make` commands written in running text, root-level files such as `Dockerfile.site` or `pyproject.toml`, bare package paths such as `ops/`, commands in unlabelled fences, or which ADR a quotation is attributed to.
 
 `make hooks` installs the leak-gate git hooks. They read a private denylist that is kept outside the repository ([ADR 0044](docs/decisions/0044-public-extraction-and-site-access-hardening.md), section 3), and no term of it is named here.
 
@@ -256,9 +256,9 @@ make demo-run ADAPTER=codex LECTURE=925101 CONFIRM_REMOTE_EGRESS=yes
 
 The walkthrough was checked on 2026-10-16 as follows.
 
-- Static check: `make docs-check` verifies every command, make target, make variable, script, option, repository path, link and ADR number of this README and of `docs/operations.md`.
+- Static check: `make docs-check` over this README and `docs/operations.md`, within the limits stated in the quick start (fenced commands, tracked-directory paths, link files without anchors, ADR numbers, verbatim blockquotes).
 - Executed on 2026-10-16: `make docs-check` (exit code 0); a dry run (`make -n`) of every demo target and of the variable forms shown above, each expanding to the expected script and adapter; `make demo-preflight` with the local adapter (`preflight=ok`); the refusal path `make demo-preflight ADAPTER=codex LECTURE=925101` without the confirmation variable (refused by design, exit code 2, nothing sent); `make demo-report` (exit code 0, the regenerated results report equal to the committed one); `make demo-site` (one line per demo lecture); and the served page, with `make demo-serve` started, `make demo-check` run for both lectures (anonymous request refused with status 401, sign-in redirected with status 303, lecture page status 200, uncertified notice present) and the server stopped afterwards.
-- Not re-executed, cited to the Phase 7 run and to [the results report](docs/results/demo-results.md): the provisioning script, `make demo-video`, `make demo-register`, `make demo-run` (both adapters), `make demo-harvest`, `make demo-recovery` and `make demo-site-access` (the throwaway certificate was still valid, so the sign-in material was not regenerated). No executed command passed the egress confirmation variable.
+- Not re-executed, cited to the Phase 7 run and to [the results report](docs/results/demo-results.md): the provisioning script, `make demo-video`, `make demo-register`, `make demo-run` (both adapters), `make demo-harvest`, `make demo-recovery` and `make demo-site-access` (the throwaway certificate was still valid, so the sign-in material was not regenerated). No command executed for real passed the egress confirmation variable (`make -n` prints commands without running them).
 - The Mermaid diagram is checked structurally (header, quoted labels, declared node ids) and renders on the hosting platform; visual rendering was not verified offline.
 
 ## Operating boundaries

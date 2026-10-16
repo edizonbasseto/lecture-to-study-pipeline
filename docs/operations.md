@@ -188,17 +188,12 @@ Two paths regenerate the pages. `make demo-site` regenerates the demo site. The 
 
 Source: [ADR 0039, Context and decision 5](decisions/0039-phone-sessions-and-edge-cache-isolation.md).
 
-The sign-in form is reachable without credentials and its cost is paid by one process:
-
-> `POST /entrar` is reachable without credentials and costs one PBKDF2 pass per
-> allowlisted person, run on the event loop of a single-worker container.
-
-ADR 0039 answers it with two limits on sign-in attempts, a wait counted per address attempted and a cap on concurrent password checks. Both are held by the process itself:
+The sign-in form is reachable without credentials. ADR 0039 answers that with two limits on sign-in attempts, a wait counted per address attempted and a cap on concurrent password checks, and states that password checks run off the event loop (decision 5). The limits are held by the process itself:
 
 > Both limits are in-process, matching the single-replica deployment; they are a
 > first barrier, not a distributed quota.
 
-The container entrypoint (`infra/docker-entrypoint.sh`) and `make demo-serve` each start one server process; neither the entrypoint, `Dockerfile.site` nor the Makefile passes a workers option. As a direct consequence of "in-process", a deployment with more than one process does not share these limits.
+The container entrypoint (`infra/docker-entrypoint.sh`) and `make demo-serve` each start one server process; neither the entrypoint, `Dockerfile.site` nor the Makefile passes a workers option. Inference of this document, not an ADR statement: with limits held in-process, a deployment with more than one process would not share them.
 
 ## FileVault revisit triggers
 
@@ -216,4 +211,4 @@ The acceptance has stated limits and stated triggers for a new review:
 > logged-in user on the same unlocked machine, nor against a directory
 > that leaves the disk FileVault protects.
 
-`make docs-check` verifies the commands, paths, links and quotations in this document.
+`make docs-check` checks the commands in shell-labelled fences, paths that start with a tracked directory, link files (not anchors), ADR numbers and that each blockquote occurs verbatim in some ADR (not that it comes from the ADR cited). `make` commands in running text and root-level files are not checked.
